@@ -222,7 +222,6 @@ The query flow enables external clients to retrieve semantically relevant docume
 - Danger: Red (#EF4444)
 - Background: Gray (#252525)
 
-# BELOW THIS HAS NOT BEEN REVIEWED AND ARE JAS's IDEAS FORMATTED INTO ROUGH SECTIONS
 ### Key Screens & Wireframes
 
 #### 1. Knowledge Base List View
@@ -319,12 +318,12 @@ Form layout:
 7. Background: Initial sync starts
 ```
 
-**[DIAGRAM PLACEHOLDER 10: User Flow - Query via Claude]**
+**[DIAGRAM PLACEHOLDER 10: User Flow - Query via Open WebUI]**
 ```
-1. User opens Claude Desktop
-2. Claude has MCP server configured (one-time setup)
+1. User opens Open WebUI
+2. Open WebUI has MCP server configured (one-time setup)
 3. User asks question
-4. Claude calls search_knowledge_base tool (transparent to user)
+4. Open WebUI calls search_knowledge_base tool (transparent to user)
 5. Results returned, cited in response
 ```
 
@@ -497,7 +496,7 @@ QueryEngine
 
 ### MCP Server Design
 
-**Transport:** stdio (simpler for MVP)
+**Transport:** http
 
 **Tools Exposed:**
 
@@ -520,27 +519,6 @@ QueryEngine
     - Input: `{document_id: string}`
     - Output: `{metadata, health_score, retrieval_count, ...}`
     - Use: Get document stats without full content
-
-**Implementation:**
-```python
-from fastmcp import FastMCP
-
-mcp = FastMCP(name="Adaptive RAG Server")
-
-@mcp.tool()
-async def search_knowledge_base(
-    query: str,
-    top_k: int = 5,
-    filters: dict = {}
-) -> dict:
-    """Search knowledge base with semantic similarity"""
-    results = await query_engine.search(query, top_k, filters)
-    return {
-        "results": results,
-        "query": query,
-        "total_results": len(results)
-    }
-```
 
 ### OpenAPI Design
 
@@ -579,44 +557,6 @@ DELETE /api-keys/{key_id}
 
 **Authentication:** API Key in header `X-API-Key: <key>`
 
-**Example Search Request:**
-```bash
-POST /api/v1/knowledge-bases/kb_123/search
-X-API-Key: sk_abcdef...
-
-{
-  "query": "What is our Q3 revenue?",
-  "top_k": 5,
-  "filters": {
-    "document_type": "financial",
-    "date_after": "2025-07-01"
-  },
-  "min_similarity": 0.7
-}
-```
-
-**Example Response:**
-```json
-{
-  "results": [
-    {
-      "document_id": "doc_456",
-      "document_title": "Q3 2025 Financial Report",
-      "chunk_text": "Q3 revenue reached $12.5M...",
-      "similarity_score": 0.92,
-      "metadata": {
-        "source": "s3://bucket/financials/q3-2025.pdf",
-        "document_type": "financial",
-        "last_updated": "2025-10-15T10:30:00Z"
-      }
-    }
-  ],
-  "query": "What is our Q3 revenue?",
-  "total_results": 1,
-  "execution_time_ms": 45
-}
-```
-
 ---
 
 ## 7. DATABASE ARCHITECTURE
@@ -624,135 +564,6 @@ X-API-Key: sk_abcdef...
 ### PostgreSQL Schema
 
 **[DIAGRAM PLACEHOLDER 14: Database Schema ERD]**
-
-**Main Tables:**
-
-```sql
--- Knowledge Bases
-CREATE TABLE knowledge_bases (
-    id UUID PRIMARY KEY,
-    name VARCHAR(255) NOT NULL,
-    description TEXT,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-);
-
--- Sync Configurations
-CREATE TABLE sync_configs (
-    id UUID PRIMARY KEY,
-    kb_id UUID REFERENCES knowledge_bases(id),
-    provider VARCHAR(50) NOT NULL, -- 's3', 'gcs', 'azure'
-    bucket_name VARCHAR(255) NOT NULL,
-    prefix VARCHAR(500),
-    region VARCHAR(50),
-    auth_method VARCHAR(50), -- 'iam_role', 'access_key'
-    credentials JSONB, -- encrypted
-    last_sync TIMESTAMP,
-    sync_status VARCHAR(50), -- 'active', 'paused', 'error'
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-);
-
--- Documents
-CREATE TABLE documents (
-    id UUID PRIMARY KEY,
-    kb_id UUID REFERENCES knowledge_bases(id),
-    source_path VARCHAR(1000) NOT NULL, -- S3 key
-    title VARCHAR(500),
-    document_type VARCHAR(100), -- 'financial', 'legal', 'technical'
-    file_size_bytes BIGINT,
-    content_hash VARCHAR(64), -- SHA-256
-    created_at TIMESTAMP,
-    updated_at TIMESTAMP,
-    last_synced TIMESTAMP,
-    processing_status VARCHAR(50), -- 'pending', 'processing', 'completed', 'failed'
-    chunk_count INT,
-    chunking_strategy VARCHAR(100)
-);
-
--- File Tracking (for delta sync)
-CREATE TABLE s3_file_tracking (
-    s3_key VARCHAR(1024) PRIMARY KEY,
-    kb_id UUID REFERENCES knowledge_bases(id),
-    etag VARCHAR(64) NOT NULL,
-    last_modified TIMESTAMP NOT NULL,
-    size_bytes BIGINT NOT NULL,
-    last_synced TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    processing_status VARCHAR(50),
-    document_id UUID REFERENCES documents(id)
-);
-
--- Document Health Metrics
-CREATE TABLE document_health (
-    document_id UUID PRIMARY KEY REFERENCES documents(id),
-    retrieval_count INT DEFAULT 0,
-    last_retrieved TIMESTAMP,
-    positive_feedback INT DEFAULT 0,
-    negative_feedback INT DEFAULT 0,
-    staleness_days INT,
-    health_score DECIMAL(3,2), -- 0.00 to 1.00
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-);
-
--- Chunks (metadata only, vectors in Qdrant)
-CREATE TABLE chunks (
-    id UUID PRIMARY KEY,
-    document_id UUID REFERENCES documents(id),
-    chunk_index INT NOT NULL,
-    content TEXT,
-    token_count INT,
-    metadata JSONB,
-    qdrant_point_id UUID, -- reference to Qdrant
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-);
-
--- Query Logs
-CREATE TABLE query_logs (
-    id UUID PRIMARY KEY,
-    kb_id UUID REFERENCES knowledge_bases(id),
-    query TEXT NOT NULL,
-    filters JSONB,
-    top_k INT,
-    results_count INT,
-    execution_time_ms INT,
-    user_id VARCHAR(255),
-    api_key_id UUID,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-);
-
--- API Keys
-CREATE TABLE api_keys (
-    id UUID PRIMARY KEY,
-    key_hash VARCHAR(64) NOT NULL UNIQUE,
-    name VARCHAR(255),
-    user_id VARCHAR(255),
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    expires_at TIMESTAMP,
-    last_used TIMESTAMP,
-    is_active BOOLEAN DEFAULT TRUE
-);
-
--- Processing Jobs (Celery task tracking)
-CREATE TABLE processing_jobs (
-    id UUID PRIMARY KEY,
-    job_type VARCHAR(50), -- 'document_process', 'sync', 'reindex'
-    document_id UUID REFERENCES documents(id),
-    status VARCHAR(50), -- 'queued', 'running', 'completed', 'failed'
-    started_at TIMESTAMP,
-    completed_at TIMESTAMP,
-    error_message TEXT,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-);
-```
-
-**Indexes:**
-```sql
-CREATE INDEX idx_documents_kb_id ON documents(kb_id);
-CREATE INDEX idx_documents_status ON documents(processing_status);
-CREATE INDEX idx_chunks_document ON chunks(document_id);
-CREATE INDEX idx_s3_tracking_kb ON s3_file_tracking(kb_id);
-CREATE INDEX idx_query_logs_kb ON query_logs(kb_id);
-CREATE INDEX idx_query_logs_created ON query_logs(created_at);
-```
 
 ### Qdrant Schema
 
@@ -782,15 +593,6 @@ CREATE INDEX idx_query_logs_created ON query_logs(created_at);
 - Easy KB deletion (drop collection)
 - Independent scaling
 
-**Payload Indexing:**
-```python
-# Create indexes for fast filtering
-qdrant_client.create_payload_index(
-    collection_name=f"adaptive_rag_kb_{kb_id}",
-    field_name="document_type",
-    field_schema="keyword"
-)
-```
 
 ---
 
@@ -806,52 +608,18 @@ qdrant_client.create_payload_index(
 - Pure polling: Simple but high latency, inefficient
 - Pure events: Fast but risky (missed events in rare cases)
 
-**Why hybrid wins:**
+**Why hybrid:**
 - Events: Real-time sync (enterprise requirement)
 - Daily scan: Catches any missed files (reliability)
 - Best of both: Fast + reliable
 
 **Trade-offs:**
-- ✅ Reliability guaranteed
-- ✅ Real-time updates
-- ❌ Slightly more complex setup
-- ❌ Minimal extra cost (SNS/SQS pennies per million)
+- Reliability guaranteed
+- Real-time updates
+- Slightly more complex setup
+- Minimal extra cost (SNS/SQS pennies per million)
 
 **Decision:** Worth the complexity for enterprise reliability
-
----
-
-### Decision 2: Qdrant over Pinecone/Weaviate
-
-**What we chose:** Qdrant
-
-**Alternatives:**
-- **Pinecone:** Managed-only, usage-based pricing, excellent but expensive at scale
-- **Weaviate:** Feature-rich, GraphQL API, higher resource usage
-- **Qdrant:** Open-source + managed option, Rust performance, advanced filtering
-
-**Comparison:**
-
-| Aspect | Qdrant | Pinecone | Weaviate |
-|--------|--------|----------|----------|
-| Deployment | Self-host or cloud | Cloud only | Self-host or cloud |
-| Filtering | Best-in-class | Good | Good |
-| Performance | Excellent (Rust) | Excellent | Good (resource-heavy) |
-| Cost (self-host) | $0 (compute only) | N/A | $0 (compute only) |
-| Cost (managed) | Moderate | High | Moderate |
-| Ease of use | Good | Excellent | Moderate |
-
-**Why Qdrant:**
-- ✅ Self-hosting option = cost control as we scale
-- ✅ Advanced filtering critical for metadata-heavy RAG
-- ✅ Rust performance handles enterprise scale
-- ✅ Good Python client
-- ✅ Team can move to managed later if needed
-
-**Trade-offs:**
-- ❌ Not as beginner-friendly as Pinecone
-- ❌ Smaller ecosystem than Weaviate
-- ✅ But: Better performance/$ ratio for our needs
 
 ---
 
@@ -870,16 +638,11 @@ qdrant_client.create_payload_index(
 - More general-purpose tooling
 - Larger ecosystem
 
-**Our use case:** Primarily document → chunks → embeddings → retrieval
-**Winner:** LlamaIndex (35% better retrieval accuracy per benchmarks)
-
 **Trade-offs:**
-- ✅ Better RAG performance
-- ✅ Less boilerplate
-- ❌ Smaller community than LangChain
-- ❌ Less flexibility for non-RAG tasks
-
-**Mitigation:** Use LangChain for any future agent features
+- Better RAG performance
+- Less boilerplate
+- Smaller community than LangChain
+- Less flexibility for non-RAG tasks
 
 ---
 
@@ -893,24 +656,24 @@ qdrant_client.create_payload_index(
 - Bootstrap: Dated aesthetic
 
 **Why Tailwind:**
-- ✅ Utility-first = faster custom designs
-- ✅ No bloat (unused classes purged)
-- ✅ Modern aesthetic
-- ✅ Easier to create unique look (enterprise branding)
-- ✅ Better for dashboard/data-heavy UIs
+- Utility-first = faster custom designs
+- No bloat (unused classes purged)
+- Modern aesthetic
+- Easier to create unique look (enterprise branding)
+- Better for dashboard/data-heavy UIs
 
 **Why NOT MUI:**
-- ❌ Harder to customize deeply
-- ❌ "Google look" limits brand differentiation
-- ❌ Heavier bundle size
+- Harder to customize deeply
+- "Google look" limits brand differentiation
+- Heavier bundle size
 
 **Trade-offs:**
-- ✅ Full design control
-- ✅ Smaller bundle
-- ❌ More manual component building
-- ❌ No out-of-box theme system
+- Full design control
+- Smaller bundle
+- More manual component building
+- No out-of-box theme system
 
-**Mitigation:** Use Headless UI + Tailwind for pre-built accessible components
+**Mitigation:** Use ShadCN + Tailwind for pre-built accessible components
 
 ---
 
@@ -919,24 +682,22 @@ qdrant_client.create_payload_index(
 **What we chose:** FastAPI
 
 **Why:**
-- ✅ Auto OpenAPI spec generation (saves time)
-- ✅ Async/await native (critical for concurrent S3 downloads, embeddings)
-- ✅ Pydantic validation (type safety)
-- ✅ Faster development for APIs
-- ✅ Modern Python (type hints everywhere)
+- Auto OpenAPI spec generation (saves time)
+- Async/await native (critical for concurrent S3 downloads, embeddings)
+- Pydantic validation (type safety)
+- Faster development for APIs
+- Modern Python (type hints everywhere)
 
 **Why NOT Django:**
-- ❌ Heavier (ORM, admin, templates not needed)
-- ❌ Sync-first (async support bolted on)
-- ❌ Overkill for API-only backend
+- Heavier (ORM, admin, templates not needed)
+- Sync-first (async support bolted on)
+- Overkill for API-only backend
 
 **Trade-offs:**
-- ✅ Faster API development
-- ✅ Better async performance
-- ❌ Less "batteries included" than Django
-- ❌ Must pick auth, admin panel separately
-
-**Mitigation:** Add django-admin later if needed for internal tools
+- Faster API development
+- Better async performance
+- Less "batteries included" than Django
+- Must pick auth, admin panel separately
 
 ---
 
@@ -947,92 +708,23 @@ qdrant_client.create_payload_index(
 **NOT:** Heavy plugin frameworks (Pluggy, Stevedore)
 
 **Why simple:**
-- ✅ Just drop `.py` file in `/plugins/` → auto-discovered
-- ✅ ABC enforces interface at import time (fail fast)
-- ✅ No complex config files
-- ✅ Easy to understand (team can contribute)
-- ✅ Good enough for 3-5 cloud providers
+- Just drop `.py` file in `/plugins/` → auto-discovered
+- ABC enforces interface at import time (fail fast)
+- No complex config files
+- Easy to understand
+- Good enough for 3-5 cloud providers
 
 **Why NOT heavy framework:**
-- ❌ Overkill for our use case
-- ❌ Steeper learning curve
-- ❌ More abstraction layers
-- ❌ Harder to debug
+- Overkill for our use case
+- Steeper learning curve
+- More abstraction layers
+- Harder to debug
 
 **Trade-offs:**
-- ✅ Simplicity
-- ✅ Easy contribution
-- ❌ Less plugin lifecycle management
-- ❌ No plugin versioning (don't need it)
-
-**This is pragmatic engineering:** Right tool for the job, not over-engineering.
-
----
-
-### Decision 7: MCP stdio (Not HTTP) for MVP
-
-**What we chose:** stdio transport for MCP
-
-**Why:**
-- ✅ Simpler setup (no HTTP server config)
-- ✅ Works perfectly for local clients (Claude Desktop, Cursor)
-- ✅ Lower latency (no network overhead)
-- ✅ Secure (no network exposure)
-- ✅ Matches 90% of enterprise use case (dev tools)
-
-**Why NOT HTTP:**
-- Not needed for MVP
-- Adds complexity
-- Requires auth/rate limiting
-- Network latency
-
-**Future migration path:**
-- Post-MVP: Add HTTP transport if remote access needed
-- Same tool implementations work for both transports
-- Easy upgrade
-
-**Trade-offs:**
-- ✅ Faster to ship
-- ✅ Simpler to maintain
-- ❌ Single client at a time (acceptable for dev tools)
-- ❌ Can't share across team (future: add HTTP)
-
----
-
-### Decision 8: Heuristic Strategy Selection (MVP), ML Later
-
-**What we chose:** Rule-based strategy selection for MVP
-
-**Why:**
-```python
-if doc.table_count > 5:
-    strategy = "table-preserving"
-elif doc.section_depth > 3:
-    strategy = "hierarchical"
-else:
-    strategy = "semantic"
-```
-
-**Why NOT ML from day 1:**
-- Need performance data first (chicken-egg problem)
-- ML requires labeled training data (which strategies work)
-- Heuristics work well enough to start collecting data
-- Faster to ship
-
-**Migration path:**
-1. MVP: Heuristic rules + log all decisions
-2. Week 4-5: Collect retrieval performance data
-3. Post-MVP: Train ML model on actual performance
-4. Replace heuristics with learned model
-
-**Trade-offs:**
-- ✅ Ship faster
-- ✅ Get real data from production
-- ✅ Rules are interpretable
-- ❌ Not optimal initially (but good enough)
-- ✅ Foundation for ML later
-
-**This is lean methodology:** Ship, learn, improve.
+- Simplicity
+- Easy contribution
+- Less plugin lifecycle management
+- No plugin versioning (don't need it)
 
 ---
 
@@ -1049,7 +741,7 @@ else:
 
 **Alternatives:**
 - **Docling (IBM):** Excellent accuracy but newer, less format support
-- **LlamaParse:** Fast but API-only (lock-in), struggles with complex layouts
+- **LlamaParse:** Fast but API-only, struggles with complex layouts
 
 **Benchmark data:**
 - Unstructured: 100% accuracy on simple tables, 80% on complex
@@ -1059,44 +751,13 @@ else:
 **Why Unstructured wins:**
 - Balance of accuracy, speed, format support
 - Open source = no vendor lock-in
-- Can upgrade to API if needed
-- Good community
+- Good community support
 
 **Trade-offs:**
-- ✅ Best balance
-- ✅ No lock-in
-- ❌ Slower than LlamaParse (acceptable: 50s for 50 pages)
-- ❌ Not quite as accurate as Docling (acceptable: 80% is good)
-
----
-
-### Decision 10: Celery + Redis over Simpler Queues
-
-**What we chose:** Celery with Redis backend
-
-**Alternatives:**
-- RQ (Redis Queue): Simpler, less features
-- asyncio + Database: Lightweight, no separate service
-- AWS SQS: Managed but couples to AWS
-
-**Why Celery:**
-- ✅ Battle-tested in production
-- ✅ Priority queues (process events before scans)
-- ✅ Retries, monitoring, result storage
-- ✅ Can add workers for scaling
-- ✅ Team familiarity
-
-**Why Redis:**
-- ✅ Fast
-- ✅ Also useful for caching query results
-- ✅ Single service does double duty
-
-**Trade-offs:**
-- ✅ Production-ready
-- ✅ Scalable
-- ❌ More complex than RQ
-- ❌ Another service to manage
-- ✅ Worth it for enterprise reliability
+- Best balance
+- No lock-in
+- Slower than LlamaParse
+- Not quite as accurate as Docling
 
 ---
 
