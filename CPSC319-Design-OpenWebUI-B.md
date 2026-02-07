@@ -226,106 +226,32 @@ The query flow enables external clients to retrieve semantically relevant docume
 
 #### 1. Knowledge Base List View
 
-**[DIAGRAM PLACEHOLDER 5: KB List Wireframe]**
-
-Elements to include:
-- Left sidebar: Navigation (Home, Knowledge Bases, Settings)
-- Top bar: Search, User profile, Notifications
-- Main content:
-    - Header: "Knowledge Bases" + "Create New" button
-    - Table/Card grid showing:
-        - KB name
-        - Document count
-        - Last sync time
-        - Health score (visual indicator)
-        - Actions (View, Configure, Delete)
+![wireframe5](diagrams/wireframe1.png)
 
 #### 2. Document Health Dashboard
 
-**[DIAGRAM PLACEHOLDER 6: Health Dashboard Wireframe]**
-
-Layout:
-- **Top metrics row:**
-    - Total documents
-    - Stale documents (count + %)
-    - Avg retrieval frequency
-    - Overall health score
-
-- **Heatmap visualization:**
-    - Color-coded document retrieval frequency
-    - Hover shows document name + stats
-
-- **Document list table:**
-    - Name | Type | Last Updated | Retrieval Count | Health Score | Actions
-    - Sortable columns
-    - Filter by type, health, date
-
-- **Right sidebar:**
-    - Quick actions
-    - Recent activity log
+![wireframe6](diagrams/wireframe2.png)
 
 #### 3. Document Detail View
 
-**[DIAGRAM PLACEHOLDER 7: Document Detail Wireframe]**
-
-Sections:
-- **Header:** Document name, type badge, health indicator
-- **Metadata panel:**
-    - Source (S3 path)
-    - Size
-    - Created/Updated dates
-    - Processing strategy used
-
-- **Tabs:**
-    1. **Overview:** Summary stats, preview snippet
-    2. **Strategy:** Rationale for chunking choice, detected features
-    3. **Chunks:** List of chunks with similarity preview
-    4. **Health:** Retrieval history chart, staleness indicator
-
-- **Action buttons:**
-    - Reprocess
-    - Override strategy
-    - View in S3
-    - Delete
+![wireframe7](diagrams/wireframe3.png)
+![wireframe8](diagrams/wireframe4.png)
+![wireframe9](diagrams/wireframe5.png)
+![wireframe10](diagrams/wireframe6.png)
+![wireframe11](diagrams/wireframe7.png)
 
 #### 4. Sync Configuration Page
 
-**[DIAGRAM PLACEHOLDER 8: Sync Config Wireframe]**
-
-Form layout:
-- Provider selection (S3 initially, future: GCS, Azure)
-- S3-specific fields:
-    - Bucket name
-    - Prefix (optional)
-    - Region
-    - Authentication (IAM role / Access keys)
-- Sync settings:
-    - Sync frequency (real-time + daily reconciliation)
-    - File filters (extensions, patterns)
-- Test connection button
-- Save configuration
+![wireframe12](diagrams/wireframe8.png)
+![wireframe13](diagrams/wireframe9.png)
 
 ### User Flows
 
-**[DIAGRAM PLACEHOLDER 9: User Flow - Setup New KB]**
-```
-1. Click "Create Knowledge Base"
-2. Enter name, description
-3. Configure S3 sync (bucket, auth)
-4. Test connection
-5. Choose processing defaults (can override later)
-6. Save → Redirects to KB dashboard
-7. Background: Initial sync starts
-```
+#### Create Knowledge Base & Configure Sync
+![wireframe14](diagrams/create_kb.png)
 
-**[DIAGRAM PLACEHOLDER 10: User Flow - Query via Open WebUI]**
-```
-1. User opens Open WebUI
-2. Open WebUI has MCP server configured (one-time setup)
-3. User asks question
-4. Open WebUI calls search_knowledge_base tool (transparent to user)
-5. Results returned, cited in response
-```
+#### Make Query & View Results
+![wireframe15](diagrams/query.png)
 
 ### Component Library
 
@@ -344,19 +270,7 @@ Form layout:
 ## 5. BACKEND DESIGN
 
 ### Cloud Sync Service Architecture
-
-**[DIAGRAM PLACEHOLDER 11: Sync Service Components]**
-
-```
-CloudSyncService
-├── PluginManager (discovers and loads plugins)
-├── S3Plugin (implements CloudStoragePlugin interface)
-│   ├── EventProcessor (SQS polling)
-│   ├── DeltaSyncScheduler (daily full scan)
-│   └── S3Client (boto3 wrapper)
-├── FileTrackingDB (PostgreSQL tracking)
-└── DocumentQueue (Celery tasks)
-```
+![sync](diagrams/sync.png)
 
 ### Plugin Architecture
 
@@ -400,40 +314,7 @@ class CloudStoragePlugin(ABC):
 - **Clean:** Core system doesn't know about specific providers
 
 ### Document Processing Pipeline
-
-**[DIAGRAM PLACEHOLDER 12: Processing Pipeline Flow]**
-
-```
-1. File Downloaded from S3
-   ↓
-2. Document Parser (Unstructured.io)
-   - Extracts text, tables, images
-   - Detects structure (headers, lists, code)
-   ↓
-3. Structure Analyzer
-   - Counts tables, headers, sections
-   - Measures text density
-   - Identifies metadata (dates, entities)
-   ↓
-4. Strategy Selector
-   - Input: Document features
-   - Output: Best chunking strategy
-   - Strategies: Semantic, Hierarchical, Layout-aware, Table-preserving
-   ↓
-5. Chunking Engine (LlamaIndex)
-   - Applies selected strategy
-   - Preserves structure boundaries
-   - Adds metadata to chunks
-   ↓
-6. Embedding Service
-   - Generates vectors (OpenAI Ada-003)
-   - Batch processing for efficiency
-   ↓
-7. Storage
-   - Vectors → Qdrant
-   - Metadata → PostgreSQL
-   - Original file → S3 (already there)
-```
+![processing](diagrams/processing.png)
 
 ### Chunking Strategies
 
