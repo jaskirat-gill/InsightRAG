@@ -444,7 +444,7 @@ DELETE /api-keys/{key_id}
 
 ### PostgreSQL Schema
 
-**[DIAGRAM PLACEHOLDER 14: Database Schema ERD]**
+![{PostgreSQL ERD}](diagrams/PostgreSQL-ERD.png)
 
 ### Qdrant Schema
 
