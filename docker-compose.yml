@@ -1,0 +1,75 @@
+version: '3.8'
+
+services:
+  frontend:
+    build: ./frontend
+    ports:
+      - "5173:5173"
+    volumes:
+      - ./frontend:/app:z
+      - /app/node_modules
+    environment:
+      - VITE_API_URL=http://localhost:8000
+    depends_on:
+      - query-engine
+
+  cloud-sync-service:
+    build: ./backend/cloud-sync-service
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./backend/cloud-sync-service:/app:z
+    environment:
+      - DATABASE_URL=postgresql://user:password@postgres:5432/openwebui
+      - QDRANT_URL=http://qdrant:6333
+    depends_on:
+      - postgres
+      - qdrant
+
+  query-engine:
+    build: ./backend/query-engine
+    ports:
+      - "8001:8001"
+    volumes:
+      - ./backend/query-engine:/app:z
+    environment:
+      - DATABASE_URL=postgresql://user:password@postgres:5432/openwebui
+      - QDRANT_URL=http://qdrant:6333
+    depends_on:
+      - postgres
+      - qdrant
+
+  document-processing-engine:
+    build: ./backend/document-processing-engine
+    volumes:
+      - ./backend/document-processing-engine:/app:z
+    environment:
+      - DATABASE_URL=postgresql://user:password@postgres:5432/openwebui
+      - QDRANT_URL=http://qdrant:6333
+    depends_on:
+      - postgres
+      - qdrant
+
+  postgres:
+    image: postgres:15-alpine
+    restart: always
+    environment:
+      POSTGRES_USER: user
+      POSTGRES_PASSWORD: password
+      POSTGRES_DB: openwebui
+    ports:
+      - "5433:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+  qdrant:
+    image: qdrant/qdrant
+    restart: always
+    ports:
+      - "6333:6333"
+    volumes:
+      - qdrant_data:/qdrant/storage
+
+volumes:
+  postgres_data:
+  qdrant_data:
