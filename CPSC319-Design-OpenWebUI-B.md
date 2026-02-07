@@ -9,6 +9,13 @@
 Current RAG systems fail when knowledge bases contain diverse document types (financial reports, legal contracts, technical docs) because they use one-size-fits-all chunking and retrieval strategies.
 
 ### Our Solution
+**Primary User Roles**
+
+The system is designed for three primary user groups:
+- **Developers**: Interact with the system via MCP and REST APIs to integrate knowledge retrieval into LLM-driven workflows.
+- **Administrators**: Use the management dashboard to configure cloud sync, monitor ingestion status, and diagnose retrieval quality issues.
+- **End Users**: Interact indirectly through LLM interfaces, where usability is defined by answer relevance and citation quality rather than direct UI interaction.
+
 **Adaptive RAG system with four key innovations:**
 
 1. **Cloud Sync** - Auto-sync from S3 (extensible plugin architecture for other providers)
