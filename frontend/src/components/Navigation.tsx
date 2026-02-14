@@ -1,4 +1,5 @@
-import { FC } from 'react';
+import { FC, ReactNode } from 'react';
+import { Home, MessageSquare, Library, Settings, LogOut } from 'lucide-react';
 
 interface NavigationProps {
     onSettingsClick: () => void;
@@ -9,21 +10,21 @@ const Navigation: FC<NavigationProps> = ({ onSettingsClick, onLogout }) => {
     return (
         <div className="fixed bottom-8 left-1/2 -translate-x-1/2 z-40">
             <div className="flex items-center gap-2 p-2 bg-surface/80 backdrop-blur-xl border border-white/10 rounded-full shadow-2xl shadow-black/50">
-                <NavItem icon="🏠" label="Home" active />
-                <NavItem icon="💬" label="Chat" />
-                <NavItem icon="📚" label="Library" />
+                <NavItem icon={<Home size={20} />} label="Home" active />
+                <NavItem icon={<MessageSquare size={20} />} label="Chat" />
+                <NavItem icon={<Library size={20} />} label="Library" />
 
                 <div className="w-px h-6 bg-white/10 mx-2" />
 
-                <NavItem icon="⚙️" label="Settings" onClick={onSettingsClick} />
-                <NavItem icon="🚪" label="Logout" onClick={onLogout} danger />
+                <NavItem icon={<Settings size={20} />} label="Settings" onClick={onSettingsClick} />
+                <NavItem icon={<LogOut size={20} />} label="Logout" onClick={onLogout} danger />
             </div>
         </div>
     );
 };
 
 interface NavItemProps {
-    icon: string;
+    icon: ReactNode;
     label: string;
     active?: boolean;
     onClick?: () => void;
@@ -36,11 +37,11 @@ const NavItem: FC<NavItemProps> = ({ icon, label, active, onClick, danger }) => 
             onClick={onClick}
             className={`
         relative group p-3 rounded-full transition-all duration-300 hover:scale-110
-        ${active ? 'bg-primary/20 text-white' : 'hover:bg-white/5'}
-        ${danger ? 'hover:bg-red-500/20' : ''}
+        ${active ? 'bg-primary/20 text-white' : 'text-secondary hover:text-white hover:bg-white/5'}
+        ${danger ? 'hover:bg-red-500/20 hover:text-red-400' : ''}
       `}
         >
-            <span className="text-xl">{icon}</span>
+            {icon}
 
             {/* Tooltip */}
             <span className="absolute -top-10 left-1/2 -translate-x-1/2 px-2 py-1 bg-black/80 backdrop-blur text-xs text-white rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none">

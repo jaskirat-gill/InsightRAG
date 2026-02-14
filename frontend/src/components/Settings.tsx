@@ -1,4 +1,5 @@
 import { FC } from 'react';
+import { X } from 'lucide-react';
 
 interface SettingsProps {
     isOpen: boolean;
@@ -15,7 +16,7 @@ const Settings: FC<SettingsProps> = ({ isOpen, onClose }) => {
                     onClick={onClose}
                     className="absolute top-4 right-4 text-secondary hover:text-white transition-colors"
                 >
-                    ✕
+                    <X size={18} />
                 </button>
 
                 <h2 className="text-2xl font-bold mb-6 text-white">Settings</h2>

@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { Zap, BookOpen, BarChart3 } from 'lucide-react';
 import Layout from './components/Layout';
 import Login from './pages/Login';
 
@@ -26,26 +27,26 @@ function App() {
 
         <div className="bg-surface/50 backdrop-blur border border-white/5 p-6 rounded-2xl hover:border-primary/50 transition-colors group cursor-pointer">
           <div className="h-10 w-10 bg-primary/20 rounded-lg flex items-center justify-center mb-4 text-primary group-hover:scale-110 transition-transform">
-            ⚡
+            <Zap size={20} />
           </div>
-          <h3 className="text-xl font-semibold mb-2">Quick Action</h3>
-          <p className="text-secondary text-sm">Start a new chat or resume where you left off.</p>
+          <h3 className="text-xl font-semibold mb-2">Placeholder 1</h3>
+          <p className="text-secondary text-sm">lorem ipsum dolor sit amet consectetur adipisicing elit. Quisquam, quod.</p>
         </div>
 
         <div className="bg-surface/50 backdrop-blur border border-white/5 p-6 rounded-2xl hover:border-primary/50 transition-colors group cursor-pointer">
           <div className="h-10 w-10 bg-accent/20 rounded-lg flex items-center justify-center mb-4 text-accent group-hover:scale-110 transition-transform">
-            📚
+            <BookOpen size={20} />
           </div>
-          <h3 className="text-xl font-semibold mb-2">Knowledge Base</h3>
-          <p className="text-secondary text-sm">Manage your documents and sources.</p>
+          <h3 className="text-xl font-semibold mb-2">Placeholder 2</h3>
+          <p className="text-secondary text-sm">lorem ipsum dolor sit amet consectetur adipisicing elit. Quisquam, quod.</p>
         </div>
 
         <div className="bg-surface/50 backdrop-blur border border-white/5 p-6 rounded-2xl hover:border-primary/50 transition-colors group cursor-pointer">
           <div className="h-10 w-10 bg-green-500/20 rounded-lg flex items-center justify-center mb-4 text-green-400 group-hover:scale-110 transition-transform">
-            📊
+            <BarChart3 size={20} />
           </div>
-          <h3 className="text-xl font-semibold mb-2">Analytics</h3>
-          <p className="text-secondary text-sm">View usage stats and performance metrics.</p>
+          <h3 className="text-xl font-semibold mb-2">Placeholder 3</h3>
+          <p className="text-secondary text-sm">lorem ipsum dolor sit amet consectetur adipisicing elit. Quisquam, quod.</p>
         </div>
       </div>
     </Layout>
