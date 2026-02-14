@@ -13,15 +13,23 @@ services:
     depends_on:
       - query-engine
 
-  cloud-sync-service:
-    build: ./backend/cloud-sync-service
+  sync-service:
+    build: ./backend/sync-service
     ports:
       - "8000:8000"
     volumes:
-      - ./backend/cloud-sync-service:/app:z
+      - ./backend/sync-service:/app:z
+      - ${LFS_SOURCE_DIR:-./data}:/data:z
     environment:
+      - PYTHONUNBUFFERED=1
       - DATABASE_URL=postgresql://user:password@postgres:5432/openwebui
       - QDRANT_URL=http://qdrant:6333
+      - LFS_SOURCE_DIR=/data
+      - S3_BUCKET_NAME=${S3_BUCKET_NAME}
+      - AWS_REGION=${AWS_REGION}
+      - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID}
+      - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}
+      - SQS_QUEUE_URL=${SQS_QUEUE_URL}
     depends_on:
       - postgres
       - qdrant
