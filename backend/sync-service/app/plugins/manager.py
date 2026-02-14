@@ -34,6 +34,7 @@ class PluginManager:
                         attribute is not SourcePlugin):
                         
                         # Register the plugin class
+                        # We use the class name as the key for now, or could use a static 'name' field
                         self.register_plugin(attribute.__name__, attribute)
                         print(f"Discovered plugin: {attribute.__name__}")
         except Exception as e:
