@@ -18,6 +18,22 @@ class SourcePlugin(ABC):
     def __init__(self):
         self.config: Dict[str, Any] = {}
 
+    @classmethod
+    def config_schema(cls) -> list:
+        """
+        Returns a list of config field descriptors for UI rendering.
+        Each dict should have:
+        - name: str (the config key)
+        - label: str (human-readable label for UI)
+        - type: str ('text' | 'password' | 'number' | 'select')
+        - required: bool
+        - placeholder: str (optional hint text)
+        - options: list[str] (optional, for 'select' type)
+        
+        Override in subclasses to declare plugin-specific config fields.
+        """
+        return []
+
     @abstractmethod
     def initialize(self, config: Dict[str, Any]) -> None:
         """

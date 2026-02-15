@@ -77,3 +77,40 @@ class PluginManager:
     def get_active_plugins(self) -> List[SourcePlugin]:
         """Returns a list of all active, initialized plugin instances."""
         return list(self._active_instances.values())
+
+    def reinitialize_plugin(self, config_model: 'SourcePluginConfig'):
+        """Re-initialize a single plugin from its DB config."""
+        plugin_class = self.get_plugin_class(config_model.class_name)
+        if not plugin_class:
+            print(f"Warning: Plugin class '{config_model.class_name}' not found")
+            return
+
+        try:
+            instance = plugin_class()
+            instance.initialize(config_model.config)
+            self._active_instances[config_model.name] = instance
+            print(f"Re-initialized plugin: {config_model.name}")
+        except Exception as e:
+            print(f"Error re-initializing plugin '{config_model.name}': {e}")
+
+    def deactivate_plugin(self, name: str):
+        """Remove a plugin from active instances."""
+        if name in self._active_instances:
+            del self._active_instances[name]
+            print(f"Deactivated plugin: {name}")
+
+    def get_discovered_plugins_info(self) -> list:
+        """
+        Returns metadata about all discovered plugin classes,
+        including their config schemas for dynamic UI rendering.
+        """
+        result = []
+        for class_name, plugin_class in self._plugins.items():
+            module = plugin_class.__module__
+            schema = plugin_class.config_schema()
+            result.append({
+                "class_name": class_name,
+                "module_name": module,
+                "config_schema": schema,
+            })
+        return result
