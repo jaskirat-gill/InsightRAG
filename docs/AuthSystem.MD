@@ -71,20 +71,13 @@ DELETE /api/v1/api-keys/{key_id}      - Revoke API key
 
 ### Security Features
 - **Password Hashing:** bcrypt with 12 rounds
+    - passlib with bcrypt 4.0.1
 - **JWT Tokens:** 
   - Access tokens: 30 minutes expiry
   - Refresh tokens: 7 days expiry with rotation
 - **API Keys:** SHA-256 hashed, only shown once on creation
 - **Audit Logging:** All auth events logged with timestamps
 - **CORS:** Configured for frontend integration
-
-### Technology Stack
-- **Framework:** FastAPI 0.109.0
-- **Database:** PostgreSQL 15 (asyncpg driver)
-- **Authentication:** python-jose (JWT)
-- **Password Hashing:** passlib with bcrypt 4.0.1
-- **Validation:** Pydantic with email validation
-- **Deployment:** Docker containers
 
 ### Database Schema Design
 ```sql
