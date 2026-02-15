@@ -10,6 +10,46 @@ class S3Plugin(SourcePlugin):
     Plugin for syncing files from an AWS S3 bucket.
     """
 
+    @classmethod
+    def config_schema(cls) -> list:
+        return [
+            {
+                "name": "bucket_name",
+                "label": "Bucket Name",
+                "type": "text",
+                "required": True,
+                "placeholder": "my-s3-bucket"
+            },
+            {
+                "name": "region_name",
+                "label": "AWS Region",
+                "type": "text",
+                "required": False,
+                "placeholder": "us-east-1"
+            },
+            {
+                "name": "aws_access_key_id",
+                "label": "Access Key ID",
+                "type": "password",
+                "required": False,
+                "placeholder": "AKIA..."
+            },
+            {
+                "name": "aws_secret_access_key",
+                "label": "Secret Access Key",
+                "type": "password",
+                "required": False,
+                "placeholder": "••••••••"
+            },
+            {
+                "name": "sqs_queue_url",
+                "label": "SQS Queue URL",
+                "type": "text",
+                "required": False,
+                "placeholder": "https://sqs.us-east-1.amazonaws.com/..."
+            },
+        ]
+
     def initialize(self, config: Dict[str, Any]) -> None:
         """
         Initialize the S3 plugin.
