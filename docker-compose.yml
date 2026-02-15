@@ -62,7 +62,7 @@ services:
       - "5433:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
-      - ./backend/database/init.sql:/docker-entrypoint-initdb.d/init.sql  # ADD THIS LINE
+      - ./backend/database/init.sql:/docker-entrypoint-initdb.d/init.sql 
   qdrant:
     image: qdrant/qdrant
     restart: always
