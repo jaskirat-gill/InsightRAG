@@ -8,7 +8,7 @@ from datetime import datetime
 
 # Auth imports
 from database import db
-from routes import auth, users, api_keys, knowledge_bases
+from routes import auth, users, api_keys, knowledge_bases, documents
 from config import settings
 
 # Plugin manager imports
@@ -89,6 +89,7 @@ app.include_router(auth.router, prefix="/api/v1")
 app.include_router(users.router, prefix="/api/v1")
 app.include_router(api_keys.router, prefix="/api/v1")
 app.include_router(knowledge_bases.router, prefix="/api/v1")
+app.include_router(documents.router, prefix="/api/v1")
 
 # Plugin sync endpoint
 # ──────────────────────────────

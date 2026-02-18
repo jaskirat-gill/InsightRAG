@@ -2,12 +2,16 @@ import { useState, useEffect } from 'react';
 import { Zap, BookOpen, BarChart3 } from 'lucide-react';
 import Layout from './components/Layout';
 import Login from './pages/Login';
+import KnowledgeBases from './pages/KnowledgeBases';
 import { authService, UserResponse } from './services/auth';
+
+type Page = 'home' | 'kb';
 
 function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [user, setUser] = useState<UserResponse | null>(null);
   const [loading, setLoading] = useState(true);
+  const [currentPage, setCurrentPage] = useState<Page>('home');
 
   // Check if user is already authenticated on mount
   useEffect(() => {
@@ -42,6 +46,11 @@ function App() {
     await authService.logout();
     setUser(null);
     setIsAuthenticated(false);
+    setCurrentPage('home');
+  };
+
+  const handleNavigate = (page: string) => {
+    setCurrentPage(page as Page);
   };
 
   // Loading state
@@ -62,60 +71,68 @@ function App() {
     );
   }
 
-  // If authenticated, show Layout with main content
+  // If authenticated, show Layout with current page
   return (
-    <Layout onLogout={handleLogout}>
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {/* Welcome message with user data */}
-        <div className="col-span-full mb-8">
-          <h1 className="text-4xl font-bold mb-2">
-            Welcome back, {user?.full_name || user?.email || 'User'}
-          </h1>
-          <p className="text-secondary text-lg">
-            Here is what's happening in your workspace today.
-          </p>
-          
-          {/* Show user roles */}
-          {user && user.roles.length > 0 && (
-            <div className="mt-3 flex gap-2">
-              {user.roles.map((role) => (
-                <span
-                  key={role}
-                  className="px-3 py-1 bg-primary/20 text-primary text-xs font-medium rounded-full"
-                >
-                  {role}
-                </span>
-              ))}
-            </div>
-          )}
-        </div>
-
-        <div className="bg-surface/50 backdrop-blur border border-white/5 p-6 rounded-2xl hover:border-primary/50 transition-colors group cursor-pointer">
-          <div className="h-10 w-10 bg-primary/20 rounded-lg flex items-center justify-center mb-4 text-primary group-hover:scale-110 transition-transform">
-            <Zap size={20} />
-          </div>
-          <h3 className="text-xl font-semibold mb-2">Placeholder 1</h3>
-          <p className="text-secondary text-sm">lorem ipsum dolor sit amet consectetur adipisicing elit. Quisquam, quod.</p>
-        </div>
-
-        <div className="bg-surface/50 backdrop-blur border border-white/5 p-6 rounded-2xl hover:border-primary/50 transition-colors group cursor-pointer">
-          <div className="h-10 w-10 bg-accent/20 rounded-lg flex items-center justify-center mb-4 text-accent group-hover:scale-110 transition-transform">
-            <BookOpen size={20} />
-          </div>
-          <h3 className="text-xl font-semibold mb-2">Placeholder 2</h3>
-          <p className="text-secondary text-sm">lorem ipsum dolor sit amet consectetur adipisicing elit. Quisquam, quod.</p>
-        </div>
-
-        <div className="bg-surface/50 backdrop-blur border border-white/5 p-6 rounded-2xl hover:border-primary/50 transition-colors group cursor-pointer">
-          <div className="h-10 w-10 bg-green-500/20 rounded-lg flex items-center justify-center mb-4 text-green-400 group-hover:scale-110 transition-transform">
-            <BarChart3 size={20} />
-          </div>
-          <h3 className="text-xl font-semibold mb-2">Placeholder 3</h3>
-          <p className="text-secondary text-sm">lorem ipsum dolor sit amet consectetur adipisicing elit. Quisquam, quod.</p>
-        </div>
-      </div>
+    <Layout onLogout={handleLogout} onNavigate={handleNavigate}>
+      {currentPage === 'home' && <HomePage user={user} />}
+      {currentPage === 'kb' && <KnowledgeBases />}
     </Layout>
   );
 }
+
+// Home Page Component (extracted from original App)
+const HomePage = ({ user }: { user: UserResponse | null }) => {
+  return (
+    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+      {/* Welcome message with user data */}
+      <div className="col-span-full mb-8">
+        <h1 className="text-4xl font-bold mb-2">
+          Welcome back, {user?.full_name || user?.email || 'User'}
+        </h1>
+        <p className="text-secondary text-lg">
+          Here is what's happening in your workspace today.
+        </p>
+        
+        {/* Show user roles */}
+        {user && user.roles.length > 0 && (
+          <div className="mt-3 flex gap-2">
+            {user.roles.map((role) => (
+              <span
+                key={role}
+                className="px-3 py-1 bg-primary/20 text-primary text-xs font-medium rounded-full"
+              >
+                {role}
+              </span>
+            ))}
+          </div>
+        )}
+      </div>
+
+      <div className="bg-surface/50 backdrop-blur border border-white/5 p-6 rounded-2xl hover:border-primary/50 transition-colors group cursor-pointer">
+        <div className="h-10 w-10 bg-primary/20 rounded-lg flex items-center justify-center mb-4 text-primary group-hover:scale-110 transition-transform">
+          <Zap size={20} />
+        </div>
+        <h3 className="text-xl font-semibold mb-2">Placeholder 1</h3>
+        <p className="text-secondary text-sm">lorem ipsum dolor sit amet consectetur adipisicing elit. Quisquam, quod.</p>
+      </div>
+
+      <div className="bg-surface/50 backdrop-blur border border-white/5 p-6 rounded-2xl hover:border-primary/50 transition-colors group cursor-pointer">
+        <div className="h-10 w-10 bg-accent/20 rounded-lg flex items-center justify-center mb-4 text-accent group-hover:scale-110 transition-transform">
+          <BookOpen size={20} />
+        </div>
+        <h3 className="text-xl font-semibold mb-2">Placeholder 2</h3>
+        <p className="text-secondary text-sm">lorem ipsum dolor sit amet consectetur adipisicing elit. Quisquam, quod.</p>
+      </div>
+
+      <div className="bg-surface/50 backdrop-blur border border-white/5 p-6 rounded-2xl hover:border-primary/50 transition-colors group cursor-pointer">
+        <div className="h-10 w-10 bg-green-500/20 rounded-lg flex items-center justify-center mb-4 text-green-400 group-hover:scale-110 transition-transform">
+          <BarChart3 size={20} />
+        </div>
+        <h3 className="text-xl font-semibold mb-2">Placeholder 3</h3>
+        <p className="text-secondary text-sm">lorem ipsum dolor sit amet consectetur adipisicing elit. Quisquam, quod.</p>
+      </div>
+    </div>
+  );
+};
 
 export default App;

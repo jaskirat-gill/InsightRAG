@@ -6,9 +6,10 @@ import Settings from './Settings';
 interface LayoutProps {
     children: ReactNode;
     onLogout: () => void;
+    onNavigate: (page: string) => void; // Add this
 }
 
-const Layout: FC<LayoutProps> = ({ children, onLogout }) => {
+const Layout: FC<LayoutProps> = ({ children, onLogout, onNavigate }) => {
     const [isSettingsOpen, setIsSettingsOpen] = useState(false);
 
     return (
@@ -22,6 +23,7 @@ const Layout: FC<LayoutProps> = ({ children, onLogout }) => {
             <Navigation
                 onSettingsClick={() => setIsSettingsOpen(true)}
                 onLogout={onLogout}
+                onNavigate={onNavigate} // Pass it down
             />
 
             <Settings

@@ -1,16 +1,27 @@
 import { FC, ReactNode } from 'react';
-import { Home, MessageSquare, Library, Settings, LogOut } from 'lucide-react';
+import { Home, MessageSquare, Library, Database, Settings, LogOut } from 'lucide-react';
 
 interface NavigationProps {
     onSettingsClick: () => void;
     onLogout: () => void;
+    onNavigate?: (page: string) => void; // Add this optional prop
 }
 
-const Navigation: FC<NavigationProps> = ({ onSettingsClick, onLogout }) => {
+const Navigation: FC<NavigationProps> = ({ onSettingsClick, onLogout, onNavigate }) => {
     return (
         <div className="fixed bottom-8 left-1/2 -translate-x-1/2 z-40">
             <div className="flex items-center gap-2 p-2 bg-surface/80 backdrop-blur-xl border border-white/10 rounded-full shadow-2xl shadow-black/50">
-                <NavItem icon={<Home size={20} />} label="Home" active />
+                <NavItem 
+                    icon={<Home size={20} />} 
+                    label="Home" 
+                    onClick={() => onNavigate?.('home')}
+                    active 
+                />
+                <NavItem 
+                    icon={<Database size={20} />} 
+                    label="Knowledge Bases" 
+                    onClick={() => onNavigate?.('kb')}
+                />
                 <NavItem icon={<MessageSquare size={20} />} label="Chat" />
                 <NavItem icon={<Library size={20} />} label="Library" />
 
