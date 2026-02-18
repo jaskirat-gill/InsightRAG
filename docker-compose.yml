@@ -8,7 +8,6 @@ services:
     volumes:
       - ./frontend:/app:z
       - /app/node_modules
-      - frontend_node_modules:/app/node_modules
     environment:
       - VITE_API_URL=http://localhost:8000
     depends_on:
@@ -20,20 +19,20 @@ services:
       - "8000:8000"
     volumes:
       - ./backend/sync-service:/app:z
-      - ${LFS_SOURCE_DIR:-./data}:/data:z
     environment:
       - PYTHONUNBUFFERED=1
       - DATABASE_URL=postgresql://user:password@postgres:5432/openwebui
       - QDRANT_URL=http://qdrant:6333
-      - LFS_SOURCE_DIR=/data
       - S3_BUCKET_NAME=${S3_BUCKET_NAME}
       - AWS_REGION=${AWS_REGION}
       - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID}
       - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}
       - SQS_QUEUE_URL=${SQS_QUEUE_URL}
     depends_on:
-      - postgres
-      - qdrant
+      postgres:
+        condition: service_healthy
+      qdrant:
+        condition: service_started
 
   query-engine:
     build: ./backend/query-engine
@@ -45,8 +44,10 @@ services:
       - DATABASE_URL=postgresql://user:password@postgres:5432/openwebui
       - QDRANT_URL=http://qdrant:6333
     depends_on:
-      - postgres
-      - qdrant
+      postgres:
+        condition: service_healthy
+      qdrant:
+        condition: service_started
 
   document-processing-engine:
     build: ./backend/document-processing-engine
@@ -56,8 +57,10 @@ services:
       - DATABASE_URL=postgresql://user:password@postgres:5432/openwebui
       - QDRANT_URL=http://qdrant:6333
     depends_on:
-      - postgres
-      - qdrant
+      postgres:
+        condition: service_healthy
+      qdrant:
+        condition: service_started
 
   postgres:
     image: postgres:15-alpine
@@ -70,7 +73,12 @@ services:
       - "5433:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
-      - ./backend/database/init.sql:/docker-entrypoint-initdb.d/init.sql 
+      - ./backend/database/init.sql:/docker-entrypoint-initdb.d/init.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U user -d openwebui"]
+      interval: 3s
+      timeout: 3s
+      retries: 10
   qdrant:
     image: qdrant/qdrant
     restart: always
@@ -82,4 +90,3 @@ services:
 volumes:
   postgres_data:
   qdrant_data:
-  frontend_node_modules:

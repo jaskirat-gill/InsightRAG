@@ -57,5 +57,5 @@ Insert a row into the `source_plugin_config` table. You can use the `init_db.py`
 
 ## S3 Plugin Example
 The S3 plugin (`app/plugins/s3.py`) is included as a reference implementation. It supports:
--   Hybrid Sync (List Objects + SQS Events - *SQS polling to be implemented*).
+-   Hybrid Sync (List Objects reconciliation + SQS event polling for real-time).
 -   Credentials via config or environment variables.
