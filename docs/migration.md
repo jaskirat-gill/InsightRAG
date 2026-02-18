@@ -8,6 +8,15 @@ This guide helps team members set up the new authentication system after pulling
 - **Existing deployments must run migrations manually**
 - **All team members need to follow these steps**
 
+after the migriation, there is 3 basic existing user 
+
+```
+Created admin user: admin@example.com (password: Admin123!)
+
+Created developer user: developer@example.com (password: Admin123!)
+
+Created end user: user@example.com (password: Admin123!)
+```
 
 ## Step 1: Run Database Migrations
 
@@ -36,16 +45,22 @@ docker exec -i openwebui-project-postgres-1 psql -U user -d openwebui < backend/
    - Username: `user`
    - Password: `password`
 3. Open Query Tool (Tools → Query Tool)
+4. Open file `backend/database/reset_all.sql`
+3. Open Query Tool (Tools → Query Tool)
 4. Open file `backend/database/init.sql`
 5. Click Execute (▶️ button)
-6. Open file `backend/database/seed.sql`
+6. Open file `backend/database/seed_user_kb.sql`
+7. Click Execute (▶️ button)
+6. Open file `backend/database/seed_documents.sql`
 7. Click Execute (▶️ button)
 
 ### Option C: Using psql Directly
 ```bash
 # If you have psql installed locally
+psql -h localhost -p 5433 -U user -d openwebui -f backend/database/reset_all.sql
 psql -h localhost -p 5433 -U user -d openwebui -f backend/database/init.sql
-psql -h localhost -p 5433 -U user -d openwebui -f backend/database/seed.sql
+psql -h localhost -p 5433 -U user -d openwebui -f backend/database/seed_user_kb.sql
+psql -h localhost -p 5433 -U user -d openwebui -f backend/database/seed_documents.sql
 ```
 
 ## Step 2: Verify Tables Created
