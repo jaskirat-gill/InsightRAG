@@ -1,6 +1,78 @@
+
 -- Complete seed for users + knowledge bases
--- Run this AFTER init.sql, seed.sql, and kb_schema.sql
+-- Run this AFTER init.sql
 -- Creates demo users and their KBs (skips if users already exist)
+
+-- Insert default roles
+INSERT INTO roles (role_name, description) VALUES
+    ('admin', 'Full system access - configure sync, manage users, view all analytics'),
+    ('developer', 'API and MCP access - integrate KB into applications'),
+    ('end_user', 'Query access only - interact through LLM interfaces')
+ON CONFLICT (role_name) DO NOTHING;
+
+-- Insert default permissions
+INSERT INTO permissions (permission_name, resource, action, description) VALUES
+    -- Knowledge Base permissions
+    ('kb.create', 'knowledge_base', 'create', 'Create new knowledge bases'),
+    ('kb.read', 'knowledge_base', 'read', 'View knowledge base details'),
+    ('kb.update', 'knowledge_base', 'update', 'Modify knowledge base configuration'),
+    ('kb.delete', 'knowledge_base', 'delete', 'Delete knowledge bases'),
+    
+    -- Document permissions
+    ('doc.read', 'document', 'read', 'View documents and metadata'),
+    ('doc.delete', 'document', 'delete', 'Delete documents'),
+    ('doc.reprocess', 'document', 'update', 'Trigger document reprocessing'),
+    
+    -- Query permissions
+    ('query.execute', 'query', 'create', 'Execute search queries'),
+    
+    -- Sync permissions
+    ('sync.configure', 'sync', 'update', 'Configure cloud sync settings'),
+    ('sync.trigger', 'sync', 'create', 'Manually trigger sync operations'),
+    ('sync.view_status', 'sync', 'read', 'View sync status and logs'),
+    
+    -- Analytics permissions
+    ('analytics.view', 'analytics', 'read', 'View system analytics and health metrics'),
+    
+    -- User management permissions
+    ('user.create', 'user', 'create', 'Create new users'),
+    ('user.read', 'user', 'read', 'View user information'),
+    ('user.update', 'user', 'update', 'Modify user details and roles'),
+    ('user.delete', 'user', 'delete', 'Delete users'),
+    
+    -- API key permissions
+    ('apikey.create', 'api_key', 'create', 'Generate API keys'),
+    ('apikey.read', 'api_key', 'read', 'View API keys'),
+    ('apikey.revoke', 'api_key', 'delete', 'Revoke API keys')
+ON CONFLICT (resource, action) DO NOTHING;
+
+-- Assign permissions to roles
+WITH role_perms AS (
+    SELECT 
+        r.role_id,
+        r.role_name,
+        p.permission_id,
+        p.permission_name
+    FROM roles r
+    CROSS JOIN permissions p
+)
+INSERT INTO role_permissions (role_id, permission_id)
+SELECT role_id, permission_id FROM role_perms
+WHERE 
+    -- Admin gets everything
+    (role_name = 'admin') OR
+    
+    -- Developer gets API access and queries
+    (role_name = 'developer' AND permission_name IN (
+        'kb.read', 'doc.read', 'query.execute', 
+        'apikey.create', 'apikey.read', 'apikey.revoke',
+        'analytics.view', 'sync.view_status'
+    )) OR
+    
+    -- End user gets query only
+    (role_name = 'end_user' AND permission_name = 'query.execute')
+ON CONFLICT (role_id, permission_id) DO NOTHING;
+
 
 DO $$
 DECLARE
@@ -27,7 +99,7 @@ BEGIN
         VALUES (
             gen_random_uuid(),
             'admin@example.com',
-            '$2b$12$LQv3c1yqBWVHxkd0LHAkCOYz6TtxMQJqhN8/LewY5GyYzq0MRZ.NK', -- Admin123!
+            '$2b$12$pspCZFvmjE92KGauR1s9ieQc4YgORvVIbEWSArcFDNCerDDKjT16y', -- Admin123!
             'Admin User',
             true,
             true
@@ -59,7 +131,7 @@ BEGIN
         VALUES (
             gen_random_uuid(),
             'developer@example.com',
-            '$2b$12$LQv3c1yqBWVHxkd0LHAkCOYz6TtxMQJqhN8/LewY5GyYzq0MRZ.NK', -- Admin123!
+            '$2b$12$pspCZFvmjE92KGauR1s9ieQc4YgORvVIbEWSArcFDNCerDDKjT16y', -- Admin123!
             'Developer User',
             true,
             true
@@ -89,7 +161,7 @@ BEGIN
         VALUES (
             gen_random_uuid(),
             'user@example.com',
-            '$2b$12$LQv3c1yqBWVHxkd0LHAkCOYz6TtxMQJqhN8/LewY5GyYzq0MRZ.NK', -- Admin123!
+            '$2b$12$pspCZFvmjE92KGauR1s9ieQc4YgORvVIbEWSArcFDNCerDDKjT16y', -- Admin123!
             'End User',
             true,
             true

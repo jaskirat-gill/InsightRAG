@@ -118,7 +118,6 @@ CREATE TRIGGER update_users_updated_at BEFORE UPDATE ON users
 
 
 -- Knowledge Base Control Plane Schema
--- Run this AFTER init.sql
 
 -- Knowledge Bases table
 CREATE TABLE IF NOT EXISTS knowledge_bases (
