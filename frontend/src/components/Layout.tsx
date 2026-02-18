@@ -6,24 +6,27 @@ import Settings from './Settings';
 interface LayoutProps {
     children: ReactNode;
     onLogout: () => void;
-    onNavigate: (page: string) => void; // Add this
+    onNavigate: (page: string) => void;
 }
 
 const Layout: FC<LayoutProps> = ({ children, onLogout, onNavigate }) => {
     const [isSettingsOpen, setIsSettingsOpen] = useState(false);
 
     return (
-        <div className="relative min-h-screen text-white font-sans antialiased selection:bg-primary/30">
+        <div className="relative h-screen overflow-hidden text-white font-sans antialiased selection:bg-primary/30">
             <Background />
 
-            <main className="relative z-10 p-6 pb-32 max-w-7xl mx-auto">
-                {children}
-            </main>
+            {/* Scrollable wrapper */}
+            <div className="relative z-10 h-full overflow-y-auto">
+                <main className="p-6 pb-40 max-w-7xl mx-auto">
+                    {children}
+                </main>
+            </div>
 
             <Navigation
                 onSettingsClick={() => setIsSettingsOpen(true)}
                 onLogout={onLogout}
-                onNavigate={onNavigate} // Pass it down
+                onNavigate={onNavigate}
             />
 
             <Settings

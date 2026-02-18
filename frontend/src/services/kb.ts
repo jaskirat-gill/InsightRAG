@@ -33,6 +33,16 @@ export interface Document {
   uploaded_at: string | null;
 }
 
+export interface CreateKBRequest {
+  name: string;
+  description?: string;
+  storage_provider?: string;
+  storage_config?: Record<string, any>;
+  processing_strategy?: string;
+  chunk_size?: number;
+  chunk_overlap?: number;
+}
+
 class KBService {
   private readonly API_URL = API_URL;
 
@@ -91,6 +101,25 @@ class KBService {
 
     if (!response.ok) {
       throw new Error('Failed to fetch documents');
+    }
+
+    return await response.json();
+  }
+
+  // Create new KB
+  async createKnowledgeBase(data: CreateKBRequest): Promise<KnowledgeBase> {
+    const response = await fetch(`${this.API_URL}/api/v1/knowledge-bases`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...authService.getAuthHeader(),
+      },
+      body: JSON.stringify(data),
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.detail || 'Failed to create knowledge base');
     }
 
     return await response.json();

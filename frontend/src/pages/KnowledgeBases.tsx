@@ -1,12 +1,13 @@
 import { FC, useState, useEffect } from 'react';
 import { Database, Search, Loader2, Plus, AlertCircle } from 'lucide-react';
 import { kbService, KnowledgeBase } from '../services/kb';
-
+import CreateKBModal from '../components/CreateKBModal';
 const KnowledgeBases: FC = () => {
   const [kbs, setKbs] = useState<KnowledgeBase[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
+  const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
 
   useEffect(() => {
     loadKBs();
@@ -70,7 +71,9 @@ const KnowledgeBases: FC = () => {
             Manage your document collections and sync settings.
           </p>
         </div>
-        <button className="flex items-center gap-2 px-4 py-3 bg-primary text-white rounded-xl hover:bg-primary/90 transition-all shadow-lg shadow-primary/25">
+        <button
+            onClick={() => setIsCreateModalOpen(true)}  
+            className="flex items-center gap-2 px-4 py-3 bg-primary text-white rounded-xl hover:bg-primary/90 transition-all shadow-lg shadow-primary/25">
           <Plus size={18} />
           Create New
         </button>
@@ -110,6 +113,14 @@ const KnowledgeBases: FC = () => {
           ))}
         </div>
       )}
+
+
+      {/* Create KB Modal */}
+      <CreateKBModal
+        isOpen={isCreateModalOpen}
+        onClose={() => setIsCreateModalOpen(false)}
+        onSuccess={loadKBs} // Reload KBs after creation
+      />
     </div>
   );
 };
