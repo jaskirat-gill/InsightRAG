@@ -73,7 +73,11 @@ function App() {
 
   // If authenticated, show Layout with current page
   return (
-    <Layout onLogout={handleLogout} onNavigate={handleNavigate}>
+    <Layout 
+      onLogout={handleLogout} 
+      onNavigate={handleNavigate}
+      currentPage={currentPage} // Pass current page to Layout
+    >
       {currentPage === 'home' && <HomePage user={user} onNavigate={handleNavigate} />}
       {currentPage === 'kb' && <KnowledgeBases />}
     </Layout>
