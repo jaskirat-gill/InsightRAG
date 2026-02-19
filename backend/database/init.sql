@@ -23,6 +23,14 @@ CREATE TABLE IF NOT EXISTS roles (
     CONSTRAINT role_name_check CHECK (role_name IN ('admin', 'developer', 'end_user'))
 );
 
+-- Seed default roles
+INSERT INTO roles (role_name, description) VALUES 
+('admin', 'Full system access'),
+('developer', 'Developer access with plugin management capabilities'),
+('end_user', 'Standard user access')
+ON CONFLICT (role_name) DO NOTHING;
+
+
 -- User roles junction table
 CREATE TABLE IF NOT EXISTS user_roles (
     user_id UUID REFERENCES users(user_id) ON DELETE CASCADE,

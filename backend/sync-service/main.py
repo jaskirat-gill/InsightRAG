@@ -5,6 +5,9 @@ from contextlib import asynccontextmanager
 from sqlmodel import Session, select
 from pydantic import BaseModel
 from datetime import datetime
+import asyncio
+import logging
+import os
 
 # Auth imports
 from database import db
@@ -13,8 +16,15 @@ from config import settings
 
 # Plugin manager imports
 from app.plugins.manager import PluginManager
-from app.database import create_db_and_tables, get_session
-from app.models import SourcePluginConfig
+from app.database import create_db_and_tables, get_session, engine
+from app.models import SourcePluginConfig, SyncedFile
+from app.sync_service import SyncService
+
+logger = logging.getLogger("sync_service")
+logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(name)s] %(levelname)s: %(message)s")
+
+# Sync interval (seconds). 0 = disabled.
+SYNC_INTERVAL_SECONDS = int(os.environ.get("SYNC_INTERVAL_SECONDS", "300"))
 
 # Global Plugin Manager
 plugin_manager = PluginManager()
@@ -22,28 +32,48 @@ plugin_manager = PluginManager()
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """
-    Combined startup/shutdown for both auth and plugin manager
+    Combined startup/shutdown for both auth and plugin manager.
+    Launches background sync scheduler if SYNC_INTERVAL_SECONDS > 0.
     """
     # Startup - Auth database
     await db.connect()
-    print("✅ Auth database connected")
+    print("Auth database connected")
     
     # Startup - Plugin manager
     create_db_and_tables()
     plugin_manager.discover_plugins()
     
-    # Initialize active plugins from DB
-    from app.database import engine
     with Session(engine) as session:
         plugin_manager.initialize_active_plugins(session)
     
-    print(f"🚀 {settings.APP_NAME} started")
+    # Launch background sync scheduler
+    sync_task = None
+    if SYNC_INTERVAL_SECONDS > 0:
+        sync_task = asyncio.create_task(_background_sync_loop())
+        logger.info("Background sync scheduler started (interval=%ds)", SYNC_INTERVAL_SECONDS)
+    else:
+        logger.info("Background sync scheduler disabled (SYNC_INTERVAL_SECONDS=0)")
+    
+    print(f"{settings.APP_NAME} started")
     
     yield
     
     # Shutdown
+    if sync_task:
+        sync_task.cancel()
     await db.disconnect()
-    print(f"👋 {settings.APP_NAME} stopped")
+    print(f"{settings.APP_NAME} stopped")
+
+
+async def _background_sync_loop():
+    """Periodically run sync for all active plugins."""
+    while True:
+        await asyncio.sleep(SYNC_INTERVAL_SECONDS)
+        logger.info("Background sync triggered")
+        try:
+            _run_sync_all_plugins()
+        except Exception as e:
+            logger.exception("Background sync failed: %s", e)
 
 app = FastAPI(title=settings.APP_NAME, lifespan=lifespan, debug=settings.DEBUG)
 
@@ -103,21 +133,34 @@ async def trigger_sync(background_tasks: BackgroundTasks):
     if not active_plugins:
         return {"message": "No active plugins found to sync."}
 
-    for plugin in active_plugins:
-        background_tasks.add_task(run_sync_for_plugin, plugin)
-    
-    return {"message": f"Sync started for {len(active_plugins)} plugins"}
+    background_tasks.add_task(_run_sync_all_plugins)
+    return {"message": f"Sync started for {len(active_plugins)} plugin(s)"}
 
-def run_sync_for_plugin(plugin):
-    """Background task to sync a single plugin"""
-    plugin_name = plugin.__class__.__name__
-    print(f"Starting sync for {plugin_name}...")
-    try:
-        for event in plugin.sync():
-            print(f"[{plugin_name}] Event: {event.event_type} - {event.file_path}")
-    except Exception as e:
-        print(f"Error during sync for {plugin_name}: {e}")
-    print(f"Sync completed for {plugin_name}.")
+
+def _run_sync_all_plugins():
+    """
+    Run sync for every active plugin using SyncService.
+    Plugin-agnostic — works with any SourcePlugin implementation.
+    """
+    with Session(engine) as session:
+        # Get active plugin configs from DB
+        configs = session.exec(
+            select(SourcePluginConfig).where(SourcePluginConfig.is_active == True)
+        ).all()
+
+        for config in configs:
+            plugin_instance = plugin_manager.get_active_plugin_by_name(config.name)
+            if not plugin_instance:
+                logger.warning("Plugin '%s' is active in DB but not initialized — skipping", config.name)
+                continue
+
+            try:
+                result = SyncService.run_sync(plugin_instance, config, session)
+                logger.info(
+                    "Plugin '%s' sync result: %s", config.name, result
+                )
+            except Exception as e:
+                logger.exception("Sync failed for plugin '%s': %s", config.name, e)
 
 # ──────────────────────────────
 # Plugin CRUD API

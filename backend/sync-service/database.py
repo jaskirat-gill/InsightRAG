@@ -6,14 +6,24 @@ class Database:
     def __init__(self):
         self.pool: Optional[asyncpg.Pool] = None
     
-    async def connect(self):
-        """Create database connection pool"""
-        self.pool = await asyncpg.create_pool(
-            settings.DATABASE_URL,
-            min_size=5,
-            max_size=20
-        )
-        print("✅ Database connected")
+    async def connect(self, retries: int = 5, delay: float = 2.0):
+        """Create database connection pool with retry logic"""
+        import asyncio
+        for attempt in range(1, retries + 1):
+            try:
+                self.pool = await asyncpg.create_pool(
+                    settings.DATABASE_URL,
+                    min_size=5,
+                    max_size=20
+                )
+                print("✅ Database connected")
+                return
+            except (ConnectionRefusedError, OSError) as e:
+                if attempt == retries:
+                    print(f"❌ Database connection failed after {retries} attempts")
+                    raise
+                print(f"⏳ Database not ready (attempt {attempt}/{retries}), retrying in {delay}s...")
+                await asyncio.sleep(delay)
     
     async def disconnect(self):
         """Close database connection pool"""
