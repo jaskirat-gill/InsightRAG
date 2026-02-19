@@ -16,3 +16,7 @@ asyncpg==0.29.0
 sqlmodel==0.0.14
 psycopg2-binary==2.9.9
 boto3==1.34.0
+
+# Celery (task producer)
+celery[redis]>=5.3
+redis>=5.0
