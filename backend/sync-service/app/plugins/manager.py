@@ -78,6 +78,10 @@ class PluginManager:
         """Returns a list of all active, initialized plugin instances."""
         return list(self._active_instances.values())
 
+    def get_active_plugin_by_name(self, name: str) -> Optional[SourcePlugin]:
+        """Returns an active plugin instance by its config name, or None."""
+        return self._active_instances.get(name)
+
     def reinitialize_plugin(self, config_model: 'SourcePluginConfig'):
         """Re-initialize a single plugin from its DB config."""
         plugin_class = self.get_plugin_class(config_model.class_name)
