@@ -1,0 +1,5 @@
+fastmcp>=0.3.0
+qdrant-client>=1.7.0
+sentence-transformers>=2.2.0
+pydantic-settings>=2.1.0
+python-dotenv>=1.0.0

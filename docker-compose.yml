@@ -110,6 +110,14 @@ services:
       - "6333:6333"
     volumes:
       - qdrant_data:/qdrant/storage
+  mcp-server:
+    build: ./backend/mcp-server
+    ports:
+      - "8002:8002"  # If using HTTP transport
+    environment:
+      - QDRANT_URL=http://qdrant:6333
+    depends_on:
+      - qdrant
 
 volumes:
   postgres_data:
