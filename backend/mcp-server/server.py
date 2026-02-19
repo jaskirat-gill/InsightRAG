@@ -108,25 +108,8 @@ def get_available_collections() -> Dict:
 
 
 if __name__ == "__main__":
-    import os
-    import time
-    
     logger.info("Starting MCP server...")
     logger.info("Qdrant URL: %s", os.getenv("QDRANT_URL", "http://qdrant:6333"))
     
-    # Check if running in Docker or locally
-    mode = os.getenv("MCP_MODE", "docker")
-    
-    if mode == "docker":
-        # Docker mode: keep alive for testing
-        logger.info("Running in Docker mode")
-        logger.info("Test with: docker-compose exec mcp-server python test_server.py")
-        try:
-            while True:
-                time.sleep(3600)  # Sleep for 1 hour
-        except KeyboardInterrupt:
-            logger.info("Shutting down...")
-    else:
-        # Local mode: run MCP server
-        logger.info("Running in local mode (stdio transport)")
-        mcp.run(transport="stdio")
+    # Always run MCP server (remove the Docker mode check)
+    mcp.run(transport="stdio")
