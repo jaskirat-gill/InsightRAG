@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Zap, BookOpen, BarChart3, Database } from 'lucide-react';
+import { BookOpen, BarChart3, Database } from 'lucide-react';
 import Layout from './components/Layout';
 import Login from './pages/Login';
 import KnowledgeBases from './pages/KnowledgeBases';
