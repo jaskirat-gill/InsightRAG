@@ -33,6 +33,15 @@ export interface Document {
   uploaded_at: string | null;
 }
 
+export interface ReassignItem {
+  document_id: string;
+  to_kb_id: string;
+}
+
+export interface ReassignResult {
+  reassigned: number;
+}
+
 export interface CreateKBRequest {
   name: string;
   description?: string;
@@ -101,6 +110,28 @@ class KBService {
 
     if (!response.ok) {
       throw new Error('Failed to fetch documents');
+    }
+
+    return await response.json();
+  }
+
+  // Reassign documents to different KBs
+  async reassignDocuments(fromKbId: string, items: ReassignItem[]): Promise<ReassignResult> {
+    const response = await fetch(
+      `${this.API_URL}/api/v1/knowledge-bases/${fromKbId}/reassign`,
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...authService.getAuthHeader(),
+        },
+        body: JSON.stringify(items),
+      },
+    );
+
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({}));
+      throw new Error(error.detail || 'Failed to reassign documents');
     }
 
     return await response.json();

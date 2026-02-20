@@ -244,9 +244,14 @@ def update_document_status(
                         WHERE kb_id = (SELECT kb_id FROM documents WHERE document_id = %s)
                           AND processing_status = 'completed'
                     ),
+                    total_size_bytes = (
+                        SELECT COALESCE(SUM(file_size_bytes), 0) FROM documents
+                        WHERE kb_id = (SELECT kb_id FROM documents WHERE document_id = %s)
+                          AND processing_status = 'completed'
+                    ),
                     updated_at = NOW()
                     WHERE kb_id = (SELECT kb_id FROM documents WHERE document_id = %s)
-                """, (document_id, document_id))
+                """, (document_id, document_id, document_id))
 
             conn.commit()
     finally:
