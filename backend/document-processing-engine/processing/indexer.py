@@ -24,6 +24,7 @@ DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://user:password@postgres:54
 QDRANT_URL = os.getenv("QDRANT_URL", "http://qdrant:6333")
 
 COLLECTION_NAME = "document_chunks"
+DEFAULT_KB_NAME = "Unassigned"
 
 
 def get_pg_connection():
@@ -48,11 +49,34 @@ def ensure_qdrant_collection(client: QdrantClient):
         )
 
 
+def _resolve_kb_name(file_path: str) -> str:
+    """
+    Determine KB name from the S3 key structure.
+
+    Rules:
+    - If the key has a parent directory (e.g. 'prefix/my-kb/file.pdf' or
+      'my-kb/file.pdf'), use the immediate parent directory as the KB name.
+    - If the file is at the root level (e.g. 'file.pdf'), use DEFAULT_KB_NAME.
+
+    Examples:
+      'reports/finance/q1.pdf'  -> 'finance'
+      'engineering/spec.docx'   -> 'engineering'
+      'readme.txt'              -> 'Unassigned'
+    """
+    parent = os.path.dirname(file_path)
+    if parent:
+        kb_name = os.path.basename(parent)
+        return kb_name if kb_name else DEFAULT_KB_NAME
+    return DEFAULT_KB_NAME
+
+
 def create_kb_and_document(
     payload: dict,
 ) -> tuple:
     """
-    Create a knowledge_base row (1 KB = 1 doc for now) and a document row.
+    Resolve or create the target knowledge_base and insert a document row.
+    KB is determined by the S3 path structure (immediate parent dir = KB name).
+    Files at the bucket root are routed to the 'Unassigned' KB.
     Returns (kb_id, document_id).
     """
     conn = get_pg_connection()
@@ -60,9 +84,9 @@ def create_kb_and_document(
         with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
             file_path = payload["file_path"]
             file_name = os.path.basename(file_path)
-            kb_name = os.path.splitext(file_name)[0]
+            kb_name = _resolve_kb_name(file_path)
 
-            # Upsert knowledge base (1 KB = 1 doc)
+            # Upsert knowledge base (shared KB — many docs can map to the same KB)
             cur.execute("""
                 INSERT INTO knowledge_bases (
                     owner_id, name, description, storage_provider, storage_config, status
@@ -74,7 +98,7 @@ def create_kb_and_document(
                 ON CONFLICT (owner_id, name) DO UPDATE
                     SET updated_at = NOW()
                 RETURNING kb_id
-            """, (kb_name, f"Auto-created KB for {file_name}"))
+            """, (kb_name, f"Auto-created KB: {kb_name}"))
             kb_row = cur.fetchone()
             kb_id = str(kb_row["kb_id"])
 
@@ -220,9 +244,14 @@ def update_document_status(
                         WHERE kb_id = (SELECT kb_id FROM documents WHERE document_id = %s)
                           AND processing_status = 'completed'
                     ),
+                    total_size_bytes = (
+                        SELECT COALESCE(SUM(file_size_bytes), 0) FROM documents
+                        WHERE kb_id = (SELECT kb_id FROM documents WHERE document_id = %s)
+                          AND processing_status = 'completed'
+                    ),
                     updated_at = NOW()
                     WHERE kb_id = (SELECT kb_id FROM documents WHERE document_id = %s)
-                """, (document_id, document_id))
+                """, (document_id, document_id, document_id))
 
             conn.commit()
     finally:
@@ -263,15 +292,23 @@ def delete_document_data(file_path: str):
             # CASCADE deletes chunk_metadata
             cur.execute("DELETE FROM documents WHERE document_id = %s", (document_id,))
 
-            # Check if KB is now empty and delete it (1 KB = 1 doc)
+            # Clean up empty auto-created KBs, but never delete the default KB
             cur.execute(
                 "SELECT COUNT(*) as cnt FROM documents WHERE kb_id = %s",
                 (kb_id,),
             )
             count_row = cur.fetchone()
             if count_row and count_row["cnt"] == 0:
-                cur.execute("DELETE FROM knowledge_bases WHERE kb_id = %s", (kb_id,))
-                logger.info("Deleted empty KB: %s", kb_id)
+                cur.execute(
+                    "SELECT name FROM knowledge_bases WHERE kb_id = %s",
+                    (kb_id,),
+                )
+                kb_name_row = cur.fetchone()
+                if kb_name_row and kb_name_row["name"] != DEFAULT_KB_NAME:
+                    cur.execute("DELETE FROM knowledge_bases WHERE kb_id = %s", (kb_id,))
+                    logger.info("Deleted empty KB: %s", kb_id)
+                else:
+                    logger.debug("Skipped deletion of KB '%s' (default or Unassigned)", kb_id)
 
             conn.commit()
             logger.info("Deleted document %s and its chunks", document_id)

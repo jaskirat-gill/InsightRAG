@@ -4,10 +4,20 @@ from typing import List, Optional
 from uuid import UUID
 from datetime import datetime
 import hashlib
+import logging
+import os
+
+from qdrant_client import QdrantClient
+from qdrant_client.models import Filter, FieldCondition, MatchValue
 
 from database import get_db, Database
 from middleware.auth import get_current_active_user
 from middleware.permissions import require_permission
+
+logger = logging.getLogger("sync_service.documents")
+
+QDRANT_URL = os.getenv("QDRANT_URL", "http://qdrant:6333")
+COLLECTION_NAME = "document_chunks"
 
 router = APIRouter(prefix="/knowledge-bases", tags=["Documents"])
 
@@ -21,6 +31,8 @@ class DocumentResponse(BaseModel):
     processing_status: str
     total_chunks: int
     health_score: int
+    retrieval_count: int = 0
+    last_retrieved_at: Optional[datetime] = None
     created_at: datetime
 
 # List documents in KB
@@ -154,6 +166,110 @@ async def delete_document(
     # TODO: Also delete from Qdrant
     
     return None
+
+# Reassign documents to a different KB
+class ReassignItem(BaseModel):
+    document_id: UUID
+    to_kb_id: UUID
+
+@router.post("/{from_kb_id}/reassign")
+async def reassign_documents(
+    from_kb_id: UUID,
+    items: List[ReassignItem],
+    current_user: dict = require_permission("kb.update"),
+    db: Database = Depends(get_db),
+):
+    """
+    Move one or more documents from from_kb_id to their respective target KBs.
+    Updates:
+      1. documents.kb_id          (PostgreSQL)
+      2. chunk_metadata.kb_id     (PostgreSQL)
+      3. kb_id payload field      (Qdrant — all vectors for that document)
+    Also refreshes total_documents on affected KBs.
+    """
+    if not items:
+        return {"reassigned": 0}
+
+    # Verify source KB exists and caller has access
+    source_kb = await db.fetch_one(
+        "SELECT owner_id FROM knowledge_bases WHERE kb_id = $1",
+        str(from_kb_id),
+    )
+    if not source_kb:
+        raise HTTPException(status_code=404, detail="Source KB not found")
+    if "admin" not in current_user["roles"] and str(source_kb["owner_id"]) != current_user["user_id"]:
+        raise HTTPException(status_code=403, detail="Access denied")
+
+    qdrant = QdrantClient(url=QDRANT_URL)
+    reassigned = 0
+
+    for item in items:
+        doc_id = str(item.document_id)
+        to_kb_id = str(item.to_kb_id)
+
+        # Verify the target KB exists
+        target_exists = await db.fetch_one(
+            "SELECT kb_id FROM knowledge_bases WHERE kb_id = $1", to_kb_id
+        )
+        if not target_exists:
+            logger.warning("Skipping reassign — target KB %s not found", to_kb_id)
+            continue
+
+        # 1. Update documents table
+        await db.execute(
+            """
+            UPDATE documents
+            SET kb_id = $1, updated_at = NOW()
+            WHERE document_id = $2 AND kb_id = $3
+            """,
+            to_kb_id, doc_id, str(from_kb_id),
+        )
+
+        # 2. Update chunk_metadata table
+        await db.execute(
+            "UPDATE chunk_metadata SET kb_id = $1 WHERE document_id = $2",
+            to_kb_id, doc_id,
+        )
+
+        # 3. Update kb_id payload on all Qdrant points for this document
+        try:
+            qdrant.set_payload(
+                collection_name=COLLECTION_NAME,
+                payload={"kb_id": to_kb_id},
+                points=Filter(
+                    must=[FieldCondition(key="document_id", match=MatchValue(value=doc_id))]
+                ),
+            )
+            logger.info("Qdrant payload updated for doc %s -> KB %s", doc_id, to_kb_id)
+        except Exception as e:
+            # Postgres already updated — log but keep going
+            logger.warning("Qdrant payload update failed for doc %s: %s", doc_id, e)
+
+        reassigned += 1
+
+    # Refresh total_documents and total_size_bytes on every affected KB
+    affected_kb_ids = {str(from_kb_id)} | {str(item.to_kb_id) for item in items}
+    for kb_id in affected_kb_ids:
+        await db.execute(
+            """
+            UPDATE knowledge_bases
+            SET total_documents = (
+                SELECT COUNT(*) FROM documents
+                WHERE kb_id = $1 AND processing_status = 'completed'
+            ),
+            total_size_bytes = (
+                SELECT COALESCE(SUM(file_size_bytes), 0) FROM documents
+                WHERE kb_id = $1 AND processing_status = 'completed'
+            ),
+            updated_at = NOW()
+            WHERE kb_id = $1
+            """,
+            kb_id,
+        )
+
+    logger.info("Reassigned %d/%d documents from KB %s", reassigned, len(items), from_kb_id)
+    return {"reassigned": reassigned}
+
 
 # Simple search endpoint (MVP - keyword search)
 @router.post("/{kb_id}/search")

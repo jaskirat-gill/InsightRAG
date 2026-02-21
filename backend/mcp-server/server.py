@@ -5,6 +5,7 @@ import os
 
 from embeddings import generate_embedding
 from search import search_qdrant
+from config import settings
 
 # Configure logging
 logging.basicConfig(
@@ -15,6 +16,34 @@ logger = logging.getLogger("mcp_server")
 
 # Initialize MCP server
 mcp = FastMCP("Knowledge Base Search Server")
+
+def _track_retrievals(vector_ids: List[str]) -> None:
+    """
+    Increment retrieval_count and set last_retrieved_at for retrieved chunks.
+    Uses vector_id (Qdrant point ID) which is stored in chunk_metadata.vector_id.
+    Silently skips if DATABASE_URL is not configured.
+    """
+    if not settings.DATABASE_URL or not vector_ids:
+        return
+    try:
+        import psycopg2
+        conn = psycopg2.connect(settings.DATABASE_URL)
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                UPDATE chunk_metadata
+                SET retrieval_count = retrieval_count + 1,
+                    last_retrieved_at = NOW()
+                WHERE vector_id = ANY(%s)
+                """,
+                (vector_ids,),
+            )
+        conn.commit()
+        conn.close()
+        logger.debug("Updated retrieval counts for %d chunk(s)", len(vector_ids))
+    except Exception as exc:
+        logger.warning("Failed to update retrieval counts: %s", exc)
+
 
 @mcp.tool()
 def search_knowledge_base(
@@ -57,7 +86,11 @@ def search_knowledge_base(
             score_threshold=0.5  # Minimum relevance threshold
         )
         
-        # Step 3: Format for LLM consumption
+        # Step 3: Track retrievals in PostgreSQL
+        vector_ids = [str(r["vector_id"]) for r in results if r.get("vector_id")]
+        _track_retrievals(vector_ids)
+
+        # Step 4: Format for LLM consumption
         formatted_results = []
         for result in results:
             formatted_results.append({
@@ -67,7 +100,7 @@ def search_knowledge_base(
                 "page": result.get("page_number") or "N/A",
                 "relevance_score": round(result["score"], 3)
             })
-        
+
         logger.info("Returning %d results", len(formatted_results))
         return formatted_results
         

@@ -29,8 +29,27 @@ export interface Document {
   total_chunks: number;
   health_score: number;
   retrieval_count: number;
+  last_retrieved_at: string | null;
   created_at: string;
   uploaded_at: string | null;
+}
+
+export interface KBHealthStats {
+  total_docs: number;
+  completed_docs: number;
+  failed_docs: number;
+  avg_health_score: number;
+  total_chunks: number;
+  total_retrievals: number;
+}
+
+export interface ReassignItem {
+  document_id: string;
+  to_kb_id: string;
+}
+
+export interface ReassignResult {
+  reassigned: number;
 }
 
 export interface CreateKBRequest {
@@ -104,6 +123,75 @@ class KBService {
     }
 
     return await response.json();
+  }
+
+  // Reassign documents to different KBs
+  async reassignDocuments(fromKbId: string, items: ReassignItem[]): Promise<ReassignResult> {
+    const response = await fetch(
+      `${this.API_URL}/api/v1/knowledge-bases/${fromKbId}/reassign`,
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...authService.getAuthHeader(),
+        },
+        body: JSON.stringify(items),
+      },
+    );
+
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({}));
+      throw new Error(error.detail || 'Failed to reassign documents');
+    }
+
+    return await response.json();
+  }
+
+  // Trigger manual sync for all active plugins
+  async triggerSync(): Promise<{ message: string }> {
+    const response = await fetch(`${this.API_URL}/sync`, {
+      method: 'POST',
+      headers: {
+        ...authService.getAuthHeader(),
+      },
+    });
+
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({}));
+      throw new Error(error.detail || 'Failed to trigger sync');
+    }
+
+    return await response.json();
+  }
+
+  // Get KB health stats (documents + chunk retrieval metrics)
+  async getKBHealth(kbId: string): Promise<KBHealthStats> {
+    const response = await fetch(`${this.API_URL}/api/v1/knowledge-bases/${kbId}/health`, {
+      headers: {
+        ...authService.getAuthHeader(),
+      },
+    });
+
+    if (!response.ok) {
+      throw new Error('Failed to fetch KB health');
+    }
+
+    return await response.json();
+  }
+
+  // Delete KB (removes from SQL + Qdrant)
+  async deleteKnowledgeBase(kbId: string): Promise<void> {
+    const response = await fetch(`${this.API_URL}/api/v1/knowledge-bases/${kbId}`, {
+      method: 'DELETE',
+      headers: {
+        ...authService.getAuthHeader(),
+      },
+    });
+
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({}));
+      throw new Error(error.detail || 'Failed to delete knowledge base');
+    }
   }
 
   // Create new KB
