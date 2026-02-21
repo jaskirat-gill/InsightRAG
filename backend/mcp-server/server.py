@@ -143,6 +143,14 @@ def get_available_collections() -> Dict:
 if __name__ == "__main__":
     logger.info("Starting MCP server...")
     logger.info("Qdrant URL: %s", os.getenv("QDRANT_URL", "http://qdrant:6333"))
-    
-    # Always run MCP server (remove the Docker mode check)
-    mcp.run(transport="stdio")
+    logger.info(
+        "MCP transport: http (host=%s, port=%d)",
+        settings.MCP_HOST,
+        settings.MCP_PORT,
+    )
+
+    mcp.run(
+        transport="http",
+        host=settings.MCP_HOST,
+        port=settings.MCP_PORT,
+    )
