@@ -178,21 +178,53 @@ async def delete_knowledge_base(
     current_user: Dict = require_permission("kb.delete"),
     db: Database = Depends(get_db)
 ):
-    """Delete knowledge base and all associated data"""
-    
+    """Delete knowledge base and all associated data (SQL + Qdrant vectors)"""
+    import httpx
+    from config import settings
+
     kb = await db.fetch_one(
         "SELECT owner_id FROM knowledge_bases WHERE kb_id = $1",
         str(kb_id)
     )
-    
+
     if not kb:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="KB not found")
-    
+
     if "admin" not in current_user["roles"] and str(kb["owner_id"]) != current_user["user_id"]:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Access denied")
-    
-    # TODO: Also delete Qdrant collection
-    await db.execute("DELETE FROM knowledge_bases WHERE kb_id = $1", str(kb_id))
+
+    kb_id_str = str(kb_id)
+
+    # 1. Remove all Qdrant vectors for this KB (filter by kb_id payload field)
+    try:
+        async with httpx.AsyncClient(timeout=15.0) as client:
+            resp = await client.post(
+                f"{settings.QDRANT_URL}/collections/document_chunks/points/delete",
+                json={
+                    "filter": {
+                        "must": [
+                            {"key": "kb_id", "match": {"value": kb_id_str}}
+                        ]
+                    }
+                },
+            )
+            resp.raise_for_status()
+    except httpx.HTTPStatusError as exc:
+        # 404 means the collection doesn't exist yet — treat as no-op
+        if exc.response.status_code != 404:
+            raise HTTPException(
+                status_code=status.HTTP_502_BAD_GATEWAY,
+                detail=f"Qdrant deletion failed: {exc.response.text}"
+            )
+    except Exception as exc:
+        # Network errors etc. — log and continue so SQL is still cleaned up
+        import logging
+        logging.getLogger("knowledge_bases").warning(
+            "Qdrant deletion failed for kb %s: %s", kb_id_str, exc
+        )
+
+    # 2. Delete from SQL (cascade removes documents + chunks via FK)
+    await db.execute("DELETE FROM knowledge_bases WHERE kb_id = $1", kb_id_str)
     return None
 
 @router.get("/{kb_id}/health")

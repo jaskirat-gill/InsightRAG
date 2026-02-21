@@ -137,6 +137,21 @@ class KBService {
     return await response.json();
   }
 
+  // Delete KB (removes from SQL + Qdrant)
+  async deleteKnowledgeBase(kbId: string): Promise<void> {
+    const response = await fetch(`${this.API_URL}/api/v1/knowledge-bases/${kbId}`, {
+      method: 'DELETE',
+      headers: {
+        ...authService.getAuthHeader(),
+      },
+    });
+
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({}));
+      throw new Error(error.detail || 'Failed to delete knowledge base');
+    }
+  }
+
   // Create new KB
   async createKnowledgeBase(data: CreateKBRequest): Promise<KnowledgeBase> {
     const response = await fetch(`${this.API_URL}/api/v1/knowledge-bases`, {

@@ -2,6 +2,7 @@ import { FC, useState, useEffect } from 'react';
 import {
   Database, Search, Loader2, Plus, AlertCircle,
   X, File, FileText, ChevronDown, Settings, CheckCircle,
+  Trash2, AlertTriangle,
 } from 'lucide-react';
 import { kbService, KnowledgeBase, Document } from '../services/kb';
 import CreateKBModal from '../components/CreateKBModal';
@@ -331,6 +332,111 @@ const ConfigureKBModal: FC<ConfigureModalProps> = ({ kb, allKbs, onClose, onSucc
   );
 };
 
+// ── Delete Confirmation Modal ─────────────────────────────────────────────────
+
+interface DeleteConfirmModalProps {
+  kb: KnowledgeBase | null;
+  onClose: () => void;
+  onConfirm: () => Promise<void>;
+}
+
+const DeleteConfirmModal: FC<DeleteConfirmModalProps> = ({ kb, onClose, onConfirm }) => {
+  const [deleting, setDeleting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  if (!kb) return null;
+
+  const handleConfirm = async () => {
+    setDeleting(true);
+    setError(null);
+    try {
+      await onConfirm();
+    } catch (err: any) {
+      setError(err.message || 'Failed to delete knowledge base');
+      setDeleting(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center">
+      {/* Backdrop */}
+      <div
+        className="absolute inset-0 bg-black/60 backdrop-blur-sm"
+        onClick={!deleting ? onClose : undefined}
+      />
+
+      {/* Modal */}
+      <div className="relative bg-[#1a1a2e] border border-white/10 rounded-2xl p-6 w-full max-w-md mx-4 shadow-2xl">
+        {/* Warning Icon */}
+        <div className="flex items-center justify-center mb-4">
+          <div className="h-14 w-14 rounded-full bg-red-500/15 flex items-center justify-center">
+            <AlertTriangle size={28} className="text-red-400" />
+          </div>
+        </div>
+
+        {/* Title */}
+        <h2 className="text-xl font-bold text-white text-center mb-2">
+          Delete Knowledge Base?
+        </h2>
+        <p className="text-secondary text-sm text-center mb-5">
+          You are about to delete{' '}
+          <span className="text-white font-semibold">"{kb.name}"</span>
+        </p>
+
+        {/* Warning box */}
+        <div className="bg-red-500/10 border border-red-500/25 rounded-xl p-4 mb-5 space-y-2">
+          <div className="flex items-start gap-2 text-sm text-red-300">
+            <AlertCircle size={15} className="mt-0.5 flex-shrink-0" />
+            <span>
+              All <strong>{kb.total_documents.toLocaleString()} document{kb.total_documents !== 1 ? 's' : ''}</strong> will be permanently removed from both the SQL database and Qdrant vector store.
+            </span>
+          </div>
+          <div className="flex items-start gap-2 text-sm text-yellow-300/80">
+            <AlertCircle size={15} className="mt-0.5 flex-shrink-0" />
+            <span>
+              The next sync may re-add files from the source if the KB's sync configuration still exists.
+            </span>
+          </div>
+        </div>
+
+        {error && (
+          <div className="mb-4 px-3 py-2 rounded-lg bg-red-500/10 border border-red-500/20 text-red-400 text-xs">
+            {error}
+          </div>
+        )}
+
+        {/* Actions */}
+        <div className="flex gap-3">
+          <button
+            onClick={onClose}
+            disabled={deleting}
+            className="flex-1 px-4 py-2.5 bg-white/5 hover:bg-white/10 text-white text-sm font-medium rounded-xl transition-colors disabled:opacity-50"
+          >
+            Cancel
+          </button>
+          <button
+            onClick={handleConfirm}
+            disabled={deleting}
+            className="flex-1 px-4 py-2.5 bg-red-500 hover:bg-red-600 text-white text-sm font-semibold rounded-xl transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+          >
+            {deleting ? (
+              <>
+                <Loader2 size={14} className="animate-spin" />
+                Deleting…
+              </>
+            ) : (
+              <>
+                <Trash2 size={14} />
+                Delete Permanently
+              </>
+            )}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
 // ── KB Card ───────────────────────────────────────────────────────────────────
 
 interface KBCardProps {
@@ -338,9 +444,10 @@ interface KBCardProps {
   allKbs: KnowledgeBase[];
   onView: () => void;
   onConfigure: () => void;
+  onDeleteClick: () => void;
 }
 
-const KBCard: FC<KBCardProps> = ({ kb, onView, onConfigure }) => {
+const KBCard: FC<KBCardProps> = ({ kb, onView, onConfigure, onDeleteClick }) => {
   const getHealthColor = (score: number) => {
     if (score >= 90) return 'text-green-400';
     if (score >= 70) return 'text-yellow-400';
@@ -426,7 +533,11 @@ const KBCard: FC<KBCardProps> = ({ kb, onView, onConfigure }) => {
         >
           Configure
         </button>
-        <button className="flex-1 px-3 py-2 bg-white/5 hover:bg-red-500/10 text-white hover:text-red-400 text-sm font-medium rounded-lg transition-colors">
+        <button
+          onClick={(e) => { e.stopPropagation(); onDeleteClick(); }}
+          className="flex-1 px-3 py-2 bg-white/5 hover:bg-red-500/10 text-white hover:text-red-400 text-sm font-medium rounded-lg transition-colors flex items-center justify-center gap-1.5"
+        >
+          <Trash2 size={13} />
           Delete
         </button>
       </div>
@@ -445,6 +556,7 @@ const KnowledgeBases: FC = () => {
 
   const [viewingKB, setViewingKB] = useState<KnowledgeBase | null>(null);
   const [configuringKB, setConfiguringKB] = useState<KnowledgeBase | null>(null);
+  const [kbToDelete, setKbToDelete] = useState<KnowledgeBase | null>(null);
 
   useEffect(() => {
     loadKBs();
@@ -461,6 +573,13 @@ const KnowledgeBases: FC = () => {
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleDeleteConfirm = async () => {
+    if (!kbToDelete) return;
+    await kbService.deleteKnowledgeBase(kbToDelete.kb_id);
+    setKbToDelete(null);
+    await loadKBs();
   };
 
   const filteredKBs = kbs.filter(
@@ -546,6 +665,7 @@ const KnowledgeBases: FC = () => {
               allKbs={kbs}
               onView={() => setViewingKB(kb)}
               onConfigure={() => setConfiguringKB(kb)}
+              onDeleteClick={() => setKbToDelete(kb)}
             />
           ))}
         </div>
@@ -575,6 +695,13 @@ const KnowledgeBases: FC = () => {
           onSuccess={loadKBs}
         />
       )}
+
+      {/* Delete Confirmation Modal */}
+      <DeleteConfirmModal
+        kb={kbToDelete}
+        onClose={() => setKbToDelete(null)}
+        onConfirm={handleDeleteConfirm}
+      />
     </div>
   );
 };
