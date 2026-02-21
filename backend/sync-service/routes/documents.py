@@ -31,6 +31,8 @@ class DocumentResponse(BaseModel):
     processing_status: str
     total_chunks: int
     health_score: int
+    retrieval_count: int = 0
+    last_retrieved_at: Optional[datetime] = None
     created_at: datetime
 
 # List documents in KB

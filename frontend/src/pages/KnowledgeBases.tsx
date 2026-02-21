@@ -2,7 +2,7 @@ import { FC, useState, useEffect } from 'react';
 import {
   Database, Search, Loader2, Plus, AlertCircle,
   X, File, FileText, ChevronDown, Settings, CheckCircle,
-  Trash2, AlertTriangle,
+  Trash2, AlertTriangle, RefreshCw, BarChart3,
 } from 'lucide-react';
 import { kbService, KnowledgeBase, Document } from '../services/kb';
 import CreateKBModal from '../components/CreateKBModal';
@@ -445,9 +445,10 @@ interface KBCardProps {
   onView: () => void;
   onConfigure: () => void;
   onDeleteClick: () => void;
+  onHealthClick: () => void;
 }
 
-const KBCard: FC<KBCardProps> = ({ kb, onView, onConfigure, onDeleteClick }) => {
+const KBCard: FC<KBCardProps> = ({ kb, onView, onConfigure, onDeleteClick, onHealthClick }) => {
   const getHealthColor = (score: number) => {
     if (score >= 90) return 'text-green-400';
     if (score >= 70) return 'text-yellow-400';
@@ -472,7 +473,10 @@ const KBCard: FC<KBCardProps> = ({ kb, onView, onConfigure, onDeleteClick }) => 
   };
 
   return (
-    <div className="bg-surface/50 backdrop-blur border border-white/5 p-6 rounded-2xl hover:border-primary/30 transition-all group cursor-pointer">
+    <div
+      onClick={onHealthClick}
+      className="bg-surface/50 backdrop-blur border border-white/5 p-6 rounded-2xl hover:border-primary/30 transition-all group cursor-pointer"
+    >
       {/* Header */}
       <div className="flex items-start justify-between mb-4">
         <div className="flex-1">
@@ -483,6 +487,7 @@ const KBCard: FC<KBCardProps> = ({ kb, onView, onConfigure, onDeleteClick }) => 
             <p className="text-sm text-secondary line-clamp-2">{kb.description}</p>
           )}
         </div>
+        <BarChart3 size={16} className="text-secondary group-hover:text-primary transition-colors mt-1 ml-2 shrink-0" />
       </div>
 
       {/* Health Badge */}
@@ -522,13 +527,13 @@ const KBCard: FC<KBCardProps> = ({ kb, onView, onConfigure, onDeleteClick }) => 
       {/* Actions */}
       <div className="flex gap-2 pt-4 border-t border-white/5">
         <button
-          onClick={onView}
+          onClick={(e) => { e.stopPropagation(); onView(); }}
           className="flex-1 px-3 py-2 bg-white/5 hover:bg-white/10 text-white text-sm font-medium rounded-lg transition-colors"
         >
           View
         </button>
         <button
-          onClick={onConfigure}
+          onClick={(e) => { e.stopPropagation(); onConfigure(); }}
           className="flex-1 px-3 py-2 bg-white/5 hover:bg-white/10 text-white text-sm font-medium rounded-lg transition-colors"
         >
           Configure
@@ -547,12 +552,18 @@ const KBCard: FC<KBCardProps> = ({ kb, onView, onConfigure, onDeleteClick }) => 
 
 // ── Knowledge Bases Page ──────────────────────────────────────────────────────
 
-const KnowledgeBases: FC = () => {
+interface KnowledgeBasesProps {
+  onSelectKB?: (kb: KnowledgeBase) => void;
+}
+
+const KnowledgeBases: FC<KnowledgeBasesProps> = ({ onSelectKB }) => {
   const [kbs, setKbs] = useState<KnowledgeBase[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
+  const [syncing, setSyncing] = useState(false);
+  const [syncMessage, setSyncMessage] = useState<string | null>(null);
 
   const [viewingKB, setViewingKB] = useState<KnowledgeBase | null>(null);
   const [configuringKB, setConfiguringKB] = useState<KnowledgeBase | null>(null);
@@ -580,6 +591,21 @@ const KnowledgeBases: FC = () => {
     await kbService.deleteKnowledgeBase(kbToDelete.kb_id);
     setKbToDelete(null);
     await loadKBs();
+  };
+
+  const handleSync = async () => {
+    setSyncing(true);
+    setSyncMessage(null);
+    try {
+      const result = await kbService.triggerSync();
+      setSyncMessage(result.message);
+      setTimeout(() => setSyncMessage(null), 4000);
+    } catch (err: any) {
+      setSyncMessage(`Sync failed: ${err.message}`);
+      setTimeout(() => setSyncMessage(null), 4000);
+    } finally {
+      setSyncing(false);
+    }
   };
 
   const filteredKBs = kbs.filter(
@@ -622,13 +648,31 @@ const KnowledgeBases: FC = () => {
             Manage your document collections and sync settings.
           </p>
         </div>
-        <button
-          onClick={() => setIsCreateModalOpen(true)}
-          className="flex items-center gap-2 px-4 py-3 bg-primary text-white rounded-xl hover:bg-primary/90 transition-all shadow-lg shadow-primary/25"
-        >
-          <Plus size={18} />
-          Create New
-        </button>
+        <div className="flex items-center gap-3">
+          {/* Sync status message */}
+          {syncMessage && (
+            <span className="text-xs text-secondary bg-white/5 px-3 py-1.5 rounded-lg">
+              {syncMessage}
+            </span>
+          )}
+          {/* Manual Sync button */}
+          <button
+            onClick={handleSync}
+            disabled={syncing}
+            className="flex items-center gap-2 px-4 py-3 bg-white/5 hover:bg-white/10 text-white rounded-xl transition-all disabled:opacity-50"
+            title="Trigger sync for all active plugins"
+          >
+            <RefreshCw size={16} className={syncing ? 'animate-spin' : ''} />
+            {syncing ? 'Syncing…' : 'Sync Now'}
+          </button>
+          <button
+            onClick={() => setIsCreateModalOpen(true)}
+            className="flex items-center gap-2 px-4 py-3 bg-primary text-white rounded-xl hover:bg-primary/90 transition-all shadow-lg shadow-primary/25"
+          >
+            <Plus size={18} />
+            Create New
+          </button>
+        </div>
       </div>
 
       {/* Search Bar */}
@@ -666,6 +710,7 @@ const KnowledgeBases: FC = () => {
               onView={() => setViewingKB(kb)}
               onConfigure={() => setConfiguringKB(kb)}
               onDeleteClick={() => setKbToDelete(kb)}
+              onHealthClick={() => onSelectKB?.(kb)}
             />
           ))}
         </div>

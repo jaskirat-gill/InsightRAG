@@ -17,7 +17,11 @@ class Settings(BaseSettings):
     
     # Vector Dimensions (for validation)
     VECTOR_DIMENSIONS: int = 1536  # text-embedding-ada-002
-    
+
+    # PostgreSQL URL for retrieval tracking (optional)
+    # Format: postgresql://user:password@host:5432/dbname
+    DATABASE_URL: Optional[str] = None
+
     class Config:
         env_file = ".env"
         case_sensitive = True

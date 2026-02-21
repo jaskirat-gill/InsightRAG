@@ -233,18 +233,29 @@ async def get_kb_health(
     current_user: Dict = require_permission("kb.read"),
     db: Database = Depends(get_db)
 ):
-    """Get knowledge base health metrics"""
-    
-    # Aggregate health data
+    """Get knowledge base health metrics including retrieval stats"""
+
+    kb_id_str = str(kb_id)
+
+    # Aggregate health data from documents
     stats = await db.fetch_one("""
-        SELECT 
+        SELECT
             COUNT(*) as total_docs,
             COUNT(CASE WHEN processing_status = 'completed' THEN 1 END) as completed_docs,
             COUNT(CASE WHEN processing_status = 'failed' THEN 1 END) as failed_docs,
-            AVG(health_score) as avg_health_score,
-            SUM(total_chunks) as total_chunks
+            COALESCE(AVG(health_score), 0) as avg_health_score,
+            COALESCE(SUM(total_chunks), 0) as total_chunks
         FROM documents
         WHERE kb_id = $1
-    """, str(kb_id))
-    
-    return dict(stats)
+    """, kb_id_str)
+
+    # Total retrievals across all chunks in this KB
+    retrieval_stats = await db.fetch_one("""
+        SELECT COALESCE(SUM(retrieval_count), 0) as total_retrievals
+        FROM chunk_metadata
+        WHERE kb_id = $1
+    """, kb_id_str)
+
+    result = dict(stats)
+    result["total_retrievals"] = int(retrieval_stats["total_retrievals"])
+    return result
