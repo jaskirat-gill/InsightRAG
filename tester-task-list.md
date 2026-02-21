@@ -77,15 +77,27 @@
 
 ---
 
-### Test case 5: [Settings]
+### Test case 5: [Settings - Plugin]
 
 #### Steps to test
 1. Click on "Settings" in the bottom navigation bar (Expected Behavior 1)
 ![Alt text](/test/testcase5-icon.png)
+2. Click on "Plugins" (Expected Behavior 2)
+3. Click on "+ Add Plugin" (Expected Behavior 3)
+4. After filling in correct credentials for bucket name, aws region, access key id, secret access key, connection should be established after click on "Save Changes" (Expected Behavior 4)
+5. Click on "Save Changes" and changes should be saved (Expected Behavior 5)
+6. This establishes KB-mapping
 
 #### Expected Behavior
 1. Settings page should slide out from the right and should be able to interact with "General" and "Plugins"
 ![Alt text](/test/testcase5-settings.png)
+2. Plugins should show page as
+![Alt text](/test/testcase5-plugin.png)
+3. A dropdown selection for Plugin should show when trying to add plugin
+![Alt text](/test/testcase5-s3.png)
+4. Should be able to save changes and test connection
+![Alt text](/test/testcase5-connection.png)
+5. After refreshing page and navigate back to "Plugins", the S3 Plugin should be saved. 
 
 ---
 
@@ -100,7 +112,7 @@
 
 ---
 
-### Test case 7: [MCP server - Claude]
+### Test case 8: []
 
 #### Steps to test
 1. 
@@ -110,7 +122,7 @@
 
 ---
 
-### Test case 8: []
+### Test case 9: [MCP server - Claude]
 
 #### Steps to test
 1. 
