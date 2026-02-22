@@ -35,7 +35,7 @@ BEGIN
     RAISE NOTICE '       ALL TABLES DROPPED!';
     RAISE NOTICE '==============================================';
     RAISE NOTICE 'Database is now empty and ready for fresh seed.';
-    RAISE NOTICE 'Run: ./scripts/reset_and_seed.sh';
+    RAISE NOTICE 'Run: ./reset_and_seed.sh';
     RAISE NOTICE '==============================================';
     RAISE NOTICE '';
 END $$;
