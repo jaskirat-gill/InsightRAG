@@ -1,13 +1,14 @@
 import { useState, useEffect } from 'react';
-import { Zap, BookOpen, BarChart3, Database } from 'lucide-react';
+import { BookOpen, BarChart3, Database } from 'lucide-react';
 import Layout from './components/Layout';
 import Login from './pages/Login';
 import KnowledgeBases from './pages/KnowledgeBases';
 import KBHealthDashboard from './pages/KBHealthDashboard';
+import Chat from './pages/Chat';
 import { authService, UserResponse } from './services/auth';
 import { KnowledgeBase } from './services/kb';
 
-type Page = 'home' | 'kb' | 'kb-health';
+type Page = 'home' | 'kb' | 'kb-health' | 'chat';
 
 function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -101,6 +102,7 @@ function App() {
           onBack={() => setCurrentPage('kb')}
         />
       )}
+      {currentPage === 'chat' && <Chat />}
     </Layout>
   );
 }
@@ -153,14 +155,17 @@ const HomePage = ({
         </p>
       </div>
 
-      {/* Chat (Coming Soon) */}
-      <div className="bg-surface/50 backdrop-blur border border-white/5 p-6 rounded-2xl hover:border-primary/50 transition-colors group cursor-pointer">
+      {/* Chat */}
+      <div
+        onClick={() => onNavigate?.('chat')}
+        className="bg-surface/50 backdrop-blur border border-white/5 p-6 rounded-2xl hover:border-primary/50 transition-colors group cursor-pointer"
+      >
         <div className="h-10 w-10 bg-accent/20 rounded-lg flex items-center justify-center mb-4 text-accent group-hover:scale-110 transition-transform">
           <BookOpen size={20} />
         </div>
         <h3 className="text-xl font-semibold mb-2">Chat Interface</h3>
         <p className="text-secondary text-sm">
-          Query your knowledge bases using natural language (Coming Soon).
+          Query with OpenWebUI streaming and MCP-backed tools.
         </p>
       </div>
 

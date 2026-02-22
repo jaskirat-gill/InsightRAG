@@ -141,16 +141,24 @@ def get_available_collections() -> Dict:
 
 
 if __name__ == "__main__":
+    transport = os.getenv("MCP_TRANSPORT", "http").strip().lower()
+    if transport not in {"http", "stdio"}:
+        logger.warning("Unsupported MCP_TRANSPORT=%s, falling back to http", transport)
+        transport = "http"
+
     logger.info("Starting MCP server...")
     logger.info("Qdrant URL: %s", os.getenv("QDRANT_URL", "http://qdrant:6333"))
-    logger.info(
-        "MCP transport: http (host=%s, port=%d)",
-        settings.MCP_HOST,
-        settings.MCP_PORT,
-    )
-
-    mcp.run(
-        transport="http",
-        host=settings.MCP_HOST,
-        port=settings.MCP_PORT,
-    )
+    if transport == "http":
+        logger.info(
+            "MCP transport: http (host=%s, port=%d)",
+            settings.MCP_HOST,
+            settings.MCP_PORT,
+        )
+        mcp.run(
+            transport="http",
+            host=settings.MCP_HOST,
+            port=settings.MCP_PORT,
+        )
+    else:
+        logger.info("MCP transport: stdio")
+        mcp.run(transport="stdio")
