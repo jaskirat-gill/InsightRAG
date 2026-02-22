@@ -61,6 +61,8 @@
 6. Click "+ Create New" on the top right corner (Expected Behavior 5)
 7. Click "Create Knowledge Bases" (Expcected Behavior 6)
 ![Alt text](/test/testcase4-create.png)
+8. Click on "Test"
+
 
 #### Expected Behavior
 1. Should see the role dispalyed as admin
@@ -74,6 +76,8 @@
 ![Alt text](/test/testcase4-pop.png)
 6. Should see the new document collection created with the created name, health status, documents count, size, and lasy synced.
 ![Alt text](/test/testcase4-new.png)
+7. Should see all the related field to the document displaying 
+![Alt text](/test/testcase4-test.png)
 
 ---
 
