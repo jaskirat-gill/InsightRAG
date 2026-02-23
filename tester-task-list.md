@@ -61,8 +61,10 @@
 6. Click "+ Create New" on the top right corner (Expected Behavior 5)
 7. Click "Create Knowledge Bases" (Expcected Behavior 6)
 ![Alt text](/test/testcase4-create.png)
-8. Click on "Test"
-
+8. Click on a the "Product Documentation" document (Expected Behavior 7)
+![Alt text](/test/testcase4-prod.png)
+9. Click on "API Authentication Guide" document
+![Alt text](/test/testcase4-guide.png)
 
 #### Expected Behavior
 1. Should see the role dispalyed as admin
@@ -78,6 +80,8 @@
 ![Alt text](/test/testcase4-new.png)
 7. Should see all the related field to the document displaying 
 ![Alt text](/test/testcase4-test.png)
+8. Should see all the related field to the document displaying with all the button clickable. All the information are currently stubbed, but should be able to view all the related functionalities and how they will display (Overview, Strategy, Chunks, Health, and Document View)
+![Alt text](/test/testcase4-detail.png)
 
 ---
 
