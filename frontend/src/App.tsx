@@ -5,19 +5,21 @@ import Login from './pages/Login';
 import KnowledgeBases from './pages/KnowledgeBases';
 import KBHealthDashboard from './pages/KBHealthDashboard';
 import Chat from './pages/Chat';
+import DocumentDetails from './pages/DocumentDetails';
 import { authService, UserResponse } from './services/auth';
-import { KnowledgeBase } from './services/kb';
+import { KnowledgeBase, Document } from './services/kb';
 
-type Page = 'home' | 'kb' | 'kb-health' | 'chat';
+type Page = 'home' | 'kb' | 'kb-health' | 'doc' | 'chat';
 
 function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [user, setUser] = useState<UserResponse | null>(null);
   const [loading, setLoading] = useState(true);
+
   const [currentPage, setCurrentPage] = useState<Page>('home');
   const [selectedKB, setSelectedKB] = useState<KnowledgeBase | null>(null);
+  const [selectedDoc, setSelectedDoc] = useState<Document | null>(null);
 
-  // Check if user is already authenticated on mount
   useEffect(() => {
     const checkAuth = async () => {
       if (authService.isAuthenticated()) {
@@ -32,7 +34,6 @@ function App() {
       }
       setLoading(false);
     };
-
     checkAuth();
   }, []);
 
@@ -52,20 +53,35 @@ function App() {
     setIsAuthenticated(false);
     setCurrentPage('home');
     setSelectedKB(null);
+    setSelectedDoc(null);
   };
 
   const handleNavigate = (page: string) => {
-    // Navigating away from kb-health resets selection
-    if (page !== 'kb-health') setSelectedKB(null);
-    setCurrentPage(page as Page);
+    const p = page as Page;
+
+    // if leaving KB area, clear selections
+    if (p !== 'kb-health' && p !== 'doc') {
+      setSelectedKB(null);
+      setSelectedDoc(null);
+    }
+
+    // if leaving doc, clear doc
+    if (p !== 'doc') setSelectedDoc(null);
+
+    setCurrentPage(p);
   };
 
   const handleSelectKB = (kb: KnowledgeBase) => {
     setSelectedKB(kb);
+    setSelectedDoc(null);
     setCurrentPage('kb-health');
   };
 
-  // Loading state
+  const handleSelectDoc = (doc: Document) => {
+    setSelectedDoc(doc);
+    setCurrentPage('doc');
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
@@ -74,7 +90,6 @@ function App() {
     );
   }
 
-  // If not authenticated, show Login page
   if (!isAuthenticated) {
     return (
       <div className="relative min-h-screen text-white font-sans antialiased selection:bg-primary/30">
@@ -83,28 +98,55 @@ function App() {
     );
   }
 
-  // If authenticated, show Layout with current page
-  return (
-    <Layout
-      onLogout={handleLogout}
-      onNavigate={handleNavigate}
-      currentPage={currentPage}
-    >
-      {currentPage === 'home' && (
-        <HomePage user={user} onNavigate={handleNavigate} />
-      )}
-      {currentPage === 'kb' && (
-        <KnowledgeBases onSelectKB={handleSelectKB} />
-      )}
-      {currentPage === 'kb-health' && selectedKB && (
-        <KBHealthDashboard
-          kb={selectedKB}
-          onBack={() => setCurrentPage('kb')}
-        />
-      )}
-      {currentPage === 'chat' && <Chat />}
-    </Layout>
-  );
+  // ✅ Choose what to render — never blank
+  let content: React.ReactNode = null;
+
+  if (currentPage === 'home') {
+    content = <HomePage user={user} onNavigate={handleNavigate} />;
+  } else if (currentPage === 'kb') {
+    content = <KnowledgeBases onSelectKB={handleSelectKB} />;
+  } else if (currentPage === 'kb-health') {
+    content = selectedKB ? (
+      <KBHealthDashboard
+        kb={selectedKB}
+        onBack={() => {
+          setCurrentPage('kb');
+          setSelectedDoc(null);
+        }}
+        onSelectDocument={handleSelectDoc}
+      />
+    ) : (
+      <div className="text-white">No KB selected. Go back to Knowledge Bases.</div>
+    );
+  } else if (currentPage === 'doc') {
+      content =
+        selectedKB && selectedDoc ? (
+          <DocumentDetails
+            kb={selectedKB}
+            doc={selectedDoc}
+            onBack={() => {
+              setCurrentPage('kb-health');
+              setSelectedDoc(null);
+            }}
+          />
+        ) : (
+          <div className="text-white">No document selected. Go back.</div>
+        );
+    } else if (currentPage === 'chat') {
+      content = <Chat />;
+    } else {
+      content = (
+        <div className="text-white">
+          No page matched: <span className="text-primary">{String(currentPage)}</span>
+        </div>
+      );
+    }
+
+    return (
+      <Layout onLogout={handleLogout} onNavigate={handleNavigate} currentPage={currentPage}>
+        {content}
+      </Layout>
+    );
 }
 
 // Home Page Component
@@ -117,7 +159,6 @@ const HomePage = ({
 }) => {
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-      {/* Welcome message */}
       <div className="col-span-full mb-8">
         <h1 className="text-4xl font-bold mb-2">
           Welcome back, {user?.full_name || user?.email || 'User'}
@@ -126,7 +167,6 @@ const HomePage = ({
           Here is what's happening in your workspace today.
         </p>
 
-        {/* User roles */}
         {user && user.roles.length > 0 && (
           <div className="mt-3 flex gap-2">
             {user.roles.map((role) => (
@@ -141,7 +181,6 @@ const HomePage = ({
         )}
       </div>
 
-      {/* Knowledge Bases */}
       <div
         onClick={() => onNavigate?.('kb')}
         className="bg-surface/50 backdrop-blur border border-white/5 p-6 rounded-2xl hover:border-primary/50 transition-colors group cursor-pointer"
@@ -155,11 +194,11 @@ const HomePage = ({
         </p>
       </div>
 
-      {/* Chat */}
-      <div
-        onClick={() => onNavigate?.('chat')}
-        className="bg-surface/50 backdrop-blur border border-white/5 p-6 rounded-2xl hover:border-primary/50 transition-colors group cursor-pointer"
-      >
+
+        <div
+          onClick={() => onNavigate?.('chat')}
+          className="bg-surface/50 backdrop-blur border border-white/5 p-6 rounded-2xl hover:border-primary/50 transition-colors group cursor-pointer"
+        >
         <div className="h-10 w-10 bg-accent/20 rounded-lg flex items-center justify-center mb-4 text-accent group-hover:scale-110 transition-transform">
           <BookOpen size={20} />
         </div>
@@ -169,7 +208,6 @@ const HomePage = ({
         </p>
       </div>
 
-      {/* Analytics → KB list (select a KB to view health dashboard) */}
       <div
         onClick={() => onNavigate?.('kb')}
         className="bg-surface/50 backdrop-blur border border-white/5 p-6 rounded-2xl hover:border-primary/50 transition-colors group cursor-pointer"

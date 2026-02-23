@@ -61,6 +61,10 @@
 6. Click "+ Create New" on the top right corner (Expected Behavior 5)
 7. Click "Create Knowledge Bases" (Expcected Behavior 6)
 ![Alt text](/test/testcase4-create.png)
+8. Click on a the "Product Documentation" document (Expected Behavior 7)
+![Alt text](/test/testcase4-prod.png)
+9. Click on "API Authentication Guide" document
+![Alt text](/test/testcase4-guide.png)
 
 #### Expected Behavior
 1. Should see the role dispalyed as admin
@@ -74,6 +78,10 @@
 ![Alt text](/test/testcase4-pop.png)
 6. Should see the new document collection created with the created name, health status, documents count, size, and lasy synced.
 ![Alt text](/test/testcase4-new.png)
+7. Should see all the related field to the document displaying 
+![Alt text](/test/testcase4-test.png)
+8. Should see all the related field to the document displaying with all the button clickable. All the information are currently stubbed, but should be able to view all the related functionalities and how they will display (Overview, Strategy, Chunks, Health, and Document View)
+![Alt text](/test/testcase4-detail.png)
 
 ---
 
@@ -104,29 +112,19 @@
 ### Test case 6: [Chat]
 
 #### Steps to test
-1. Click on "Chat" in the bottom navigation bar
+1. Click on "Chat" in the bottom navigation bar (Expected Behavior 1)
 ![Alt text](/test/testcase6-icon.png)
 
-#### Expected Behavior
-1. !!! (Wait for Shibo's implementation)
+2. In the top-left corner, select the model and MCP server. The MCP server is connected to our knowledge base, and this setting allows the LLM to access our knowledge base. (Expected Behavior 2)
+![Alt text](/test/testcase6-model-and-mcp.png)
 
----
-
-### Test case 8: []
-
-#### Steps to test
-1. 
+3. Chat with the LLM to query the knowledge base. (Expected Behavior 3)
+![Alt text](/test/testcase6-chat-box.png)
 
 #### Expected Behavior
-1. 
-
----
-
-### Test case 9: [MCP server - Claude]
-
-#### Steps to test
-1. 
-#### Expected Behavior
-1. 
+1. You should be presented with the chat interface.
+2. You should be able to select the pre-configured models and MCP servers.
+3. You should be able to get answers that include knowledge stored in our knowledge base, with references. (We recommend using the prompt "search about box filter".)
+![Alt text](/test/testcase6-kb-response.png)
 
 ---

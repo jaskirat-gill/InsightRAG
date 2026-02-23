@@ -1,6 +1,6 @@
 import { FC, useState, useEffect, useCallback } from 'react';
 import {
-  ArrowLeft, RefreshCw, Database, FileText, BarChart3,
+  ArrowLeft, RefreshCw, Database, FileText,
   Activity, AlertCircle, Loader2, CheckCircle, Clock,
   TrendingUp, Hash, HardDrive, Zap,
 } from 'lucide-react';
@@ -70,9 +70,10 @@ const StatusBadge: FC<{ status: string }> = ({ status }) => {
 interface KBHealthDashboardProps {
   kb: KnowledgeBase;
   onBack: () => void;
+  onSelectDocument: (doc: Document) => void; // ✅ NEW
 }
 
-const KBHealthDashboard: FC<KBHealthDashboardProps> = ({ kb, onBack }) => {
+const KBHealthDashboard: FC<KBHealthDashboardProps> = ({ kb, onBack, onSelectDocument }) => {
   const [health, setHealth] = useState<KBHealthStats | null>(null);
   const [docs, setDocs] = useState<Document[]>([]);
   const [loading, setLoading] = useState(true);
@@ -119,7 +120,6 @@ const KBHealthDashboard: FC<KBHealthDashboardProps> = ({ kb, onBack }) => {
     return parts[parts.length - 1];
   };
 
-  // Status badge for the KB itself
   const kbStatusStyles: Record<string, string> = {
     active:  'bg-green-500/20 text-green-400 border-green-500/30',
     syncing: 'bg-blue-500/20 text-blue-400 border-blue-500/30',
@@ -235,7 +235,6 @@ const KBHealthDashboard: FC<KBHealthDashboardProps> = ({ kb, onBack }) => {
 
           {/* ── Document Health Table ── */}
           <div className="bg-surface/50 backdrop-blur border border-white/5 rounded-2xl overflow-hidden">
-            {/* Table header */}
             <div className="flex items-center justify-between px-6 py-4 border-b border-white/5">
               <div className="flex items-center gap-2">
                 <Database size={16} className="text-primary" />
@@ -266,10 +265,20 @@ const KBHealthDashboard: FC<KBHealthDashboardProps> = ({ kb, onBack }) => {
                       <th className="text-right px-6 py-3 font-medium">Last Retrieved</th>
                     </tr>
                   </thead>
+
                   <tbody className="divide-y divide-white/5">
                     {docs.map((doc) => (
-                      <tr key={doc.document_id} className="hover:bg-white/[0.02] transition-colors">
-                        {/* Name */}
+                      <tr
+                        key={doc.document_id}
+                        onClick={() => onSelectDocument(doc)}
+                        role="button"
+                        tabIndex={0}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter' || e.key === ' ') onSelectDocument(doc);
+                        }}
+                        className="hover:bg-white/[0.02] transition-colors cursor-pointer"
+                        title="Open document details"
+                      >
                         <td className="px-6 py-3">
                           <div className="font-medium text-white truncate max-w-[220px]" title={getFileName(doc)}>
                             {getFileName(doc)}
@@ -278,25 +287,18 @@ const KBHealthDashboard: FC<KBHealthDashboardProps> = ({ kb, onBack }) => {
                             {doc.source_path}
                           </div>
                         </td>
-                        {/* Health bar */}
                         <td className="px-4 py-3">
                           <HealthBar score={doc.health_score} />
                         </td>
-                        {/* Status */}
                         <td className="px-4 py-3">
                           <StatusBadge status={doc.processing_status} />
                         </td>
-                        {/* Chunks */}
                         <td className="px-4 py-3 text-right text-secondary">
                           {doc.total_chunks.toLocaleString()}
                         </td>
-                        {/* Size */}
                         <td className="px-4 py-3 text-right text-secondary">
-                          {doc.file_size_bytes !== null
-                            ? kbService.formatFileSize(doc.file_size_bytes)
-                            : '—'}
+                          {doc.file_size_bytes !== null ? kbService.formatFileSize(doc.file_size_bytes) : '—'}
                         </td>
-                        {/* Retrievals */}
                         <td className="px-4 py-3 text-right">
                           {doc.retrieval_count > 0 ? (
                             <span className="text-purple-400 font-medium">
@@ -306,11 +308,8 @@ const KBHealthDashboard: FC<KBHealthDashboardProps> = ({ kb, onBack }) => {
                             <span className="text-secondary">0</span>
                           )}
                         </td>
-                        {/* Last retrieved */}
                         <td className="px-6 py-3 text-right text-secondary text-xs">
-                          {doc.last_retrieved_at
-                            ? kbService.formatRelativeTime(doc.last_retrieved_at)
-                            : '—'}
+                          {doc.last_retrieved_at ? kbService.formatRelativeTime(doc.last_retrieved_at) : '—'}
                         </td>
                       </tr>
                     ))}
@@ -320,7 +319,6 @@ const KBHealthDashboard: FC<KBHealthDashboardProps> = ({ kb, onBack }) => {
             )}
           </div>
 
-          {/* ── Summary Footer ── */}
           <div className="flex items-center gap-6 px-1 text-xs text-secondary">
             <div className="flex items-center gap-1.5">
               <CheckCircle size={12} className="text-green-400" />
