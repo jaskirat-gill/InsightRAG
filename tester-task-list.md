@@ -119,22 +119,3 @@
 1. !!! (Wait for Shibo's implementation)
 
 ---
-
-### Test case 8: []
-
-#### Steps to test
-1. 
-
-#### Expected Behavior
-1. 
-
----
-
-### Test case 9: [MCP server - Claude]
-
-#### Steps to test
-1. 
-#### Expected Behavior
-1. 
-
----
