@@ -10,7 +10,7 @@ interface NavigationProps {
 
 const Navigation: FC<NavigationProps> = ({ onSettingsClick, onLogout, onNavigate, currentPage = 'home' }) => {
     return (
-        <div className="fixed bottom-8 left-1/2 -translate-x-1/2 z-40">
+        <div id="app-taskbar" className="fixed bottom-8 left-1/2 -translate-x-1/2 z-40">
             <div className="flex items-center gap-2 p-2 bg-surface/80 backdrop-blur-xl border border-white/10 rounded-full shadow-2xl shadow-black/50">
                 <NavItem 
                     icon={<Home size={20} />} 
@@ -24,7 +24,12 @@ const Navigation: FC<NavigationProps> = ({ onSettingsClick, onLogout, onNavigate
                     onClick={() => onNavigate?.('kb')}
                     active={currentPage === 'kb'} // Dynamic active state
                 />
-                <NavItem icon={<MessageSquare size={20} />} label="Chat" />
+                <NavItem
+                    icon={<MessageSquare size={20} />}
+                    label="Chat"
+                    onClick={() => onNavigate?.('chat')}
+                    active={currentPage === 'chat'}
+                />
                 <NavItem icon={<Library size={20} />} label="Library" />
 
                 <div className="w-px h-6 bg-white/10 mx-2" />

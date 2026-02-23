@@ -4,11 +4,12 @@ import Layout from './components/Layout';
 import Login from './pages/Login';
 import KnowledgeBases from './pages/KnowledgeBases';
 import KBHealthDashboard from './pages/KBHealthDashboard';
+import Chat from './pages/Chat';
 import DocumentDetails from './pages/DocumentDetails';
 import { authService, UserResponse } from './services/auth';
 import { KnowledgeBase, Document } from './services/kb';
 
-type Page = 'home' | 'kb' | 'kb-health' | 'doc';
+type Page = 'home' | 'kb' | 'kb-health' | 'doc' | 'chat';
 
 function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -118,33 +119,34 @@ function App() {
       <div className="text-white">No KB selected. Go back to Knowledge Bases.</div>
     );
   } else if (currentPage === 'doc') {
-    content =
-      selectedKB && selectedDoc ? (
-        <DocumentDetails
-          kb={selectedKB}
-          doc={selectedDoc}
-          onBack={() => {
-            setCurrentPage('kb-health');
-            setSelectedDoc(null);
-          }}
-        />
-      ) : (
-        <div className="text-white">No document selected. Go back.</div>
+      content =
+        selectedKB && selectedDoc ? (
+          <DocumentDetails
+            kb={selectedKB}
+            doc={selectedDoc}
+            onBack={() => {
+              setCurrentPage('kb-health');
+              setSelectedDoc(null);
+            }}
+          />
+        ) : (
+          <div className="text-white">No document selected. Go back.</div>
+        );
+    } else if (currentPage === 'chat') {
+      content = <Chat />;
+    } else {
+      content = (
+        <div className="text-white">
+          No page matched: <span className="text-primary">{String(currentPage)}</span>
+        </div>
       );
-  } else {
-    content = (
-      <div className="text-white">
-        No page matched: <span className="text-primary">{String(currentPage)}</span>
-      </div>
+    }
+
+    return (
+      <Layout onLogout={handleLogout} onNavigate={handleNavigate} currentPage={currentPage}>
+        {content}
+      </Layout>
     );
-  }
-
-  return (
-    <Layout onLogout={handleLogout} onNavigate={handleNavigate} currentPage={currentPage}>
-
-      {content}
-    </Layout>
-  );
 }
 
 // Home Page Component
@@ -192,13 +194,17 @@ const HomePage = ({
         </p>
       </div>
 
-      <div className="bg-surface/50 backdrop-blur border border-white/5 p-6 rounded-2xl hover:border-primary/50 transition-colors group cursor-pointer">
+
+        <div
+          onClick={() => onNavigate?.('chat')}
+          className="bg-surface/50 backdrop-blur border border-white/5 p-6 rounded-2xl hover:border-primary/50 transition-colors group cursor-pointer"
+        >
         <div className="h-10 w-10 bg-accent/20 rounded-lg flex items-center justify-center mb-4 text-accent group-hover:scale-110 transition-transform">
           <BookOpen size={20} />
         </div>
         <h3 className="text-xl font-semibold mb-2">Chat Interface</h3>
         <p className="text-secondary text-sm">
-          Query your knowledge bases using natural language (Coming Soon).
+          Query with OpenWebUI streaming and MCP-backed tools.
         </p>
       </div>
 
