@@ -112,10 +112,19 @@
 ### Test case 6: [Chat]
 
 #### Steps to test
-1. Click on "Chat" in the bottom navigation bar
+1. Click on "Chat" in the bottom navigation bar (Expected Behavior 1)
 ![Alt text](/test/testcase6-icon.png)
 
+2. In the top-left corner, select the model and MCP server. The MCP server is connected to our knowledge base, and this setting allows the LLM to access our knowledge base. (Expected Behavior 2)
+![Alt text](/test/testcase6-model-and-mcp.png)
+
+3. Chat with the LLM to query the knowledge base. (Expected Behavior 3)
+![Alt text](/test/testcase6-chat-box.png)
+
 #### Expected Behavior
-1. !!! (Wait for Shibo's implementation)
+1. You should be presented with the chat interface.
+2. You should be able to select the pre-configured models and MCP servers.
+3. You should be able to get answers that include knowledge stored in our knowledge base, with references. (We recommend using the prompt "search about box filter".)
+![Alt text](/test/testcase6-kb-response.png)
 
 ---
