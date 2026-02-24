@@ -131,10 +131,10 @@
 
 ### Test case 6.2 [using MCP server in third party app]
 #### Steps to test
-1. Open the third party LLM deaktop that allow local mcp connection, in this example, Claude desktop are used.
-2. Set up the mcp connection and make sure it is running
+1. Open the third party LLM deaktop that allows local mcp connection, in this example, Claude desktop is used.
+2. Set up the mcp connection and make sure it is running successfully
 ![alt text](/test/testcase6.2-claude-mcp-set-up.png)
-3. Ask question inside claude desktop 
+3. Ask questions inside claude desktop 
 
 #### Expected Behaviour
 You should be able to get answers that include knowledge stored in our knowledge base, with references.
