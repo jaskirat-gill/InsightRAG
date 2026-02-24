@@ -109,8 +109,8 @@
 
 ---
 
-### Test case 6: [Chat]
-
+### Test Case 6.1 / 6.2 – Either Applicable
+### Test case 6.1: [Chat] 
 #### Steps to test
 1. Click on "Chat" in the bottom navigation bar (Expected Behavior 1)
 ![Alt text](/test/testcase6-icon.png)
@@ -128,3 +128,14 @@
 ![Alt text](/test/testcase6-kb-response.png)
 
 ---
+
+### Test case 6.2 [using MCP server in third party app]
+#### Steps to test
+1. Open the third party LLM deaktop that allow local mcp connection, in this example, Claude desktop are used.
+2. Set up the mcp connection and make sure it is running
+![alt text](/test/testcase6.2-claude-mcp-set-up.png)
+3. Ask question inside claude desktop 
+
+#### Expected Behaviour
+You should be able to get answers that include knowledge stored in our knowledge base, with references.
+![alt text](/test/testcase6.2-expected-answer.png)
