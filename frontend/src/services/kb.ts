@@ -276,14 +276,38 @@ class KBService {
   // Format relative time
   formatRelativeTime(dateString: string | null): string {
     if (!dateString) return 'Never';
-    const date = new Date(dateString);
+    const normalizeDate = (raw: string): Date => {
+      // Handle PostgreSQL naive timestamps consistently as UTC.
+      const hasExplicitTz = /(?:Z|[+-]\d{2}:\d{2})$/.test(raw);
+      if (hasExplicitTz) return new Date(raw);
+
+      if (/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}/.test(raw)) {
+        return new Date(raw.replace(' ', 'T') + 'Z');
+      }
+      if (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}/.test(raw)) {
+        return new Date(raw + 'Z');
+      }
+      return new Date(raw);
+    };
+
+    const date = normalizeDate(dateString);
+    if (Number.isNaN(date.getTime())) return 'Unknown';
     const now = new Date();
     const seconds = Math.floor((now.getTime() - date.getTime()) / 1000);
 
-    if (seconds < 60) return 'Just now';
-    if (seconds < 3600) return `${Math.floor(seconds / 60)} minutes ago`;
-    if (seconds < 86400) return `${Math.floor(seconds / 3600)} hours ago`;
-    if (seconds < 604800) return `${Math.floor(seconds / 86400)} days ago`;
+    if (seconds >= 0) {
+      if (seconds < 60) return 'Just now';
+      if (seconds < 3600) return `${Math.floor(seconds / 60)} minutes ago`;
+      if (seconds < 86400) return `${Math.floor(seconds / 3600)} hours ago`;
+      if (seconds < 604800) return `${Math.floor(seconds / 86400)} days ago`;
+      return date.toLocaleDateString();
+    }
+
+    const future = Math.abs(seconds);
+    if (future < 60) return 'Just now';
+    if (future < 3600) return `in ${Math.floor(future / 60)} minutes`;
+    if (future < 86400) return `in ${Math.floor(future / 3600)} hours`;
+    if (future < 604800) return `in ${Math.floor(future / 86400)} days`;
     return date.toLocaleDateString();
   }
 }

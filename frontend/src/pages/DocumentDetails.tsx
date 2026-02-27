@@ -701,7 +701,7 @@ const DocumentDetails: FC<DocumentDetailsProps> = ({ kb, doc, onBack }) => {
             <InfoItem label="Last Updated" value={d.updated_at ? kbService.formatRelativeTime(d.updated_at) : '—'} />
             <InfoItem
               label="Last Retrieved"
-              value={doc.last_retrieved_at ? kbService.formatRelativeTime(doc.last_retrieved_at) : '—'}
+              value={d.last_retrieved_at ? kbService.formatRelativeTime(d.last_retrieved_at) : '—'}
             />
           </div>
         </div>
