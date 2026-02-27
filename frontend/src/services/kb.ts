@@ -34,6 +34,21 @@ export interface Document {
   uploaded_at: string | null;
 }
 
+export interface DocumentChunk {
+  chunk_id: string;
+  document_id: string;
+  kb_id: string;
+  chunk_index: number;
+  chunk_text: string;
+  chunk_tokens: number | null;
+  vector_id: string | null;
+  section_title: string | null;
+  page_number: number | null;
+  retrieval_count: number;
+  last_retrieved_at: string | null;
+  created_at: string;
+}
+
 export interface KBHealthStats {
   total_docs: number;
   completed_docs: number;
@@ -120,6 +135,42 @@ class KBService {
 
     if (!response.ok) {
       throw new Error('Failed to fetch documents');
+    }
+
+    return await response.json();
+  }
+
+  // Get one document details
+  async getDocumentDetails(kbId: string, docId: string): Promise<Document> {
+    const response = await fetch(
+      `${this.API_URL}/api/v1/knowledge-bases/${kbId}/documents/${docId}`,
+      {
+        headers: {
+          ...authService.getAuthHeader(),
+        },
+      },
+    );
+
+    if (!response.ok) {
+      throw new Error('Failed to fetch document details');
+    }
+
+    return await response.json();
+  }
+
+  // List chunks for one document
+  async listDocumentChunks(kbId: string, docId: string): Promise<DocumentChunk[]> {
+    const response = await fetch(
+      `${this.API_URL}/api/v1/knowledge-bases/${kbId}/documents/${docId}/chunks`,
+      {
+        headers: {
+          ...authService.getAuthHeader(),
+        },
+      },
+    );
+
+    if (!response.ok) {
+      throw new Error('Failed to fetch document chunks');
     }
 
     return await response.json();

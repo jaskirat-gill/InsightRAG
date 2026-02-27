@@ -35,6 +35,21 @@ class DocumentResponse(BaseModel):
     last_retrieved_at: Optional[datetime] = None
     created_at: datetime
 
+
+class ChunkResponse(BaseModel):
+    chunk_id: UUID
+    document_id: UUID
+    kb_id: UUID
+    chunk_index: int
+    chunk_text: str
+    chunk_tokens: Optional[int] = None
+    vector_id: Optional[str] = None
+    section_title: Optional[str] = None
+    page_number: Optional[int] = None
+    retrieval_count: int = 0
+    last_retrieved_at: Optional[datetime] = None
+    created_at: datetime
+
 # List documents in KB
 @router.get("/{kb_id}/documents", response_model=List[DocumentResponse])
 async def list_documents(
@@ -59,9 +74,31 @@ async def list_documents(
         raise HTTPException(status_code=403, detail="Access denied")
     
     docs = await db.fetch_all("""
-        SELECT * FROM documents 
-        WHERE kb_id = $1 
-        ORDER BY created_at DESC
+        SELECT
+            d.document_id,
+            d.kb_id,
+            d.source_path,
+            d.document_type,
+            d.title,
+            d.file_size_bytes,
+            d.processing_status,
+            d.total_chunks,
+            d.health_score,
+            COALESCE(cm.total_retrievals, 0)::INT AS retrieval_count,
+            cm.last_retrieved_at,
+            d.created_at
+        FROM documents d
+        LEFT JOIN (
+            SELECT
+                document_id,
+                COALESCE(SUM(retrieval_count), 0) AS total_retrievals,
+                MAX(last_retrieved_at) AS last_retrieved_at
+            FROM chunk_metadata
+            WHERE kb_id = $1
+            GROUP BY document_id
+        ) cm ON cm.document_id = d.document_id
+        WHERE d.kb_id = $1
+        ORDER BY d.created_at DESC
         LIMIT $2 OFFSET $3
     """, str(kb_id), limit, skip)
     
@@ -137,16 +174,108 @@ async def get_document(
     db: Database = Depends(get_db)
 ):
     """Get document details"""
-    
+
+    # Verify KB exists and user has access
+    kb = await db.fetch_one(
+        "SELECT owner_id FROM knowledge_bases WHERE kb_id = $1",
+        str(kb_id)
+    )
+
+    if not kb:
+        raise HTTPException(status_code=404, detail="KB not found")
+
+    if "admin" not in current_user["roles"] and str(kb["owner_id"]) != current_user["user_id"]:
+        raise HTTPException(status_code=403, detail="Access denied")
+
     doc = await db.fetch_one(
-        "SELECT * FROM documents WHERE document_id = $1 AND kb_id = $2",
-        str(doc_id), str(kb_id)
+        """
+        SELECT
+            d.document_id,
+            d.kb_id,
+            d.source_path,
+            d.document_type,
+            d.title,
+            d.file_size_bytes,
+            d.processing_status,
+            d.total_chunks,
+            d.health_score,
+            COALESCE(cm.total_retrievals, 0)::INT AS retrieval_count,
+            cm.last_retrieved_at,
+            d.created_at
+        FROM documents d
+        LEFT JOIN (
+            SELECT
+                document_id,
+                COALESCE(SUM(retrieval_count), 0) AS total_retrievals,
+                MAX(last_retrieved_at) AS last_retrieved_at
+            FROM chunk_metadata
+            WHERE kb_id = $1
+            GROUP BY document_id
+        ) cm ON cm.document_id = d.document_id
+        WHERE d.document_id = $2 AND d.kb_id = $1
+        """,
+        str(kb_id), str(doc_id)
     )
     
     if not doc:
         raise HTTPException(status_code=404, detail="Document not found")
     
     return DocumentResponse(**dict(doc))
+
+
+@router.get("/{kb_id}/documents/{doc_id}/chunks", response_model=List[ChunkResponse])
+async def list_document_chunks(
+    kb_id: UUID,
+    doc_id: UUID,
+    skip: int = 0,
+    limit: int = 500,
+    current_user: dict = require_permission("doc.read"),
+    db: Database = Depends(get_db),
+):
+    """List chunk metadata (including retrieval stats) for a document."""
+
+    kb = await db.fetch_one(
+        "SELECT owner_id FROM knowledge_bases WHERE kb_id = $1",
+        str(kb_id)
+    )
+
+    if not kb:
+        raise HTTPException(status_code=404, detail="KB not found")
+
+    if "admin" not in current_user["roles"] and str(kb["owner_id"]) != current_user["user_id"]:
+        raise HTTPException(status_code=403, detail="Access denied")
+
+    doc_exists = await db.fetch_one(
+        "SELECT document_id FROM documents WHERE document_id = $1 AND kb_id = $2",
+        str(doc_id), str(kb_id)
+    )
+    if not doc_exists:
+        raise HTTPException(status_code=404, detail="Document not found")
+
+    rows = await db.fetch_all(
+        """
+        SELECT
+            chunk_id,
+            document_id,
+            kb_id,
+            chunk_index,
+            chunk_text,
+            chunk_tokens,
+            vector_id,
+            section_title,
+            page_number,
+            retrieval_count,
+            last_retrieved_at,
+            created_at
+        FROM chunk_metadata
+        WHERE kb_id = $1 AND document_id = $2
+        ORDER BY chunk_index ASC
+        LIMIT $3 OFFSET $4
+        """,
+        str(kb_id), str(doc_id), limit, skip
+    )
+
+    return [ChunkResponse(**dict(r)) for r in rows]
 
 # Delete document
 @router.delete("/{kb_id}/documents/{doc_id}", status_code=204)

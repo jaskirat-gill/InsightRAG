@@ -105,53 +105,6 @@ function safeNumber(n: any, fallback = 0) {
   return Number.isFinite(x) ? x : fallback;
 }
 
-/**
- * Stub chunk generator:
- * - Generates EXACTLY `totalChunks` rows (but can cap rendering with `renderLimit`)
- * - Stable-ish data per document (seeded)
- */
-function makeMockChunks(doc: Document, totalChunks: number): ChunkRow[] {
-  const seedStr = String(doc.document_id ?? doc.source_path ?? 'seed');
-  let seed = 0;
-  for (let i = 0; i < seedStr.length; i++) seed = (seed * 31 + seedStr.charCodeAt(i)) >>> 0;
-
-  const sections = ['Introduction', 'OAuth 2.0', 'Authorization Flow', 'API Keys', 'JWT', 'Examples'];
-  const sampleTexts = [
-    'This section introduces the main concepts and recommended usage patterns for the platform.',
-    'OAuth 2.0 is recommended for third-party applications. This provides delegated access without exposing credentials.',
-    'The authorization code flow is the most secure flow for server-side applications and includes a redirect + code exchange.',
-    'API keys provide simple server-to-server authentication. Rotate keys periodically and restrict scopes.',
-    'JWT tokens can be used for stateless verification. Ensure proper signing and expiration settings.',
-    'This section includes request/response examples and common pitfalls to avoid when integrating.',
-  ];
-
-  const rows: ChunkRow[] = [];
-  const total = Math.max(0, safeNumber(totalChunks, 0));
-
-  for (let i = 0; i < total; i++) {
-    seed = (seed * 1664525 + 1013904223) >>> 0;
-    const r = (seed % 1000) / 1000;
-
-    const section = sections[i % sections.length];
-    const baseText = sampleTexts[i % sampleTexts.length];
-    const tokenCount = Math.round(420 + r * 180); // 420-600
-    const retrievalCount = Math.round(1 + r * 400); // 1-401
-    const sim = clamp(0.82 + r * 0.16, 0, 0.99);
-
-    rows.push({
-      chunk_id: `chunk_${pad3(i + 1)}`,
-      chunk_index: i,
-      text: baseText,
-      token_count: tokenCount,
-      section,
-      avg_similarity: Number(sim.toFixed(2)),
-      retrieval_count: retrievalCount,
-    });
-  }
-
-  return rows;
-}
-
 function normalizeChunkRow(raw: any, idx: number): ChunkRow {
   const chunkId =
     String(
@@ -167,7 +120,12 @@ function normalizeChunkRow(raw: any, idx: number): ChunkRow {
   const text =
     String(raw?.text ?? raw?.content ?? raw?.chunk_text ?? raw?.preview ?? raw?.snippet ?? '') || '';
   const tokenCount = safeNumber(
-    raw?.token_count ?? raw?.tokenCount ?? raw?.tokens ?? raw?.size_tokens ?? raw?.length_tokens,
+    raw?.token_count ??
+      raw?.chunk_tokens ??
+      raw?.tokenCount ??
+      raw?.tokens ??
+      raw?.size_tokens ??
+      raw?.length_tokens,
     0,
   );
   const section = raw?.section ?? raw?.heading ?? raw?.title ?? null;
@@ -233,32 +191,43 @@ const DocumentDetails: FC<DocumentDetailsProps> = ({ kb, doc, onBack }) => {
       setErr(null);
 
       try {
-        // TODO: implement kbService.getDocumentDetails(kb_id, document_id)
-        // const full = await kbService.getDocumentDetails(kb.kb_id, doc.document_id);
+        const liveDoc = await kbService.getDocumentDetails(kb.kb_id, doc.document_id);
 
         const full: DocDetails = {
           ...doc,
-          created_at: (doc as any).created_at ?? null,
-          updated_at: (doc as any).updated_at ?? null,
+          ...liveDoc,
+          created_at: (liveDoc as any).created_at ?? (doc as any).created_at ?? null,
+          updated_at: (liveDoc as any).updated_at ?? (doc as any).updated_at ?? null,
 
-          processing_strategy: (doc as any).processing_strategy ?? null,
-          avg_chunk_size_tokens: (doc as any).avg_chunk_size_tokens ?? null,
-          embedding_model: (doc as any).embedding_model ?? null,
+          processing_strategy:
+            (liveDoc as any).processing_strategy ?? (doc as any).processing_strategy ?? null,
+          avg_chunk_size_tokens:
+            (liveDoc as any).avg_chunk_size_tokens ?? (doc as any).avg_chunk_size_tokens ?? null,
+          embedding_model: (liveDoc as any).embedding_model ?? (doc as any).embedding_model ?? null,
 
-          total_retrievals: (doc as any).total_retrievals ?? doc.retrieval_count ?? 0,
-          avg_similarity: (doc as any).avg_similarity ?? null,
-          preview_text: (doc as any).preview_text ?? null,
+          total_retrievals:
+            (liveDoc as any).total_retrievals ??
+            (liveDoc as any).retrieval_count ??
+            doc.retrieval_count ??
+            0,
+          avg_similarity: (liveDoc as any).avg_similarity ?? (doc as any).avg_similarity ?? null,
+          preview_text: (liveDoc as any).preview_text ?? (doc as any).preview_text ?? null,
 
-          strategy_overridden: (doc as any).strategy_overridden ?? null,
-          strategy_display_name: (doc as any).strategy_display_name ?? null,
-          strategy_summary: (doc as any).strategy_summary ?? null,
-          rationale_bullets: (doc as any).rationale_bullets ?? null,
-          detected_features: (doc as any).detected_features ?? null,
+          strategy_overridden:
+            (liveDoc as any).strategy_overridden ?? (doc as any).strategy_overridden ?? null,
+          strategy_display_name:
+            (liveDoc as any).strategy_display_name ?? (doc as any).strategy_display_name ?? null,
+          strategy_summary:
+            (liveDoc as any).strategy_summary ?? (doc as any).strategy_summary ?? null,
+          rationale_bullets:
+            (liveDoc as any).rationale_bullets ?? (doc as any).rationale_bullets ?? null,
+          detected_features:
+            (liveDoc as any).detected_features ?? (doc as any).detected_features ?? null,
 
-          view_url: (doc as any).view_url ?? null,
-          view_page_count: (doc as any).view_page_count ?? null,
+          view_url: (liveDoc as any).view_url ?? (doc as any).view_url ?? null,
+          view_page_count: (liveDoc as any).view_page_count ?? (doc as any).view_page_count ?? null,
 
-          chunks: (doc as any).chunks ?? null,
+          chunks: (liveDoc as any).chunks ?? (doc as any).chunks ?? null,
         };
 
         if (mounted) setDetails(full);
@@ -498,33 +467,15 @@ const DocumentDetails: FC<DocumentDetailsProps> = ({ kb, doc, onBack }) => {
   }, [doc.total_chunks, (d as any).total_chunks]);
 
   const renderLimit = 60; // keep UI fast if total_chunks is huge
-  const renderCount = Math.min(totalChunksNumber || 0, renderLimit);
 
   const loadChunks = async () => {
     setChunksLoading(true);
     setChunksErr(null);
 
     try {
-      const svcAny = kbService as any;
-
-      // 1) Real endpoint (if added it later)
-      if (typeof svcAny.listDocumentChunks === 'function') {
-        const res = await svcAny.listDocumentChunks(kb.kb_id, doc.document_id);
-        const rawList =
-          res?.chunks ?? res?.items ?? res?.data ?? (Array.isArray(res) ? res : null) ?? [];
-        const rows = (rawList as any[]).map((x, i) => normalizeChunkRow(x, i));
-        setChunkRows(rows);
-      }
-      // 2) If backend already in `details/doc`
-      else if (Array.isArray(d.chunks) && d.chunks.length > 0) {
-        const rows = (d.chunks as any[]).map((x, i) => normalizeChunkRow(x, i));
-        setChunkRows(rows);
-      }
-      // 3) Stub fallback: generate EXACT total chunks, but only show up to renderLimit
-      else {
-        const all = makeMockChunks(doc, totalChunksNumber);
-        setChunkRows(all.slice(0, renderLimit));
-      }
+      const rawList = await kbService.listDocumentChunks(kb.kb_id, doc.document_id);
+      const rows = rawList.map((x, i) => normalizeChunkRow(x, i));
+      setChunkRows(rows);
 
       setChunksLoadedOnce(true);
     } catch (e: any) {
@@ -924,9 +875,6 @@ const DocumentDetails: FC<DocumentDetailsProps> = ({ kb, doc, onBack }) => {
           {!chunksLoading && !chunksErr && chunkRows.length === 0 && (
             <div className="bg-surface/50 backdrop-blur border border-white/5 rounded-2xl p-6">
               <div className="text-secondary text-sm">No chunks available yet.</div>
-              <div className="mt-3 text-xs text-secondary/70">
-                Implement <code className="text-white/80">kbService.listDocumentChunks(kb_id, document_id)</code> for real data.
-              </div>
             </div>
           )}
 

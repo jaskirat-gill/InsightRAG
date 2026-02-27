@@ -38,6 +38,33 @@ def _track_retrievals(vector_ids: List[str]) -> None:
                 """,
                 (vector_ids,),
             )
+
+            # Keep document-level retrieval stats in sync with chunk-level stats.
+            cur.execute(
+                """
+                WITH touched_docs AS (
+                    SELECT DISTINCT document_id
+                    FROM chunk_metadata
+                    WHERE vector_id = ANY(%s)
+                ),
+                doc_stats AS (
+                    SELECT
+                        c.document_id,
+                        COALESCE(SUM(c.retrieval_count), 0)::INT AS total_retrievals,
+                        MAX(c.last_retrieved_at) AS last_retrieved_at
+                    FROM chunk_metadata c
+                    JOIN touched_docs t ON t.document_id = c.document_id
+                    GROUP BY c.document_id
+                )
+                UPDATE documents d
+                SET retrieval_count = ds.total_retrievals,
+                    last_retrieved_at = ds.last_retrieved_at,
+                    updated_at = NOW()
+                FROM doc_stats ds
+                WHERE d.document_id = ds.document_id
+                """,
+                (vector_ids,),
+            )
         conn.commit()
         conn.close()
         logger.debug("Updated retrieval counts for %d chunk(s)", len(vector_ids))
