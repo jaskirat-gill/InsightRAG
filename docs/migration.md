@@ -8,7 +8,7 @@ This guide helps team members set up the new authentication system after pulling
 - **Existing deployments must run migrations manually**
 - **All team members need to follow these steps**
 
-after the migriation, there is 3 basic existing user 
+After migration, there are 3 basic existing users:
 
 ```
 Created admin user: admin@example.com (password: Admin123!)
@@ -31,8 +31,8 @@ sleep 5
 # Run init script (creates tables)
 docker exec -i openwebui-project-postgres-1 psql -U user -d openwebui < backend/database/init.sql
 
-# Run seed script (creates roles & permissions)
-docker exec -i openwebui-project-postgres-1 psql -U user -d openwebui < backend/database/seed.sql
+# Run seed script (creates roles, permissions, and demo users only)
+docker exec -i openwebui-project-postgres-1 psql -U user -d openwebui < backend/database/seed_user_kb.sql
 ```
 
 ### Option B: Using pgAdmin
@@ -46,13 +46,12 @@ docker exec -i openwebui-project-postgres-1 psql -U user -d openwebui < backend/
    - Password: `password`
 3. Open Query Tool (Tools → Query Tool)
 4. Open file `backend/database/reset_all.sql`
-3. Open Query Tool (Tools → Query Tool)
-4. Open file `backend/database/init.sql`
 5. Click Execute (▶️ button)
-6. Open file `backend/database/seed_user_kb.sql`
+6. Open file `backend/database/init.sql`
 7. Click Execute (▶️ button)
-6. Open file `backend/database/seed_documents.sql`
-7. Click Execute (▶️ button)
+8. Open file `backend/database/seed_user_kb.sql`
+9. Click Execute (▶️ button)
+10. Do not run `backend/database/seed_documents.sql` unless you explicitly want demo KB/document data
 
 ### Option C: Using psql Directly
 ```bash
@@ -60,7 +59,8 @@ docker exec -i openwebui-project-postgres-1 psql -U user -d openwebui < backend/
 psql -h localhost -p 5433 -U user -d openwebui -f backend/database/reset_all.sql
 psql -h localhost -p 5433 -U user -d openwebui -f backend/database/init.sql
 psql -h localhost -p 5433 -U user -d openwebui -f backend/database/seed_user_kb.sql
-psql -h localhost -p 5433 -U user -d openwebui -f backend/database/seed_documents.sql
+# Do not run seed_documents.sql for clean environments (it inserts demo KB/docs)
+# psql -h localhost -p 5433 -U user -d openwebui -f backend/database/seed_documents.sql
 ```
 
 ## Step 2: Verify Tables Created
@@ -73,13 +73,19 @@ WHERE table_schema = 'public'
 ORDER BY table_name;
 ```
 
-**Expected tables (should see all 8):**
+**Expected tables include (auth + KB control plane):**
 - `api_keys`
 - `auth_audit_log`
+- `chunk_metadata`
+- `documents`
+- `kb_analytics`
+- `knowledge_bases`
 - `permissions`
+- `processing_queue`
 - `refresh_tokens`
 - `role_permissions`
 - `roles`
+- `sync_jobs`
 - `user_roles`
 - `users`
 
@@ -187,5 +193,3 @@ WHERE u.email = 'test@example.com'
   AND r.role_name = 'admin'
 ON CONFLICT DO NOTHING;
 ```
-
-

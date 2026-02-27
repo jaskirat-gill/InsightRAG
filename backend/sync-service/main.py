@@ -38,6 +38,7 @@ async def lifespan(app: FastAPI):
     # Startup - Auth database
     await db.connect()
     print("Auth database connected")
+    await db.ensure_schema_and_seed()
     
     # Startup - Plugin manager
     create_db_and_tables()

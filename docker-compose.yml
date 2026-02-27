@@ -21,11 +21,13 @@ services:
     volumes:
       - ./backend/sync-service:/app:z
       - ./backend/shared:/shared:z
+      - ./backend/database:/db-sql:z
       - shared_downloads:/data/downloads
     environment:
       - PYTHONUNBUFFERED=1
       - PYTHONPATH=/shared
       - DATABASE_URL=postgresql://user:password@postgres:5432/openwebui
+      - DB_SQL_DIR=/db-sql
       - QDRANT_URL=http://qdrant:6333
       - REDIS_URL=redis://redis:6379/0
       - S3_BUCKET_NAME=${S3_BUCKET_NAME}
