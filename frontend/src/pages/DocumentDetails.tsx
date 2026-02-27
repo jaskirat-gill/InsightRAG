@@ -16,7 +16,7 @@ import {
   Table2,
   Link2,
 } from 'lucide-react';
-import { KnowledgeBase, Document, kbService } from '../services/kb';
+import { KnowledgeBase, Document, DocumentRetrievalHistory, kbService } from '../services/kb';
 
 type TabKey = 'overview' | 'strategy' | 'chunks' | 'health' | 'document-view';
 
@@ -32,6 +32,7 @@ type DocDetails = Document & {
 
   processing_strategy?: string | null;
   avg_chunk_size_tokens?: number | null;
+  avg_chunk_size_chars?: number | null;
   embedding_model?: string | null;
 
   total_retrievals?: number | null;
@@ -175,6 +176,12 @@ const DocumentDetails: FC<DocumentDetailsProps> = ({ kb, doc, onBack }) => {
   const [page, setPage] = useState<number>(1);
   const [viewLoadedOnce, setViewLoadedOnce] = useState(false);
 
+  // Retrieval history state
+  const [historyLoading, setHistoryLoading] = useState(false);
+  const [historyErr, setHistoryErr] = useState<string | null>(null);
+  const [historyLoadedOnce, setHistoryLoadedOnce] = useState(false);
+  const [history, setHistory] = useState<DocumentRetrievalHistory | null>(null);
+
   const title = useMemo(() => {
     const fallback = doc.source_path?.split('/').pop() ?? 'Document';
     return doc.title ?? fallback;
@@ -203,6 +210,8 @@ const DocumentDetails: FC<DocumentDetailsProps> = ({ kb, doc, onBack }) => {
             (liveDoc as any).processing_strategy ?? (doc as any).processing_strategy ?? null,
           avg_chunk_size_tokens:
             (liveDoc as any).avg_chunk_size_tokens ?? (doc as any).avg_chunk_size_tokens ?? null,
+          avg_chunk_size_chars:
+            (liveDoc as any).avg_chunk_size_chars ?? (doc as any).avg_chunk_size_chars ?? null,
           embedding_model: (liveDoc as any).embedding_model ?? (doc as any).embedding_model ?? null,
 
           total_retrievals:
@@ -259,6 +268,7 @@ const DocumentDetails: FC<DocumentDetailsProps> = ({ kb, doc, onBack }) => {
       if (chunksLoadedOnce) await loadChunks();
       if (strategyLoadedOnce) await loadStrategy();
       if (viewLoadedOnce) await loadDocumentView();
+      if (historyLoadedOnce) await loadRetrievalHistory();
 
       showToast('ok', 'Refreshed');
     } catch (e: any) {
@@ -342,30 +352,38 @@ const DocumentDetails: FC<DocumentDetailsProps> = ({ kb, doc, onBack }) => {
           ? 'text-yellow-400'
           : 'text-red-400';
 
-  const total = Number(d.total_retrievals ?? doc.retrieval_count ?? 0);
-  const baseAvg = Math.max(1, Math.round(total / 30));
-  const daily = useMemo(() => {
-    const seedStr = String(doc.document_id ?? doc.source_path ?? 'seed');
-    let seed = 0;
-    for (let i = 0; i < seedStr.length; i++) seed = (seed * 31 + seedStr.charCodeAt(i)) >>> 0;
-
-    const arr: number[] = [];
-    for (let i = 0; i < 30; i++) {
-      seed = (seed * 1664525 + 1013904223) >>> 0;
-      const r = (seed % 1000) / 1000;
-      const v = clamp(r * 1.2 + Math.sin(i / 5) * 0.15, 0, 1);
-      arr.push(v);
+  const dailyCounts = useMemo(() => {
+    const counts = history?.series?.map((s) => Number(s.retrieval_count) || 0) ?? [];
+    if (counts.length >= 30) return counts.slice(counts.length - 30);
+    if (counts.length === 0) return Array.from({ length: 30 }, () => 0);
+    return [...Array.from({ length: 30 - counts.length }, () => 0), ...counts];
+  }, [history]);
+  const dailyDates = useMemo(() => {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    return Array.from({ length: 30 }, (_, i) => {
+      const dt = new Date(today);
+      dt.setDate(today.getDate() - (29 - i));
+      return dt;
+    });
+  }, []);
+  const maxDaily = Math.max(1, ...dailyCounts);
+  const daily = useMemo(() => dailyCounts.map((v) => v / maxDaily), [dailyCounts, maxDaily]);
+  const peakDate = useMemo(() => {
+    if (!history?.peak_day) return null;
+    const raw = String(history.peak_day);
+    let parsed: Date;
+    // Parse date-only values as local calendar dates to avoid timezone day-shift.
+    if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) {
+      const [y, m, d] = raw.split('-').map((v) => Number(v));
+      parsed = new Date(y, m - 1, d);
+    } else {
+      parsed = new Date(raw);
     }
-    return arr;
-  }, [doc.document_id, doc.source_path]);
-
-  const dailyCounts = daily.map((v) => Math.round(baseAvg * (0.4 + v * 1.6)));
-  const peakIdx = dailyCounts.reduce((best, cur, i) => (cur > dailyCounts[best] ? i : best), 0);
-  const peakDate = new Date(nowMs - (29 - peakIdx) * 24 * 60 * 60 * 1000);
-  const avgDaily = Math.round(dailyCounts.reduce((a, b) => a + b, 0) / dailyCounts.length);
-  const last7 = dailyCounts.slice(23).reduce((a, b) => a + b, 0);
-  const prev7 = dailyCounts.slice(16, 23).reduce((a, b) => a + b, 0);
-  const trendPct = prev7 === 0 ? 0 : Math.round(((last7 - prev7) / prev7) * 100);
+    return Number.isFinite(parsed.getTime()) ? parsed : null;
+  }, [history]);
+  const avgDaily = Number(history?.avg_daily_retrievals ?? 0);
+  const trendPct = Math.round(Number(history?.trend_pct ?? 0));
 
   const Ring = ({ days }: { days: number | null }) => {
     const pct = days == null ? 0.25 : clamp(1 - days / 30, 0.05, 1);
@@ -491,8 +509,23 @@ const DocumentDetails: FC<DocumentDetailsProps> = ({ kb, doc, onBack }) => {
     if (activeTab === 'chunks' && !chunksLoadedOnce && !chunksLoading) loadChunks();
     if (activeTab === 'strategy' && !strategyLoadedOnce && !strategyLoading) loadStrategy();
     if (activeTab === 'document-view' && !viewLoadedOnce && !viewLoading) loadDocumentView();
+    if (activeTab === 'health' && !historyLoadedOnce && !historyLoading) loadRetrievalHistory();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeTab]);
+
+  const loadRetrievalHistory = async () => {
+    setHistoryLoading(true);
+    setHistoryErr(null);
+    try {
+      const res = await kbService.getDocumentRetrievalHistory(kb.kb_id, doc.document_id, 30);
+      setHistory(res);
+      setHistoryLoadedOnce(true);
+    } catch (e: any) {
+      setHistoryErr(e?.message || 'Failed to load retrieval history');
+    } finally {
+      setHistoryLoading(false);
+    }
+  };
 
   // ── Document View Bar ────────────────────────────────────────────────────────────────
   const loadDocumentView = async () => {
@@ -694,7 +727,13 @@ const DocumentDetails: FC<DocumentDetailsProps> = ({ kb, doc, onBack }) => {
             <InfoItem label="Total Chunks" value={doc.total_chunks?.toLocaleString?.() ?? '—'} />
             <InfoItem
               label="Avg Chunk Size"
-              value={d.avg_chunk_size_tokens ? `${d.avg_chunk_size_tokens} tokens` : '—'}
+              value={
+                d.avg_chunk_size_chars != null
+                  ? `${d.avg_chunk_size_chars} chars`
+                  : d.avg_chunk_size_tokens != null
+                    ? `${d.avg_chunk_size_tokens} tokens`
+                    : '—'
+              }
             />
 
             <InfoItem label="Embedding Model" value={d.embedding_model ?? '—'} />
@@ -745,7 +784,10 @@ const DocumentDetails: FC<DocumentDetailsProps> = ({ kb, doc, onBack }) => {
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <MetricCard label="Total Retrievals" value={(d.total_retrievals ?? doc.retrieval_count ?? 0).toLocaleString()} />
             <MetricCard label="Avg Similarity" value={d.avg_similarity != null ? String(d.avg_similarity) : '—'} />
-            <MetricCard label="Last Retrieved" value={doc.last_retrieved_at ? kbService.formatRelativeTime(doc.last_retrieved_at) : '—'} />
+            <MetricCard
+              label="Last Retrieved"
+              value={d.last_retrieved_at ? kbService.formatRelativeTime(d.last_retrieved_at) : '—'}
+            />
           </div>
 
           <div className="bg-surface/50 backdrop-blur border border-white/5 rounded-2xl p-6">
@@ -896,6 +938,18 @@ const DocumentDetails: FC<DocumentDetailsProps> = ({ kb, doc, onBack }) => {
               <div className="text-white font-semibold">Retrieval History (Last 30 Days)</div>
             </div>
 
+            {historyErr && (
+              <div className="mb-4 flex items-center gap-2 px-4 py-3 rounded-xl bg-red-500/10 border border-red-500/20 text-red-400 text-sm">
+                <AlertCircle size={16} /> {historyErr}
+              </div>
+            )}
+
+            {historyLoading && (
+              <div className="flex items-center justify-center py-8">
+                <Loader2 size={24} className="animate-spin text-primary" />
+              </div>
+            )}
+
             <div className="bg-black/25 border border-white/5 rounded-2xl p-6">
               <div className="grid grid-cols-7 gap-3 max-w-[520px]">
                 {Array.from({ length: 35 }).map((_, i) => {
@@ -905,7 +959,11 @@ const DocumentDetails: FC<DocumentDetailsProps> = ({ kb, doc, onBack }) => {
                     <div
                       key={i}
                       className={`h-8 rounded ${heatClass(v)} border border-white/5`}
-                      title={idx >= 0 && idx < 30 ? `${dailyCounts[idx]} retrievals` : '—'}
+                      title={
+                        idx >= 0 && idx < 30
+                          ? `${dailyDates[idx].toLocaleDateString()}: ${dailyCounts[idx]} retrievals`
+                          : '—'
+                      }
                     />
                   );
                 })}
@@ -930,17 +988,19 @@ const DocumentDetails: FC<DocumentDetailsProps> = ({ kb, doc, onBack }) => {
 
           <div className="lg:col-span-3 grid grid-cols-1 md:grid-cols-3 gap-6">
             <div className="bg-surface/50 backdrop-blur border border-white/5 rounded-2xl p-6">
-              <div className="text-xs text-secondary uppercase tracking-wider mb-2">Peak Retrieval Day</div>
-              <div className="text-3xl font-bold text-white">{formatShortMonthDay(peakDate)}</div>
+              <div className="text-xs text-secondary uppercase tracking-wider mb-2">Peak Retrieval Day (Past 30 Days)</div>
+              <div className="text-3xl font-bold text-white">
+                {peakDate ? formatShortMonthDay(peakDate) : '—'}
+              </div>
             </div>
 
             <div className="bg-surface/50 backdrop-blur border border-white/5 rounded-2xl p-6">
-              <div className="text-xs text-secondary uppercase tracking-wider mb-2">Avg Daily Retrievals</div>
-              <div className="text-3xl font-bold text-white">{avgDaily}</div>
+              <div className="text-xs text-secondary uppercase tracking-wider mb-2">Avg Daily Retrievals (Past 30 Days)</div>
+              <div className="text-3xl font-bold text-white">{avgDaily.toFixed(2)}</div>
             </div>
 
             <div className="bg-surface/50 backdrop-blur border border-white/5 rounded-2xl p-6">
-              <div className="text-xs text-secondary uppercase tracking-wider mb-2">Retrieval Trend</div>
+              <div className="text-xs text-secondary uppercase tracking-wider mb-2">Retrieval Trend (Past 30 Days)</div>
               <div className={`text-3xl font-bold ${trendPct >= 0 ? 'text-green-400' : 'text-red-400'}`}>
                 {trendPct >= 0 ? `↑ ${trendPct}%` : `↓ ${Math.abs(trendPct)}%`}
               </div>

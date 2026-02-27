@@ -30,6 +30,8 @@ export interface Document {
   health_score: number;
   retrieval_count: number;
   last_retrieved_at: string | null;
+  avg_chunk_size_tokens?: number | null;
+  avg_chunk_size_chars?: number | null;
   created_at: string;
   uploaded_at: string | null;
 }
@@ -47,6 +49,23 @@ export interface DocumentChunk {
   retrieval_count: number;
   last_retrieved_at: string | null;
   created_at: string;
+}
+
+export interface DocumentRetrievalDay {
+  date: string;
+  retrieval_count: number;
+}
+
+export interface DocumentRetrievalHistory {
+  days: number;
+  series: DocumentRetrievalDay[];
+  total_retrievals: number;
+  peak_day: string | null;
+  peak_count: number;
+  avg_daily_retrievals: number;
+  trend_pct: number;
+  last7_total: number;
+  prev7_total: number;
 }
 
 export interface KBHealthStats {
@@ -171,6 +190,28 @@ class KBService {
 
     if (!response.ok) {
       throw new Error('Failed to fetch document chunks');
+    }
+
+    return await response.json();
+  }
+
+  // Get per-document retrieval history and summary metrics
+  async getDocumentRetrievalHistory(
+    kbId: string,
+    docId: string,
+    days: number = 30,
+  ): Promise<DocumentRetrievalHistory> {
+    const response = await fetch(
+      `${this.API_URL}/api/v1/knowledge-bases/${kbId}/documents/${docId}/retrieval-history?days=${days}`,
+      {
+        headers: {
+          ...authService.getAuthHeader(),
+        },
+      },
+    );
+
+    if (!response.ok) {
+      throw new Error('Failed to fetch document retrieval history');
     }
 
     return await response.json();

@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, status
 from pydantic import BaseModel
 from typing import List, Optional
 from uuid import UUID
-from datetime import datetime
+from datetime import datetime, date, timedelta
 import hashlib
 import logging
 import os
@@ -33,6 +33,8 @@ class DocumentResponse(BaseModel):
     health_score: int
     retrieval_count: int = 0
     last_retrieved_at: Optional[datetime] = None
+    avg_chunk_size_tokens: Optional[int] = None
+    avg_chunk_size_chars: Optional[int] = None
     created_at: datetime
 
 
@@ -49,6 +51,43 @@ class ChunkResponse(BaseModel):
     retrieval_count: int = 0
     last_retrieved_at: Optional[datetime] = None
     created_at: datetime
+
+
+class RetrievalDayResponse(BaseModel):
+    date: date
+    retrieval_count: int
+
+
+class DocumentRetrievalHistoryResponse(BaseModel):
+    days: int
+    series: List[RetrievalDayResponse]
+    total_retrievals: int
+    peak_day: Optional[date] = None
+    peak_count: int = 0
+    avg_daily_retrievals: float = 0.0
+    trend_pct: float = 0.0
+    last7_total: int = 0
+    prev7_total: int = 0
+
+
+async def _ensure_daily_retrieval_table(db: Database) -> None:
+    await db.execute(
+        """
+        CREATE TABLE IF NOT EXISTS document_retrieval_daily (
+            document_id UUID REFERENCES documents(document_id) ON DELETE CASCADE,
+            retrieval_date DATE NOT NULL,
+            retrieval_count INTEGER NOT NULL DEFAULT 0,
+            last_retrieved_at TIMESTAMP,
+            PRIMARY KEY (document_id, retrieval_date)
+        )
+        """
+    )
+    await db.execute(
+        """
+        CREATE INDEX IF NOT EXISTS idx_doc_retrieval_daily_date
+        ON document_retrieval_daily(retrieval_date)
+        """
+    )
 
 # List documents in KB
 @router.get("/{kb_id}/documents", response_model=List[DocumentResponse])
@@ -86,13 +125,17 @@ async def list_documents(
             d.health_score,
             COALESCE(cm.total_retrievals, 0)::INT AS retrieval_count,
             cm.last_retrieved_at,
+            cm.avg_chunk_size_tokens,
+            cm.avg_chunk_size_chars,
             d.created_at
         FROM documents d
         LEFT JOIN (
             SELECT
                 document_id,
                 COALESCE(SUM(retrieval_count), 0) AS total_retrievals,
-                MAX(last_retrieved_at) AS last_retrieved_at
+                MAX(last_retrieved_at) AS last_retrieved_at,
+                ROUND(AVG(chunk_tokens))::INT AS avg_chunk_size_tokens,
+                ROUND(AVG(CHAR_LENGTH(chunk_text)))::INT AS avg_chunk_size_chars
             FROM chunk_metadata
             WHERE kb_id = $1
             GROUP BY document_id
@@ -201,13 +244,17 @@ async def get_document(
             d.health_score,
             COALESCE(cm.total_retrievals, 0)::INT AS retrieval_count,
             cm.last_retrieved_at,
+            cm.avg_chunk_size_tokens,
+            cm.avg_chunk_size_chars,
             d.created_at
         FROM documents d
         LEFT JOIN (
             SELECT
                 document_id,
                 COALESCE(SUM(retrieval_count), 0) AS total_retrievals,
-                MAX(last_retrieved_at) AS last_retrieved_at
+                MAX(last_retrieved_at) AS last_retrieved_at,
+                ROUND(AVG(chunk_tokens))::INT AS avg_chunk_size_tokens,
+                ROUND(AVG(CHAR_LENGTH(chunk_text)))::INT AS avg_chunk_size_chars
             FROM chunk_metadata
             WHERE kb_id = $1
             GROUP BY document_id
@@ -276,6 +323,97 @@ async def list_document_chunks(
     )
 
     return [ChunkResponse(**dict(r)) for r in rows]
+
+
+@router.get(
+    "/{kb_id}/documents/{doc_id}/retrieval-history",
+    response_model=DocumentRetrievalHistoryResponse,
+)
+async def get_document_retrieval_history(
+    kb_id: UUID,
+    doc_id: UUID,
+    days: int = 30,
+    current_user: dict = require_permission("doc.read"),
+    db: Database = Depends(get_db),
+):
+    """Return per-day retrieval counts and summary metrics for one document."""
+    window_days = max(1, min(days, 365))
+
+    kb = await db.fetch_one(
+        "SELECT owner_id FROM knowledge_bases WHERE kb_id = $1",
+        str(kb_id)
+    )
+    if not kb:
+        raise HTTPException(status_code=404, detail="KB not found")
+
+    if "admin" not in current_user["roles"] and str(kb["owner_id"]) != current_user["user_id"]:
+        raise HTTPException(status_code=403, detail="Access denied")
+
+    doc_exists = await db.fetch_one(
+        "SELECT document_id FROM documents WHERE document_id = $1 AND kb_id = $2",
+        str(doc_id), str(kb_id)
+    )
+    if not doc_exists:
+        raise HTTPException(status_code=404, detail="Document not found")
+
+    await _ensure_daily_retrieval_table(db)
+
+    rows = await db.fetch_all(
+        """
+        SELECT retrieval_date, retrieval_count
+        FROM document_retrieval_daily
+        WHERE document_id = $1
+          AND retrieval_date >= CURRENT_DATE - ($2::int - 1) * INTERVAL '1 day'
+        ORDER BY retrieval_date ASC
+        """,
+        str(doc_id), window_days
+    )
+
+    row_map = {r["retrieval_date"]: int(r["retrieval_count"]) for r in rows}
+    end_day = date.today()
+    start_day = end_day - timedelta(days=window_days - 1)
+
+    series: List[RetrievalDayResponse] = []
+    counts: List[int] = []
+    cur = start_day
+    while cur <= end_day:
+        count = row_map.get(cur, 0)
+        series.append(RetrievalDayResponse(date=cur, retrieval_count=count))
+        counts.append(count)
+        cur += timedelta(days=1)
+
+    total = sum(counts)
+
+    if counts:
+        peak_count = max(counts)
+        peak_idx = counts.index(peak_count)
+        peak_day = series[peak_idx].date
+    else:
+        peak_count = 0
+        peak_day = None
+
+    avg_daily = float(total) / float(window_days)
+
+    last7 = counts[-7:] if len(counts) >= 7 else counts
+    prev7 = counts[-14:-7] if len(counts) >= 14 else []
+    last7_total = sum(last7)
+    prev7_total = sum(prev7)
+    if prev7_total > 0:
+        trend_pct = ((last7_total - prev7_total) / prev7_total) * 100.0
+    else:
+        trend_pct = 0.0
+
+    return DocumentRetrievalHistoryResponse(
+        days=window_days,
+        series=series,
+        total_retrievals=total,
+        peak_day=peak_day,
+        peak_count=peak_count,
+        avg_daily_retrievals=avg_daily,
+        trend_pct=trend_pct,
+        last7_total=last7_total,
+        prev7_total=prev7_total,
+    )
 
 # Delete document
 @router.delete("/{kb_id}/documents/{doc_id}", status_code=204)
