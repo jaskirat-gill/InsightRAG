@@ -230,7 +230,8 @@ To enable authentication on an existing deployment:
 1. **Run database migrations:**
 ```bash
 docker exec -i openwebui-project-postgres-1 psql -U user -d openwebui < backend/database/init.sql
-docker exec -i openwebui-project-postgres-1 psql -U user -d openwebui < backend/database/seed.sql
+docker exec -i openwebui-project-postgres-1 psql -U user -d openwebui < backend/database/seed_user_kb.sql
+# Do not run backend/database/seed_documents.sql unless you want demo KB/document data
 ```
 
 2. **Restart services:**

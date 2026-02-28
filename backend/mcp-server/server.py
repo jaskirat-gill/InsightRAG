@@ -17,6 +17,37 @@ logger = logging.getLogger("mcp_server")
 # Initialize MCP server
 mcp = FastMCP("Knowledge Base Search Server")
 
+_daily_table_checked = False
+
+
+def _ensure_daily_retrieval_table(conn) -> None:
+    """Create per-document daily retrieval table if missing."""
+    global _daily_table_checked
+    if _daily_table_checked:
+        return
+
+    with conn.cursor() as cur:
+        cur.execute(
+            """
+            CREATE TABLE IF NOT EXISTS document_retrieval_daily (
+                document_id UUID REFERENCES documents(document_id) ON DELETE CASCADE,
+                retrieval_date DATE NOT NULL,
+                retrieval_count INTEGER NOT NULL DEFAULT 0,
+                last_retrieved_at TIMESTAMP,
+                PRIMARY KEY (document_id, retrieval_date)
+            )
+            """
+        )
+        cur.execute(
+            """
+            CREATE INDEX IF NOT EXISTS idx_doc_retrieval_daily_date
+            ON document_retrieval_daily(retrieval_date)
+            """
+        )
+    conn.commit()
+    _daily_table_checked = True
+
+
 def _track_retrievals(vector_ids: List[str]) -> None:
     """
     Increment retrieval_count and set last_retrieved_at for retrieved chunks.
@@ -28,6 +59,7 @@ def _track_retrievals(vector_ids: List[str]) -> None:
     try:
         import psycopg2
         conn = psycopg2.connect(settings.DATABASE_URL)
+        _ensure_daily_retrieval_table(conn)
         with conn.cursor() as cur:
             cur.execute(
                 """
@@ -35,6 +67,64 @@ def _track_retrievals(vector_ids: List[str]) -> None:
                 SET retrieval_count = retrieval_count + 1,
                     last_retrieved_at = NOW()
                 WHERE vector_id = ANY(%s)
+                """,
+                (vector_ids,),
+            )
+
+            # Track per-document daily retrieval counts.
+            cur.execute(
+                """
+                WITH touched_docs AS (
+                    SELECT
+                        document_id,
+                        COUNT(*)::INT AS delta_count
+                    FROM chunk_metadata
+                    WHERE vector_id = ANY(%s)
+                    GROUP BY document_id
+                )
+                INSERT INTO document_retrieval_daily (
+                    document_id,
+                    retrieval_date,
+                    retrieval_count,
+                    last_retrieved_at
+                )
+                SELECT
+                    t.document_id,
+                    CURRENT_DATE,
+                    t.delta_count,
+                    NOW()
+                FROM touched_docs t
+                ON CONFLICT (document_id, retrieval_date)
+                DO UPDATE SET
+                    retrieval_count = document_retrieval_daily.retrieval_count + EXCLUDED.retrieval_count,
+                    last_retrieved_at = EXCLUDED.last_retrieved_at
+                """,
+                (vector_ids,),
+            )
+
+            # Keep document-level retrieval stats in sync with chunk-level stats.
+            cur.execute(
+                """
+                WITH touched_docs AS (
+                    SELECT DISTINCT document_id
+                    FROM chunk_metadata
+                    WHERE vector_id = ANY(%s)
+                ),
+                doc_stats AS (
+                    SELECT
+                        c.document_id,
+                        COALESCE(SUM(c.retrieval_count), 0)::INT AS total_retrievals,
+                        MAX(c.last_retrieved_at) AS last_retrieved_at
+                    FROM chunk_metadata c
+                    JOIN touched_docs t ON t.document_id = c.document_id
+                    GROUP BY c.document_id
+                )
+                UPDATE documents d
+                SET retrieval_count = ds.total_retrievals,
+                    last_retrieved_at = ds.last_retrieved_at,
+                    updated_at = NOW()
+                FROM doc_stats ds
+                WHERE d.document_id = ds.document_id
                 """,
                 (vector_ids,),
             )

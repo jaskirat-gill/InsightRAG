@@ -16,7 +16,7 @@ import {
   Table2,
   Link2,
 } from 'lucide-react';
-import { KnowledgeBase, Document, kbService } from '../services/kb';
+import { KnowledgeBase, Document, DocumentRetrievalHistory, kbService } from '../services/kb';
 
 type TabKey = 'overview' | 'strategy' | 'chunks' | 'health' | 'document-view';
 
@@ -32,6 +32,7 @@ type DocDetails = Document & {
 
   processing_strategy?: string | null;
   avg_chunk_size_tokens?: number | null;
+  avg_chunk_size_chars?: number | null;
   embedding_model?: string | null;
 
   total_retrievals?: number | null;
@@ -105,53 +106,6 @@ function safeNumber(n: any, fallback = 0) {
   return Number.isFinite(x) ? x : fallback;
 }
 
-/**
- * Stub chunk generator:
- * - Generates EXACTLY `totalChunks` rows (but can cap rendering with `renderLimit`)
- * - Stable-ish data per document (seeded)
- */
-function makeMockChunks(doc: Document, totalChunks: number): ChunkRow[] {
-  const seedStr = String(doc.document_id ?? doc.source_path ?? 'seed');
-  let seed = 0;
-  for (let i = 0; i < seedStr.length; i++) seed = (seed * 31 + seedStr.charCodeAt(i)) >>> 0;
-
-  const sections = ['Introduction', 'OAuth 2.0', 'Authorization Flow', 'API Keys', 'JWT', 'Examples'];
-  const sampleTexts = [
-    'This section introduces the main concepts and recommended usage patterns for the platform.',
-    'OAuth 2.0 is recommended for third-party applications. This provides delegated access without exposing credentials.',
-    'The authorization code flow is the most secure flow for server-side applications and includes a redirect + code exchange.',
-    'API keys provide simple server-to-server authentication. Rotate keys periodically and restrict scopes.',
-    'JWT tokens can be used for stateless verification. Ensure proper signing and expiration settings.',
-    'This section includes request/response examples and common pitfalls to avoid when integrating.',
-  ];
-
-  const rows: ChunkRow[] = [];
-  const total = Math.max(0, safeNumber(totalChunks, 0));
-
-  for (let i = 0; i < total; i++) {
-    seed = (seed * 1664525 + 1013904223) >>> 0;
-    const r = (seed % 1000) / 1000;
-
-    const section = sections[i % sections.length];
-    const baseText = sampleTexts[i % sampleTexts.length];
-    const tokenCount = Math.round(420 + r * 180); // 420-600
-    const retrievalCount = Math.round(1 + r * 400); // 1-401
-    const sim = clamp(0.82 + r * 0.16, 0, 0.99);
-
-    rows.push({
-      chunk_id: `chunk_${pad3(i + 1)}`,
-      chunk_index: i,
-      text: baseText,
-      token_count: tokenCount,
-      section,
-      avg_similarity: Number(sim.toFixed(2)),
-      retrieval_count: retrievalCount,
-    });
-  }
-
-  return rows;
-}
-
 function normalizeChunkRow(raw: any, idx: number): ChunkRow {
   const chunkId =
     String(
@@ -167,7 +121,12 @@ function normalizeChunkRow(raw: any, idx: number): ChunkRow {
   const text =
     String(raw?.text ?? raw?.content ?? raw?.chunk_text ?? raw?.preview ?? raw?.snippet ?? '') || '';
   const tokenCount = safeNumber(
-    raw?.token_count ?? raw?.tokenCount ?? raw?.tokens ?? raw?.size_tokens ?? raw?.length_tokens,
+    raw?.token_count ??
+      raw?.chunk_tokens ??
+      raw?.tokenCount ??
+      raw?.tokens ??
+      raw?.size_tokens ??
+      raw?.length_tokens,
     0,
   );
   const section = raw?.section ?? raw?.heading ?? raw?.title ?? null;
@@ -217,6 +176,12 @@ const DocumentDetails: FC<DocumentDetailsProps> = ({ kb, doc, onBack }) => {
   const [page, setPage] = useState<number>(1);
   const [viewLoadedOnce, setViewLoadedOnce] = useState(false);
 
+  // Retrieval history state
+  const [historyLoading, setHistoryLoading] = useState(false);
+  const [historyErr, setHistoryErr] = useState<string | null>(null);
+  const [historyLoadedOnce, setHistoryLoadedOnce] = useState(false);
+  const [history, setHistory] = useState<DocumentRetrievalHistory | null>(null);
+
   const title = useMemo(() => {
     const fallback = doc.source_path?.split('/').pop() ?? 'Document';
     return doc.title ?? fallback;
@@ -233,32 +198,45 @@ const DocumentDetails: FC<DocumentDetailsProps> = ({ kb, doc, onBack }) => {
       setErr(null);
 
       try {
-        // TODO: implement kbService.getDocumentDetails(kb_id, document_id)
-        // const full = await kbService.getDocumentDetails(kb.kb_id, doc.document_id);
+        const liveDoc = await kbService.getDocumentDetails(kb.kb_id, doc.document_id);
 
         const full: DocDetails = {
           ...doc,
-          created_at: (doc as any).created_at ?? null,
-          updated_at: (doc as any).updated_at ?? null,
+          ...liveDoc,
+          created_at: (liveDoc as any).created_at ?? (doc as any).created_at ?? null,
+          updated_at: (liveDoc as any).updated_at ?? (doc as any).updated_at ?? null,
 
-          processing_strategy: (doc as any).processing_strategy ?? null,
-          avg_chunk_size_tokens: (doc as any).avg_chunk_size_tokens ?? null,
-          embedding_model: (doc as any).embedding_model ?? null,
+          processing_strategy:
+            (liveDoc as any).processing_strategy ?? (doc as any).processing_strategy ?? null,
+          avg_chunk_size_tokens:
+            (liveDoc as any).avg_chunk_size_tokens ?? (doc as any).avg_chunk_size_tokens ?? null,
+          avg_chunk_size_chars:
+            (liveDoc as any).avg_chunk_size_chars ?? (doc as any).avg_chunk_size_chars ?? null,
+          embedding_model: (liveDoc as any).embedding_model ?? (doc as any).embedding_model ?? null,
 
-          total_retrievals: (doc as any).total_retrievals ?? doc.retrieval_count ?? 0,
-          avg_similarity: (doc as any).avg_similarity ?? null,
-          preview_text: (doc as any).preview_text ?? null,
+          total_retrievals:
+            (liveDoc as any).total_retrievals ??
+            (liveDoc as any).retrieval_count ??
+            doc.retrieval_count ??
+            0,
+          avg_similarity: (liveDoc as any).avg_similarity ?? (doc as any).avg_similarity ?? null,
+          preview_text: (liveDoc as any).preview_text ?? (doc as any).preview_text ?? null,
 
-          strategy_overridden: (doc as any).strategy_overridden ?? null,
-          strategy_display_name: (doc as any).strategy_display_name ?? null,
-          strategy_summary: (doc as any).strategy_summary ?? null,
-          rationale_bullets: (doc as any).rationale_bullets ?? null,
-          detected_features: (doc as any).detected_features ?? null,
+          strategy_overridden:
+            (liveDoc as any).strategy_overridden ?? (doc as any).strategy_overridden ?? null,
+          strategy_display_name:
+            (liveDoc as any).strategy_display_name ?? (doc as any).strategy_display_name ?? null,
+          strategy_summary:
+            (liveDoc as any).strategy_summary ?? (doc as any).strategy_summary ?? null,
+          rationale_bullets:
+            (liveDoc as any).rationale_bullets ?? (doc as any).rationale_bullets ?? null,
+          detected_features:
+            (liveDoc as any).detected_features ?? (doc as any).detected_features ?? null,
 
-          view_url: (doc as any).view_url ?? null,
-          view_page_count: (doc as any).view_page_count ?? null,
+          view_url: (liveDoc as any).view_url ?? (doc as any).view_url ?? null,
+          view_page_count: (liveDoc as any).view_page_count ?? (doc as any).view_page_count ?? null,
 
-          chunks: (doc as any).chunks ?? null,
+          chunks: (liveDoc as any).chunks ?? (doc as any).chunks ?? null,
         };
 
         if (mounted) setDetails(full);
@@ -290,6 +268,7 @@ const DocumentDetails: FC<DocumentDetailsProps> = ({ kb, doc, onBack }) => {
       if (chunksLoadedOnce) await loadChunks();
       if (strategyLoadedOnce) await loadStrategy();
       if (viewLoadedOnce) await loadDocumentView();
+      if (historyLoadedOnce) await loadRetrievalHistory();
 
       showToast('ok', 'Refreshed');
     } catch (e: any) {
@@ -373,30 +352,38 @@ const DocumentDetails: FC<DocumentDetailsProps> = ({ kb, doc, onBack }) => {
           ? 'text-yellow-400'
           : 'text-red-400';
 
-  const total = Number(d.total_retrievals ?? doc.retrieval_count ?? 0);
-  const baseAvg = Math.max(1, Math.round(total / 30));
-  const daily = useMemo(() => {
-    const seedStr = String(doc.document_id ?? doc.source_path ?? 'seed');
-    let seed = 0;
-    for (let i = 0; i < seedStr.length; i++) seed = (seed * 31 + seedStr.charCodeAt(i)) >>> 0;
-
-    const arr: number[] = [];
-    for (let i = 0; i < 30; i++) {
-      seed = (seed * 1664525 + 1013904223) >>> 0;
-      const r = (seed % 1000) / 1000;
-      const v = clamp(r * 1.2 + Math.sin(i / 5) * 0.15, 0, 1);
-      arr.push(v);
+  const dailyCounts = useMemo(() => {
+    const counts = history?.series?.map((s) => Number(s.retrieval_count) || 0) ?? [];
+    if (counts.length >= 30) return counts.slice(counts.length - 30);
+    if (counts.length === 0) return Array.from({ length: 30 }, () => 0);
+    return [...Array.from({ length: 30 - counts.length }, () => 0), ...counts];
+  }, [history]);
+  const dailyDates = useMemo(() => {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    return Array.from({ length: 30 }, (_, i) => {
+      const dt = new Date(today);
+      dt.setDate(today.getDate() - (29 - i));
+      return dt;
+    });
+  }, []);
+  const maxDaily = Math.max(1, ...dailyCounts);
+  const daily = useMemo(() => dailyCounts.map((v) => v / maxDaily), [dailyCounts, maxDaily]);
+  const peakDate = useMemo(() => {
+    if (!history?.peak_day) return null;
+    const raw = String(history.peak_day);
+    let parsed: Date;
+    // Parse date-only values as local calendar dates to avoid timezone day-shift.
+    if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) {
+      const [y, m, d] = raw.split('-').map((v) => Number(v));
+      parsed = new Date(y, m - 1, d);
+    } else {
+      parsed = new Date(raw);
     }
-    return arr;
-  }, [doc.document_id, doc.source_path]);
-
-  const dailyCounts = daily.map((v) => Math.round(baseAvg * (0.4 + v * 1.6)));
-  const peakIdx = dailyCounts.reduce((best, cur, i) => (cur > dailyCounts[best] ? i : best), 0);
-  const peakDate = new Date(nowMs - (29 - peakIdx) * 24 * 60 * 60 * 1000);
-  const avgDaily = Math.round(dailyCounts.reduce((a, b) => a + b, 0) / dailyCounts.length);
-  const last7 = dailyCounts.slice(23).reduce((a, b) => a + b, 0);
-  const prev7 = dailyCounts.slice(16, 23).reduce((a, b) => a + b, 0);
-  const trendPct = prev7 === 0 ? 0 : Math.round(((last7 - prev7) / prev7) * 100);
+    return Number.isFinite(parsed.getTime()) ? parsed : null;
+  }, [history]);
+  const avgDaily = Number(history?.avg_daily_retrievals ?? 0);
+  const trendPct = Math.round(Number(history?.trend_pct ?? 0));
 
   const Ring = ({ days }: { days: number | null }) => {
     const pct = days == null ? 0.25 : clamp(1 - days / 30, 0.05, 1);
@@ -498,33 +485,15 @@ const DocumentDetails: FC<DocumentDetailsProps> = ({ kb, doc, onBack }) => {
   }, [doc.total_chunks, (d as any).total_chunks]);
 
   const renderLimit = 60; // keep UI fast if total_chunks is huge
-  const renderCount = Math.min(totalChunksNumber || 0, renderLimit);
 
   const loadChunks = async () => {
     setChunksLoading(true);
     setChunksErr(null);
 
     try {
-      const svcAny = kbService as any;
-
-      // 1) Real endpoint (if added it later)
-      if (typeof svcAny.listDocumentChunks === 'function') {
-        const res = await svcAny.listDocumentChunks(kb.kb_id, doc.document_id);
-        const rawList =
-          res?.chunks ?? res?.items ?? res?.data ?? (Array.isArray(res) ? res : null) ?? [];
-        const rows = (rawList as any[]).map((x, i) => normalizeChunkRow(x, i));
-        setChunkRows(rows);
-      }
-      // 2) If backend already in `details/doc`
-      else if (Array.isArray(d.chunks) && d.chunks.length > 0) {
-        const rows = (d.chunks as any[]).map((x, i) => normalizeChunkRow(x, i));
-        setChunkRows(rows);
-      }
-      // 3) Stub fallback: generate EXACT total chunks, but only show up to renderLimit
-      else {
-        const all = makeMockChunks(doc, totalChunksNumber);
-        setChunkRows(all.slice(0, renderLimit));
-      }
+      const rawList = await kbService.listDocumentChunks(kb.kb_id, doc.document_id);
+      const rows = rawList.map((x, i) => normalizeChunkRow(x, i));
+      setChunkRows(rows);
 
       setChunksLoadedOnce(true);
     } catch (e: any) {
@@ -540,8 +509,23 @@ const DocumentDetails: FC<DocumentDetailsProps> = ({ kb, doc, onBack }) => {
     if (activeTab === 'chunks' && !chunksLoadedOnce && !chunksLoading) loadChunks();
     if (activeTab === 'strategy' && !strategyLoadedOnce && !strategyLoading) loadStrategy();
     if (activeTab === 'document-view' && !viewLoadedOnce && !viewLoading) loadDocumentView();
+    if (activeTab === 'health' && !historyLoadedOnce && !historyLoading) loadRetrievalHistory();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeTab]);
+
+  const loadRetrievalHistory = async () => {
+    setHistoryLoading(true);
+    setHistoryErr(null);
+    try {
+      const res = await kbService.getDocumentRetrievalHistory(kb.kb_id, doc.document_id, 30);
+      setHistory(res);
+      setHistoryLoadedOnce(true);
+    } catch (e: any) {
+      setHistoryErr(e?.message || 'Failed to load retrieval history');
+    } finally {
+      setHistoryLoading(false);
+    }
+  };
 
   // ── Document View Bar ────────────────────────────────────────────────────────────────
   const loadDocumentView = async () => {
@@ -743,14 +727,20 @@ const DocumentDetails: FC<DocumentDetailsProps> = ({ kb, doc, onBack }) => {
             <InfoItem label="Total Chunks" value={doc.total_chunks?.toLocaleString?.() ?? '—'} />
             <InfoItem
               label="Avg Chunk Size"
-              value={d.avg_chunk_size_tokens ? `${d.avg_chunk_size_tokens} tokens` : '—'}
+              value={
+                d.avg_chunk_size_chars != null
+                  ? `${d.avg_chunk_size_chars} chars`
+                  : d.avg_chunk_size_tokens != null
+                    ? `${d.avg_chunk_size_tokens} tokens`
+                    : '—'
+              }
             />
 
             <InfoItem label="Embedding Model" value={d.embedding_model ?? '—'} />
             <InfoItem label="Last Updated" value={d.updated_at ? kbService.formatRelativeTime(d.updated_at) : '—'} />
             <InfoItem
               label="Last Retrieved"
-              value={doc.last_retrieved_at ? kbService.formatRelativeTime(doc.last_retrieved_at) : '—'}
+              value={d.last_retrieved_at ? kbService.formatRelativeTime(d.last_retrieved_at) : '—'}
             />
           </div>
         </div>
@@ -794,7 +784,10 @@ const DocumentDetails: FC<DocumentDetailsProps> = ({ kb, doc, onBack }) => {
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <MetricCard label="Total Retrievals" value={(d.total_retrievals ?? doc.retrieval_count ?? 0).toLocaleString()} />
             <MetricCard label="Avg Similarity" value={d.avg_similarity != null ? String(d.avg_similarity) : '—'} />
-            <MetricCard label="Last Retrieved" value={doc.last_retrieved_at ? kbService.formatRelativeTime(doc.last_retrieved_at) : '—'} />
+            <MetricCard
+              label="Last Retrieved"
+              value={d.last_retrieved_at ? kbService.formatRelativeTime(d.last_retrieved_at) : '—'}
+            />
           </div>
 
           <div className="bg-surface/50 backdrop-blur border border-white/5 rounded-2xl p-6">
@@ -924,9 +917,6 @@ const DocumentDetails: FC<DocumentDetailsProps> = ({ kb, doc, onBack }) => {
           {!chunksLoading && !chunksErr && chunkRows.length === 0 && (
             <div className="bg-surface/50 backdrop-blur border border-white/5 rounded-2xl p-6">
               <div className="text-secondary text-sm">No chunks available yet.</div>
-              <div className="mt-3 text-xs text-secondary/70">
-                Implement <code className="text-white/80">kbService.listDocumentChunks(kb_id, document_id)</code> for real data.
-              </div>
             </div>
           )}
 
@@ -948,6 +938,18 @@ const DocumentDetails: FC<DocumentDetailsProps> = ({ kb, doc, onBack }) => {
               <div className="text-white font-semibold">Retrieval History (Last 30 Days)</div>
             </div>
 
+            {historyErr && (
+              <div className="mb-4 flex items-center gap-2 px-4 py-3 rounded-xl bg-red-500/10 border border-red-500/20 text-red-400 text-sm">
+                <AlertCircle size={16} /> {historyErr}
+              </div>
+            )}
+
+            {historyLoading && (
+              <div className="flex items-center justify-center py-8">
+                <Loader2 size={24} className="animate-spin text-primary" />
+              </div>
+            )}
+
             <div className="bg-black/25 border border-white/5 rounded-2xl p-6">
               <div className="grid grid-cols-7 gap-3 max-w-[520px]">
                 {Array.from({ length: 35 }).map((_, i) => {
@@ -957,7 +959,11 @@ const DocumentDetails: FC<DocumentDetailsProps> = ({ kb, doc, onBack }) => {
                     <div
                       key={i}
                       className={`h-8 rounded ${heatClass(v)} border border-white/5`}
-                      title={idx >= 0 && idx < 30 ? `${dailyCounts[idx]} retrievals` : '—'}
+                      title={
+                        idx >= 0 && idx < 30
+                          ? `${dailyDates[idx].toLocaleDateString()}: ${dailyCounts[idx]} retrievals`
+                          : '—'
+                      }
                     />
                   );
                 })}
@@ -982,17 +988,19 @@ const DocumentDetails: FC<DocumentDetailsProps> = ({ kb, doc, onBack }) => {
 
           <div className="lg:col-span-3 grid grid-cols-1 md:grid-cols-3 gap-6">
             <div className="bg-surface/50 backdrop-blur border border-white/5 rounded-2xl p-6">
-              <div className="text-xs text-secondary uppercase tracking-wider mb-2">Peak Retrieval Day</div>
-              <div className="text-3xl font-bold text-white">{formatShortMonthDay(peakDate)}</div>
+              <div className="text-xs text-secondary uppercase tracking-wider mb-2">Peak Retrieval Day (Past 30 Days)</div>
+              <div className="text-3xl font-bold text-white">
+                {peakDate ? formatShortMonthDay(peakDate) : '—'}
+              </div>
             </div>
 
             <div className="bg-surface/50 backdrop-blur border border-white/5 rounded-2xl p-6">
-              <div className="text-xs text-secondary uppercase tracking-wider mb-2">Avg Daily Retrievals</div>
-              <div className="text-3xl font-bold text-white">{avgDaily}</div>
+              <div className="text-xs text-secondary uppercase tracking-wider mb-2">Avg Daily Retrievals (Past 30 Days)</div>
+              <div className="text-3xl font-bold text-white">{avgDaily.toFixed(2)}</div>
             </div>
 
             <div className="bg-surface/50 backdrop-blur border border-white/5 rounded-2xl p-6">
-              <div className="text-xs text-secondary uppercase tracking-wider mb-2">Retrieval Trend</div>
+              <div className="text-xs text-secondary uppercase tracking-wider mb-2">Retrieval Trend (Past 30 Days)</div>
               <div className={`text-3xl font-bold ${trendPct >= 0 ? 'text-green-400' : 'text-red-400'}`}>
                 {trendPct >= 0 ? `↑ ${trendPct}%` : `↓ ${Math.abs(trendPct)}%`}
               </div>
