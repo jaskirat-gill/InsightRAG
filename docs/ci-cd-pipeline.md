@@ -76,11 +76,20 @@ Purpose: confirm key services start and respond correctly after build.
 
 If any required job fails, the workflow fails.
 
-## Note on CD
+## 5) `deploy-production` - CD to DigitalOcean Droplet
 
-Although the workflow is named `CI/CD`, the current definition performs CI validation only:
-- code checks
-- container build verification
-- runtime smoke tests
+Depends on:
+- `smoke-test`
 
-There is no deployment job in the current workflow file.
+Runs only when:
+- Branch is `main`
+
+Tasks:
+- Uses an SSH-based GitHub Action to connect to a DigitalOcean Droplet.
+- On the Droplet, runs:
+  - `git fetch && git checkout main && git pull`
+  - `docker compose -f docker-compose.yml up -d --build`
+
+Notes:
+- SSH connection details (`DO_SSH_HOST`, `DO_SSH_USER`, `DO_SSH_KEY`) and optional `DO_APP_PATH` are provided via GitHub Actions secrets.
+- The `.env` file with production secrets lives only on the Droplet.

@@ -130,3 +130,36 @@ jobs:
       - name: Tear down services
         if: always()
         run: docker compose -f docker-compose.yml down -v
+
+  deploy-production:
+    name: Deploy to DigitalOcean Droplet
+    runs-on: ubuntu-latest
+    needs:
+      - smoke-test
+    if: github.ref == 'refs/heads/main'
+
+    env:
+      DO_APP_PATH: ${{ secrets.DO_APP_PATH }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Deploy via SSH to Droplet
+        uses: appleboy/ssh-action@v1
+        with:
+          host: ${{ secrets.DO_SSH_HOST }}
+          username: ${{ secrets.DO_SSH_USER }}
+          key: ${{ secrets.DO_SSH_KEY }}
+          port: 22
+          script: |
+            set -e
+            APP_PATH="${DO_APP_PATH:-/home/deploy/OpenWebUI-Project}"
+            cd "$APP_PATH"
+
+            git fetch origin
+            git checkout main
+            git pull origin main
+
+            docker compose -f docker-compose.yml pull || true
+            docker compose -f docker-compose.yml up -d --build
