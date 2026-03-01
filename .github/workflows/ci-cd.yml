@@ -134,6 +134,7 @@ jobs:
   deploy-production:
     name: Deploy to DigitalOcean Droplet
     runs-on: ubuntu-latest
+    timeout-minutes: 40
     needs:
       - smoke-test
     if: github.ref == 'refs/heads/main'
@@ -152,6 +153,8 @@ jobs:
           username: ${{ secrets.DO_SSH_USER }}
           key: ${{ secrets.DO_SSH_KEY }}
           port: 22
+          timeout: 30m
+          command_timeout: 30m
           script: |
             set -e
             APP_PATH="${DO_APP_PATH:-/home/deploy/OpenWebUI-Project}"
