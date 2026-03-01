@@ -12,11 +12,11 @@ import {
 
 const escapeHtml = (raw: string): string =>
   raw
-    .replaceAll('&', '&amp;')
-    .replaceAll('<', '&lt;')
-    .replaceAll('>', '&gt;')
-    .replaceAll('"', '&quot;')
-    .replaceAll("'", '&#39;');
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
 
 const renderInlineMarkdown = (input: string): string => {
   let text = escapeHtml(input);
@@ -425,7 +425,7 @@ const Chat: FC = () => {
         </div>
 
         <button
-          onClick={loadChats}
+          onClick={() => loadChats()}
           className="mt-3 w-full flex items-center justify-center gap-2 px-3 py-2 rounded-xl border border-white/10 bg-white/5 text-secondary hover:text-white hover:bg-white/10 transition-colors"
         >
           <RefreshCw size={14} /> Refresh
