@@ -129,21 +129,6 @@ class KBService {
     return await response.json();
   }
 
-  // Get KB health metrics
-  async getKBHealth(kbId: string): Promise<any> {
-    const response = await fetch(`${this.API_URL}/api/v1/knowledge-bases/${kbId}/health`, {
-      headers: {
-        ...authService.getAuthHeader(),
-      },
-    });
-
-    if (!response.ok) {
-      throw new Error('Failed to fetch KB health');
-    }
-
-    return await response.json();
-  }
-
   // List documents in KB
   async listDocuments(kbId: string): Promise<Document[]> {
     const response = await fetch(`${this.API_URL}/api/v1/knowledge-bases/${kbId}/documents`, {
