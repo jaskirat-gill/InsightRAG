@@ -1,9 +1,8 @@
-import time
+# This file is kept for backward compatibility.
+# The document-processing-engine now runs as a Celery worker (see worker.py).
+# To run manually: celery -A worker worker --loglevel=info
 
-def main():
-    print("Document Processing Engine started")
-    while True:
-        time.sleep(10)
+from worker import celery_app
 
 if __name__ == "__main__":
-    main()
+    celery_app.worker_main(["worker", "--loglevel=info", "--concurrency=2"])

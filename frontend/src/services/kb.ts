@@ -29,8 +29,61 @@ export interface Document {
   total_chunks: number;
   health_score: number;
   retrieval_count: number;
+  last_retrieved_at: string | null;
+  avg_chunk_size_tokens?: number | null;
+  avg_chunk_size_chars?: number | null;
   created_at: string;
   uploaded_at: string | null;
+}
+
+export interface DocumentChunk {
+  chunk_id: string;
+  document_id: string;
+  kb_id: string;
+  chunk_index: number;
+  chunk_text: string;
+  chunk_tokens: number | null;
+  vector_id: string | null;
+  section_title: string | null;
+  page_number: number | null;
+  retrieval_count: number;
+  last_retrieved_at: string | null;
+  created_at: string;
+}
+
+export interface DocumentRetrievalDay {
+  date: string;
+  retrieval_count: number;
+}
+
+export interface DocumentRetrievalHistory {
+  days: number;
+  series: DocumentRetrievalDay[];
+  total_retrievals: number;
+  peak_day: string | null;
+  peak_count: number;
+  avg_daily_retrievals: number;
+  trend_pct: number;
+  last7_total: number;
+  prev7_total: number;
+}
+
+export interface KBHealthStats {
+  total_docs: number;
+  completed_docs: number;
+  failed_docs: number;
+  avg_health_score: number;
+  total_chunks: number;
+  total_retrievals: number;
+}
+
+export interface ReassignItem {
+  document_id: string;
+  to_kb_id: string;
+}
+
+export interface ReassignResult {
+  reassigned: number;
 }
 
 export interface CreateKBRequest {
@@ -106,6 +159,133 @@ class KBService {
     return await response.json();
   }
 
+  // Get one document details
+  async getDocumentDetails(kbId: string, docId: string): Promise<Document> {
+    const response = await fetch(
+      `${this.API_URL}/api/v1/knowledge-bases/${kbId}/documents/${docId}`,
+      {
+        headers: {
+          ...authService.getAuthHeader(),
+        },
+      },
+    );
+
+    if (!response.ok) {
+      throw new Error('Failed to fetch document details');
+    }
+
+    return await response.json();
+  }
+
+  // List chunks for one document
+  async listDocumentChunks(kbId: string, docId: string): Promise<DocumentChunk[]> {
+    const response = await fetch(
+      `${this.API_URL}/api/v1/knowledge-bases/${kbId}/documents/${docId}/chunks`,
+      {
+        headers: {
+          ...authService.getAuthHeader(),
+        },
+      },
+    );
+
+    if (!response.ok) {
+      throw new Error('Failed to fetch document chunks');
+    }
+
+    return await response.json();
+  }
+
+  // Get per-document retrieval history and summary metrics
+  async getDocumentRetrievalHistory(
+    kbId: string,
+    docId: string,
+    days: number = 30,
+  ): Promise<DocumentRetrievalHistory> {
+    const response = await fetch(
+      `${this.API_URL}/api/v1/knowledge-bases/${kbId}/documents/${docId}/retrieval-history?days=${days}`,
+      {
+        headers: {
+          ...authService.getAuthHeader(),
+        },
+      },
+    );
+
+    if (!response.ok) {
+      throw new Error('Failed to fetch document retrieval history');
+    }
+
+    return await response.json();
+  }
+
+  // Reassign documents to different KBs
+  async reassignDocuments(fromKbId: string, items: ReassignItem[]): Promise<ReassignResult> {
+    const response = await fetch(
+      `${this.API_URL}/api/v1/knowledge-bases/${fromKbId}/reassign`,
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...authService.getAuthHeader(),
+        },
+        body: JSON.stringify(items),
+      },
+    );
+
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({}));
+      throw new Error(error.detail || 'Failed to reassign documents');
+    }
+
+    return await response.json();
+  }
+
+  // Trigger manual sync for all active plugins
+  async triggerSync(): Promise<{ message: string }> {
+    const response = await fetch(`${this.API_URL}/sync`, {
+      method: 'POST',
+      headers: {
+        ...authService.getAuthHeader(),
+      },
+    });
+
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({}));
+      throw new Error(error.detail || 'Failed to trigger sync');
+    }
+
+    return await response.json();
+  }
+
+  // Get KB health stats (documents + chunk retrieval metrics)
+  async getKBHealth(kbId: string): Promise<KBHealthStats> {
+    const response = await fetch(`${this.API_URL}/api/v1/knowledge-bases/${kbId}/health`, {
+      headers: {
+        ...authService.getAuthHeader(),
+      },
+    });
+
+    if (!response.ok) {
+      throw new Error('Failed to fetch KB health');
+    }
+
+    return await response.json();
+  }
+
+  // Delete KB (removes from SQL + Qdrant)
+  async deleteKnowledgeBase(kbId: string): Promise<void> {
+    const response = await fetch(`${this.API_URL}/api/v1/knowledge-bases/${kbId}`, {
+      method: 'DELETE',
+      headers: {
+        ...authService.getAuthHeader(),
+      },
+    });
+
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({}));
+      throw new Error(error.detail || 'Failed to delete knowledge base');
+    }
+  }
+
   // Create new KB
   async createKnowledgeBase(data: CreateKBRequest): Promise<KnowledgeBase> {
     const response = await fetch(`${this.API_URL}/api/v1/knowledge-bases`, {
@@ -137,14 +317,38 @@ class KBService {
   // Format relative time
   formatRelativeTime(dateString: string | null): string {
     if (!dateString) return 'Never';
-    const date = new Date(dateString);
+    const normalizeDate = (raw: string): Date => {
+      // Handle PostgreSQL naive timestamps consistently as UTC.
+      const hasExplicitTz = /(?:Z|[+-]\d{2}:\d{2})$/.test(raw);
+      if (hasExplicitTz) return new Date(raw);
+
+      if (/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}/.test(raw)) {
+        return new Date(raw.replace(' ', 'T') + 'Z');
+      }
+      if (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}/.test(raw)) {
+        return new Date(raw + 'Z');
+      }
+      return new Date(raw);
+    };
+
+    const date = normalizeDate(dateString);
+    if (Number.isNaN(date.getTime())) return 'Unknown';
     const now = new Date();
     const seconds = Math.floor((now.getTime() - date.getTime()) / 1000);
 
-    if (seconds < 60) return 'Just now';
-    if (seconds < 3600) return `${Math.floor(seconds / 60)} minutes ago`;
-    if (seconds < 86400) return `${Math.floor(seconds / 3600)} hours ago`;
-    if (seconds < 604800) return `${Math.floor(seconds / 86400)} days ago`;
+    if (seconds >= 0) {
+      if (seconds < 60) return 'Just now';
+      if (seconds < 3600) return `${Math.floor(seconds / 60)} minutes ago`;
+      if (seconds < 86400) return `${Math.floor(seconds / 3600)} hours ago`;
+      if (seconds < 604800) return `${Math.floor(seconds / 86400)} days ago`;
+      return date.toLocaleDateString();
+    }
+
+    const future = Math.abs(seconds);
+    if (future < 60) return 'Just now';
+    if (future < 3600) return `in ${Math.floor(future / 60)} minutes`;
+    if (future < 86400) return `in ${Math.floor(future / 3600)} hours`;
+    if (future < 604800) return `in ${Math.floor(future / 86400)} days`;
     return date.toLocaleDateString();
   }
 }

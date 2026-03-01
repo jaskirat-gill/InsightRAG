@@ -5,6 +5,7 @@ import os
 class Settings(BaseSettings):
     # Database - from environment
     DATABASE_URL: str = os.getenv("DATABASE_URL", "postgresql://user:password@postgres:5433/openwebui")
+    DB_SQL_DIR: str = os.getenv("DB_SQL_DIR", "/db-sql")
     
     # Qdrant - from environment
     QDRANT_URL: str = os.getenv("QDRANT_URL", "http://qdrant:6333")
