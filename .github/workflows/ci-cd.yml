@@ -45,6 +45,7 @@ jobs:
           - backend/sync-service
           - backend/query-engine
           - backend/document-processing-engine
+          - backend/mcp-server
 
     steps:
       - name: Checkout repository
@@ -96,16 +97,29 @@ jobs:
     needs:
       - docker-build
 
+    env:
+      S3_BUCKET_NAME: ""
+      AWS_REGION: ""
+      AWS_ACCESS_KEY_ID: ""
+      AWS_SECRET_ACCESS_KEY: ""
+      SQS_QUEUE_URL: ""
+      SYNC_INTERVAL_SECONDS: "0"
+      VITE_API_URL: ""
+      VITE_OPENWEBUI_BASE_URL: ""
+      VITE_OPENWEBUI_TOKEN: ""
+      VITE_OPENWEBUI_TIMEOUT_MS: ""
+
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
 
       - name: Start required services
-        run: docker compose -f docker-compose.yml up -d postgres qdrant query-engine sync-service
+        run: docker compose -f docker-compose.yml up -d postgres redis qdrant query-engine sync-service
 
       - name: Wait for services to become healthy
         run: |
           timeout 120 bash -c 'until [ "$(docker inspect -f {{.State.Health.Status}} $(docker compose ps -q postgres))" = "healthy" ]; do sleep 2; done'
+          timeout 120 bash -c 'until [ "$(docker inspect -f {{.State.Health.Status}} $(docker compose ps -q redis))" = "healthy" ]; do sleep 2; done'
           timeout 120 bash -c 'until curl -fsS http://localhost:8000/health | grep -q "\"status\":\"healthy\""; do sleep 2; done'
           timeout 120 bash -c 'until curl -fsS http://localhost:8001/health | grep -q "\"status\":\"healthy\""; do sleep 2; done'
 

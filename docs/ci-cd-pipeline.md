@@ -25,6 +25,7 @@ Runs as a matrix job for:
 - `backend/sync-service`
 - `backend/query-engine`
 - `backend/document-processing-engine`
+- `backend/mcp-server`
 
 For each service:
 - Checks out the repository
@@ -55,11 +56,13 @@ Depends on:
 
 Tasks:
 - Checks out the repository
-- Starts required services: `postgres`, `qdrant`, `query-engine`, `sync-service`
+- Starts required services: `postgres`, `redis`, `qdrant`, `query-engine`, `sync-service`
 - Waits for health checks:
   - Postgres container health is `healthy`
-  - `http://localhost:8000/health` reports healthy
-  - `http://localhost:8001/health` reports healthy
+  - Redis container health is `healthy`
+  - `http://localhost:8000/health` (sync-service) reports healthy
+  - `http://localhost:8001/health` (query-engine) reports healthy
+- Uses empty env vars for optional AWS/VITE settings to avoid compose warnings
 - Prints Docker Compose logs if a failure happens
 - Always tears down services with `docker compose ... down -v`
 
