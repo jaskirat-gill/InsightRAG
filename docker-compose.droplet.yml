@@ -1,0 +1,8 @@
+# Use with host nginx as SSL terminator (see deploy/README.md).
+# Run: docker compose -f docker-compose.yml -f docker-compose.droplet.yml up -d
+# Frontend listens on 8080 only; host nginx proxies / to 127.0.0.1:8080 and /api/sync|query|mcp/ to backend ports.
+
+services:
+  frontend:
+    ports:
+      - "8080:80"
