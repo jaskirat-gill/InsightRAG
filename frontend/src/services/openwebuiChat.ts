@@ -1,7 +1,9 @@
-const OPENWEBUI_BASE_URL = import.meta.env.VITE_OPENWEBUI_BASE_URL || 'http://localhost:3000';
-const OPENWEBUI_TOKEN = import.meta.env.VITE_OPENWEBUI_TOKEN || '';
-const OPENWEBUI_MCP_SERVER = import.meta.env.VITE_OPENWEBUI_MCP_SERVER || '';
-const OPENWEBUI_TIMEOUT_MS = Number(import.meta.env.VITE_OPENWEBUI_TIMEOUT_MS || 120000);
+import {
+  OPENWEBUI_BASE_URL,
+  OPENWEBUI_TOKEN,
+  OPENWEBUI_MCP_SERVER,
+  OPENWEBUI_TIMEOUT_MS,
+} from '../config';
 
 export interface OpenWebUIChatTitle {
   id: string;

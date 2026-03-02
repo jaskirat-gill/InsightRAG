@@ -2,7 +2,7 @@ import { FC, useState, useEffect } from 'react';
 import { Plus, RefreshCw, Puzzle, Loader2 } from 'lucide-react';
 import PluginCard from './PluginCard';
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+import { API_URL } from '../config';
 
 interface ConfigField {
     name: string;
