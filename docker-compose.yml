@@ -1,12 +1,17 @@
 services:
   frontend:
     image: ghcr.io/jaskirat-gill/openwebui-frontend:latest
-    build: ./frontend
+    build:
+      context: ./frontend
+      args:
+        VITE_API_URL: ${VITE_API_URL:-}
+        VITE_OPENWEBUI_BASE_URL: ${VITE_OPENWEBUI_BASE_URL:-}
+        VITE_OPENWEBUI_TOKEN: ${VITE_OPENWEBUI_TOKEN:-}
+        VITE_OPENWEBUI_TIMEOUT_MS: ${VITE_OPENWEBUI_TIMEOUT_MS:-}
     ports:
       - "5173:5173"
-    volumes:
-      - ./frontend:/app:z
-      - /app/node_modules
+    # No volume mounts: production serves pre-built static assets from image (avoids 504 "Outdated Optimize Dep" from Vite dev server).
+    # For local dev with hot reload, run: cd frontend && npm run dev
     environment:
       - VITE_API_URL=${VITE_API_URL}
       - VITE_OPENWEBUI_BASE_URL=${VITE_OPENWEBUI_BASE_URL}

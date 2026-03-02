@@ -79,6 +79,12 @@ jobs:
     needs:
       - frontend-checks
       - backend-checks
+    env:
+      # Optional: set these as repo secrets to bake production URLs into the frontend image
+      VITE_API_URL: ${{ secrets.VITE_API_URL }}
+      VITE_OPENWEBUI_BASE_URL: ${{ secrets.VITE_OPENWEBUI_BASE_URL }}
+      VITE_OPENWEBUI_TOKEN: ${{ secrets.VITE_OPENWEBUI_TOKEN }}
+      VITE_OPENWEBUI_TIMEOUT_MS: ${{ secrets.VITE_OPENWEBUI_TIMEOUT_MS }}
 
     steps:
       - name: Checkout repository

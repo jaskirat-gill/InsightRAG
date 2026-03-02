@@ -1,14 +1,30 @@
-FROM node:22-alpine
+# Stage 1: build
+FROM node:22-alpine AS builder
 
 WORKDIR /app
 
-# Install dependencies as root first
 COPY package.json package-lock.json* ./
-RUN npm install
+RUN npm ci
 
-# Use the built-in node user (uid 1000) to match typical host UID
-USER node
+# Build-time env for Vite (inlined into JS). Defaults allow image to build; set in CI via build-args for production.
+ARG VITE_API_URL=
+ARG VITE_OPENWEBUI_BASE_URL=
+ARG VITE_OPENWEBUI_TOKEN=
+ARG VITE_OPENWEBUI_TIMEOUT_MS=
+ENV VITE_API_URL=$VITE_API_URL \
+    VITE_OPENWEBUI_BASE_URL=$VITE_OPENWEBUI_BASE_URL \
+    VITE_OPENWEBUI_TOKEN=$VITE_OPENWEBUI_TOKEN \
+    VITE_OPENWEBUI_TIMEOUT_MS=$VITE_OPENWEBUI_TIMEOUT_MS
 
-COPY --chown=node:node . .
+COPY . .
+RUN npm run build
 
-CMD ["npm", "run", "dev", "--", "--host"]
+# Stage 2: serve with nginx (no dev server = no "Optimize Dep" / 504s)
+FROM nginx:alpine
+
+COPY --from=builder /app/dist /usr/share/nginx/html
+COPY nginx.conf /etc/nginx/conf.d/default.conf
+
+EXPOSE 5173
+
+CMD ["nginx", "-g", "daemon off;"]
