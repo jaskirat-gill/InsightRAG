@@ -101,6 +101,11 @@ class OverrideDocumentStrategyRequest(BaseModel):
 
 PDF_STRATEGY_OPTIONS: List[DocumentStrategyOption] = [
     DocumentStrategyOption(
+        key="semantic",
+        label="Semantic (Essay/Policy)",
+        description="Paragraph-oriented semantic chunking for narrative documents.",
+    ),
+    DocumentStrategyOption(
         key="pdf_auto",
         label="Auto (Default)",
         description="Uses automatic PDF partition strategy with general-purpose settings.",

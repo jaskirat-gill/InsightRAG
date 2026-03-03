@@ -8,12 +8,18 @@ BINARY_FORMATS = {".pdf", ".docx", ".doc", ".pptx", ".ppt", ".xlsx", ".xls", ".o
 PLAINTEXT_FORMATS = {".txt", ".md", ".csv", ".tsv", ".json", ".xml", ".html", ".htm", ".yaml", ".yml"}
 
 PDF_PROFILE_AUTO = "pdf_auto"
+PDF_PROFILE_SEMANTIC = "semantic"
 PDF_PROFILE_TABLE_HEAVY = "pdf_table_heavy"
 PDF_PROFILE_MULTICOLUMN = "pdf_multicolumn"
 PDF_PROFILE_DATAVIZ_HEAVY = "pdf_dataviz_heavy"
 
 PDF_PARSE_PROFILES: Dict[str, Dict[str, Any]] = {
     PDF_PROFILE_AUTO: {
+        "strategy": "auto",
+        "include_page_breaks": True,
+    },
+    PDF_PROFILE_SEMANTIC: {
+        # Keep extraction general-purpose; semantic preservation is handled in chunking step.
         "strategy": "auto",
         "include_page_breaks": True,
     },
