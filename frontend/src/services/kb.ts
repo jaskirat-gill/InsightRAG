@@ -33,6 +33,7 @@ export interface Document {
   avg_chunk_size_chars?: number | null;
   created_at: string;
   uploaded_at: string | null;
+  processing_strategy?: string | null;
 }
 
 export interface DocumentChunk {
@@ -93,6 +94,18 @@ export interface CreateKBRequest {
   processing_strategy?: string;
   chunk_size?: number;
   chunk_overlap?: number;
+}
+
+export interface DocumentStrategyOption {
+  key: string;
+  label: string;
+  description: string;
+}
+
+export interface DocumentStrategyDetails {
+  current_strategy: string | null;
+  current_strategy_label: string;
+  options: DocumentStrategyOption[];
 }
 
 class KBService {
@@ -174,6 +187,48 @@ class KBService {
 
     if (!response.ok) {
       throw new Error('Failed to fetch document chunks');
+    }
+
+    return await response.json();
+  }
+
+  async getDocumentStrategy(kbId: string, docId: string): Promise<DocumentStrategyDetails> {
+    const response = await fetch(
+      `${this.API_URL}/api/v1/knowledge-bases/${kbId}/documents/${docId}/strategy`,
+      {
+        headers: {
+          ...authService.getAuthHeader(),
+        },
+      },
+    );
+
+    if (!response.ok) {
+      throw new Error('Failed to fetch document strategy');
+    }
+
+    return await response.json();
+  }
+
+  async overrideDocumentStrategy(
+    kbId: string,
+    docId: string,
+    strategy: string,
+  ): Promise<{ message: string; strategy: string; status: string }> {
+    const response = await fetch(
+      `${this.API_URL}/api/v1/knowledge-bases/${kbId}/documents/${docId}/strategy/override`,
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...authService.getAuthHeader(),
+        },
+        body: JSON.stringify({ strategy }),
+      },
+    );
+
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({}));
+      throw new Error(error.detail || 'Failed to override strategy');
     }
 
     return await response.json();
