@@ -1,4 +1,4 @@
-import { FC, useEffect, useMemo, useState } from 'react';
+import React, { FC, useEffect, useMemo, useState } from 'react';
 import {
   ArrowLeft,
   FileText,
@@ -255,6 +255,9 @@ const DocumentDetails: FC<DocumentDetailsProps> = ({ kb, doc, onBack }) => {
   const [actionBusy, setActionBusy] = useState(false);
   const [toast, setToast] = useState<{ kind: 'ok' | 'err'; msg: string } | null>(null);
 
+  // Delete modal state
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+
   // Chunks state
   const [chunksLoading, setChunksLoading] = useState(false);
   const [chunksErr, setChunksErr] = useState<string | null>(null);
@@ -356,12 +359,23 @@ const DocumentDetails: FC<DocumentDetailsProps> = ({ kb, doc, onBack }) => {
     window.setTimeout(() => setToast(null), 3000);
   };
 
+  // close delete modal on ESC
+  useEffect(() => {
+    if (!showDeleteModal) return;
+
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && !actionBusy) setShowDeleteModal(false);
+    };
+
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [showDeleteModal, actionBusy]);
+
   // single refresh button at the top
   const handleRefresh = async () => {
     setActionBusy(true);
     try {
       await loadDetails();
-
       // Re-load tab data (only if it was loaded once before)
       if (chunksLoadedOnce) await loadChunks();
       if (strategyLoadedOnce) await loadStrategy();
@@ -377,7 +391,16 @@ const DocumentDetails: FC<DocumentDetailsProps> = ({ kb, doc, onBack }) => {
   };
 
   const handleViewInS3 = async () => {
-    showToast('err', 'View in S3 is not wired yet (needs an API endpoint).');
+    setActionBusy(true);
+    try {
+      const { url } = await (kbService as any).getDocumentS3Url(kb.kb_id, doc.document_id);
+      if (!url) throw new Error('No URL returned');
+      window.open(url, '_blank', 'noopener,noreferrer');
+    } catch (e: any) {
+      showToast('err', e?.message || 'Failed to open S3 link');
+    } finally {
+      setActionBusy(false);
+    }
   };
 
   const handleOverrideStrategy = async () => {
@@ -401,15 +424,18 @@ const DocumentDetails: FC<DocumentDetailsProps> = ({ kb, doc, onBack }) => {
     }
   };
 
+  // open modal (instead of window.confirm)
   const handleDelete = async () => {
-    const ok = window.confirm(
-      `Delete "${title}"?\n\nThis should remove it from SQL + Qdrant (depending on backend).`,
-    );
-    if (!ok) return;
+    setShowDeleteModal(true);
+  };
 
+  const confirmDelete = async () => {
     setActionBusy(true);
     try {
-      showToast('ok', 'Delete triggered (wire API to make it real).');
+      await (kbService as any).deleteDocument(kb.kb_id, doc.document_id);
+      showToast('ok', 'Deleted');
+      setShowDeleteModal(false);
+      window.setTimeout(() => onBack(), 500);
     } catch (e: any) {
       showToast('err', e?.message || 'Delete failed');
     } finally {
@@ -480,8 +506,8 @@ const DocumentDetails: FC<DocumentDetailsProps> = ({ kb, doc, onBack }) => {
     let parsed: Date;
     // Parse date-only values as local calendar dates to avoid timezone day-shift.
     if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) {
-      const [y, m, d] = raw.split('-').map((v) => Number(v));
-      parsed = new Date(y, m - 1, d);
+      const [y, m, dd] = raw.split('-').map((v) => Number(v));
+      parsed = new Date(y, m - 1, dd);
     } else {
       parsed = new Date(raw);
     }
@@ -543,7 +569,6 @@ const DocumentDetails: FC<DocumentDetailsProps> = ({ kb, doc, onBack }) => {
   };
 
   // ── Strategy Bar ────────────────────────────────────────────────────────────────
-  
   const strategyName = d.strategy_display_name ?? d.processing_strategy ?? 'Auto (Default)';
   const strategyKey = d.processing_strategy ?? 'pdf_auto';
   const defaultStrategy = STRATEGY_CONTENT[strategyKey] ?? STRATEGY_CONTENT.pdf_auto;
@@ -586,9 +611,9 @@ const DocumentDetails: FC<DocumentDetailsProps> = ({ kb, doc, onBack }) => {
 
   // ── Chunk Tab ────────────────────────────────────────────────────────────────
   const totalChunksNumber = useMemo(() => {
-    const n = safeNumber(doc.total_chunks ?? d.total_chunks ?? 0, 0);
+    const n = safeNumber((doc as any).total_chunks ?? (d as any).total_chunks ?? 0, 0);
     return Math.max(0, n);
-  }, [doc.total_chunks, (d as any).total_chunks]);
+  }, [doc, d]);
 
   const renderLimit = 60; // keep UI fast if total_chunks is huge
 
@@ -872,7 +897,9 @@ const DocumentDetails: FC<DocumentDetailsProps> = ({ kb, doc, onBack }) => {
                   key={t.key}
                   onClick={() => setActiveTab(t.key)}
                   className={`py-4 text-sm transition-colors border-b-2 ${
-                    active ? 'text-primary border-primary' : 'text-secondary border-transparent hover:text-white'
+                    active
+                      ? 'text-primary border-primary'
+                      : 'text-secondary border-transparent hover:text-white'
                   }`}
                 >
                   {t.label}
@@ -899,7 +926,10 @@ const DocumentDetails: FC<DocumentDetailsProps> = ({ kb, doc, onBack }) => {
       {activeTab === 'overview' && (
         <div className="space-y-6">
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <MetricCard label="Total Retrievals" value={(d.total_retrievals ?? doc.retrieval_count ?? 0).toLocaleString()} />
+            <MetricCard
+              label="Total Retrievals"
+              value={(d.total_retrievals ?? doc.retrieval_count ?? 0).toLocaleString()}
+            />
             <MetricCard label="Avg Similarity" value={d.avg_similarity != null ? String(d.avg_similarity) : '—'} />
             <MetricCard
               label="Last Retrieved"
@@ -1014,7 +1044,9 @@ const DocumentDetails: FC<DocumentDetailsProps> = ({ kb, doc, onBack }) => {
             <div className="text-white font-semibold">Chunks</div>
             <div className="text-xs text-secondary mt-1">
               {totalChunksNumber > 0
-                ? `Total: ${totalChunksNumber.toLocaleString()} chunks${totalChunksNumber > renderLimit ? ` (showing first ${renderLimit})` : ''}`
+                ? `Total: ${totalChunksNumber.toLocaleString()} chunks${
+                    totalChunksNumber > renderLimit ? ` (showing first ${renderLimit})` : ''
+                  }`
                 : ' '}
             </div>
           </div>
@@ -1105,19 +1137,23 @@ const DocumentDetails: FC<DocumentDetailsProps> = ({ kb, doc, onBack }) => {
 
           <div className="lg:col-span-3 grid grid-cols-1 md:grid-cols-3 gap-6">
             <div className="bg-surface/50 backdrop-blur border border-white/5 rounded-2xl p-6">
-              <div className="text-xs text-secondary uppercase tracking-wider mb-2">Peak Retrieval Day (Past 30 Days)</div>
-              <div className="text-3xl font-bold text-white">
-                {peakDate ? formatShortMonthDay(peakDate) : '—'}
+              <div className="text-xs text-secondary uppercase tracking-wider mb-2">
+                Peak Retrieval Day (Past 30 Days)
               </div>
+              <div className="text-3xl font-bold text-white">{peakDate ? formatShortMonthDay(peakDate) : '—'}</div>
             </div>
 
             <div className="bg-surface/50 backdrop-blur border border-white/5 rounded-2xl p-6">
-              <div className="text-xs text-secondary uppercase tracking-wider mb-2">Avg Daily Retrievals (Past 30 Days)</div>
+              <div className="text-xs text-secondary uppercase tracking-wider mb-2">
+                Avg Daily Retrievals (Past 30 Days)
+              </div>
               <div className="text-3xl font-bold text-white">{avgDaily.toFixed(2)}</div>
             </div>
 
             <div className="bg-surface/50 backdrop-blur border border-white/5 rounded-2xl p-6">
-              <div className="text-xs text-secondary uppercase tracking-wider mb-2">Retrieval Trend (Past 30 Days)</div>
+              <div className="text-xs text-secondary uppercase tracking-wider mb-2">
+                Retrieval Trend (Past 30 Days)
+              </div>
               <div className={`text-3xl font-bold ${trendPct >= 0 ? 'text-green-400' : 'text-red-400'}`}>
                 {trendPct >= 0 ? `↑ ${trendPct}%` : `↓ ${Math.abs(trendPct)}%`}
               </div>
@@ -1285,6 +1321,67 @@ const DocumentDetails: FC<DocumentDetailsProps> = ({ kb, doc, onBack }) => {
                 {overrideBusy ? <Loader2 size={14} className="animate-spin" /> : <Settings2 size={14} />}
                 Apply and Reprocess
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Delete Modal */}
+      {showDeleteModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center">
+          {/* Backdrop */}
+          <div
+            className="absolute inset-0 bg-black/70 backdrop-blur-sm"
+            onClick={() => !actionBusy && setShowDeleteModal(false)}
+          />
+
+          {/* Modal */}
+          <div className="relative w-[520px] max-w-[92vw] rounded-2xl border border-white/10 bg-[#0B1220]/95 shadow-2xl overflow-hidden">
+            <div className="p-6">
+              <div className="mx-auto h-12 w-12 rounded-full bg-red-500/15 border border-red-500/25 flex items-center justify-center text-red-300">
+                <AlertCircle size={20} />
+              </div>
+
+              <div className="mt-4 text-center">
+                <div className="text-xl font-semibold text-white">Delete Document?</div>
+                <div className="mt-1 text-sm text-secondary">
+                  You are about to delete <span className="text-white/90 font-medium">"{title}"</span>
+                </div>
+              </div>
+
+              <div className="mt-5 rounded-xl border border-red-500/20 bg-red-500/10 p-4 text-sm">
+                <div className="flex gap-2 text-red-200">
+                  <span className="mt-[2px]">•</span>
+                  <span>
+                    This document will be permanently removed from the SQL database and Qdrant vector store (and S3 if wired).
+                  </span>
+                </div>
+                <div className="mt-2 flex gap-2 text-yellow-200/90">
+                  <span className="mt-[2px]">•</span>
+                  <span>
+                    If your KB sync configuration still exists, the next sync may re-add the file from the source.
+                  </span>
+                </div>
+              </div>
+
+              <div className="mt-6 flex items-center justify-between gap-3">
+                <button
+                  onClick={() => setShowDeleteModal(false)}
+                  disabled={actionBusy}
+                  className="flex-1 px-4 py-2.5 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-white text-sm disabled:opacity-50"
+                >
+                  Cancel
+                </button>
+
+                <button
+                  onClick={confirmDelete}
+                  disabled={actionBusy}
+                  className="flex-1 px-4 py-2.5 rounded-xl bg-red-500 hover:bg-red-500/90 text-white text-sm font-semibold disabled:opacity-50 inline-flex items-center justify-center gap-2"
+                >
+                  {actionBusy ? <Loader2 size={16} className="animate-spin" /> : <Trash2 size={16} />}
+                  Delete Permanently
+                </button>
+              </div>
             </div>
           </div>
         </div>
