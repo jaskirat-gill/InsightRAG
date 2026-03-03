@@ -6,7 +6,7 @@ import os
 from os.path import basename
 
 from embeddings import generate_embedding
-from search import search_qdrant
+from search import search_hybrid
 from config import settings
 
 # Configure logging
@@ -168,9 +168,10 @@ def _run_search(
         logger.info("Generating embedding for query...")
         query_embedding = generate_embedding(query)
 
-        # Step 2: Search Qdrant
-        logger.info("Searching Qdrant...")
-        results = search_qdrant(
+        # Step 2: Hybrid retrieval (vector + keyword), fused with RRF
+        logger.info("Searching hybrid index (vector + keyword)...")
+        results = search_hybrid(
+            query_text=query,
             query_vector=query_embedding,
             top_k=top_k,
             kb_id=kb_id,
@@ -184,12 +185,18 @@ def _run_search(
         # Step 4: Format for LLM consumption
         formatted_results = []
         for result in results:
+            relevance = result.get("score")
+            if relevance is None:
+                relevance = result.get("hybrid_rrf_score")
+            if relevance is None:
+                relevance = 0.0
             formatted_results.append({
                 "text": result["chunk_text"],
                 "source": f"Document {result['document_id'][:8]}",
                 "section": result.get("section_title") or "N/A",
                 "page": result.get("page_number") or "N/A",
-                "relevance_score": round(result["score"], 3)
+                "relevance_score": round(float(relevance), 3),
+                "retrieval_source": result.get("retrieval_source", "vector"),
             })
 
         logger.info("Returning %d results", len(formatted_results))
