@@ -21,6 +21,7 @@ import {
   KnowledgeBase,
   Document,
   DocumentRetrievalHistory,
+  DocumentHeatmap,
   DocumentStrategyOption,
   kbService,
 } from '../services/kb';
@@ -289,6 +290,12 @@ const DocumentDetails: FC<DocumentDetailsProps> = ({ kb, doc, onBack }) => {
   const [historyLoadedOnce, setHistoryLoadedOnce] = useState(false);
   const [history, setHistory] = useState<DocumentRetrievalHistory | null>(null);
 
+  // Document heatmap state (per-page retrieval intensity)
+  const [heatmapLoading, setHeatmapLoading] = useState(false);
+  const [heatmapErr, setHeatmapErr] = useState<string | null>(null);
+  const [heatmapLoadedOnce, setHeatmapLoadedOnce] = useState(false);
+  const [heatmap, setHeatmap] = useState<DocumentHeatmap | null>(null);
+
   const title = useMemo(() => {
     const fallback = doc.source_path?.split('/').pop() ?? 'Document';
     return doc.title ?? fallback;
@@ -384,6 +391,7 @@ const DocumentDetails: FC<DocumentDetailsProps> = ({ kb, doc, onBack }) => {
       if (chunksLoadedOnce) await loadChunks();
       if (strategyLoadedOnce) await loadStrategy();
       if (viewLoadedOnce) await loadDocumentView();
+      if (heatmapLoadedOnce) await loadHeatmap();
       if (historyLoadedOnce) await loadRetrievalHistory();
 
       showToast('ok', 'Refreshed');
@@ -658,6 +666,7 @@ const DocumentDetails: FC<DocumentDetailsProps> = ({ kb, doc, onBack }) => {
     if (activeTab === 'chunks' && !chunksLoadedOnce && !chunksLoading) loadChunks();
     if (activeTab === 'strategy' && !strategyLoadedOnce && !strategyLoading) loadStrategy();
     if (activeTab === 'document-view' && !viewLoadedOnce && !viewLoading) loadDocumentView();
+    if (activeTab === 'document-view' && !heatmapLoadedOnce && !heatmapLoading) loadHeatmap();
     if (activeTab === 'health' && !historyLoadedOnce && !historyLoading) loadRetrievalHistory();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeTab]);
@@ -699,6 +708,20 @@ const DocumentDetails: FC<DocumentDetailsProps> = ({ kb, doc, onBack }) => {
   };
 
   // ── Document View Bar ────────────────────────────────────────────────────────────────
+  const loadHeatmap = async () => {
+    setHeatmapLoading(true);
+    setHeatmapErr(null);
+
+    try {
+      const res = await kbService.getDocumentHeatmap(kb.kb_id, doc.document_id);
+      setHeatmap(res);
+      setHeatmapLoadedOnce(true);
+    } catch (e: any) {
+      setHeatmapErr(e?.message || 'Failed to load retrieval heatmap');
+    } finally {
+      setHeatmapLoading(false);
+    }
+  };
   const loadDocumentView = async () => {
     setViewLoading(true);
     setViewErr(null);
@@ -782,6 +805,16 @@ const DocumentDetails: FC<DocumentDetailsProps> = ({ kb, doc, onBack }) => {
       </div>
     );
   };
+
+  // Document-view derived metrics
+  const currentPageBin = useMemo(() => {
+    if (!heatmap?.bins) return null;
+    return heatmap.bins.find((b) => b.page_number === page) ?? null;
+  }, [heatmap, page]);
+
+  const currentPageRetrievals = currentPageBin?.raw_retrievals ?? 0;
+  const currentPageScore = clamp(currentPageBin?.normalized_score ?? 0, 0, 1);
+  const overlayAlpha = currentPageScore > 0 ? 0.12 + 0.28 * currentPageScore : 0;
 
   if (loading) {
     return (
@@ -1194,6 +1227,12 @@ const DocumentDetails: FC<DocumentDetailsProps> = ({ kb, doc, onBack }) => {
       {/* Document View */}
       {activeTab === 'document-view' && (
         <div className="space-y-6">
+          {heatmapErr && (
+            <div className="flex items-center gap-2 px-4 py-3 rounded-xl bg-yellow-500/10 border border-yellow-500/20 text-yellow-300 text-sm">
+              <AlertCircle size={16} /> {heatmapErr}
+            </div>
+          )}
+
           {viewErr && (
             <div className="flex items-center gap-2 px-4 py-3 rounded-xl bg-red-500/10 border border-red-500/20 text-red-400 text-sm">
               <AlertCircle size={16} /> {viewErr}
@@ -1207,6 +1246,16 @@ const DocumentDetails: FC<DocumentDetailsProps> = ({ kb, doc, onBack }) => {
               <div className="flex items-center gap-3 text-xs text-secondary">
                 <div>
                   Page {page} of {pageCount}
+                </div>
+
+                <div className="text-xs text-secondary/80">
+                  {heatmapLoading
+                    ? 'Loading page activity…'
+                    : `Page activity: ${
+                        currentPageRetrievals > 0
+                          ? `${currentPageRetrievals.toLocaleString()} retrievals`
+                          : 'no retrievals yet'
+                      }`}
                 </div>
 
                 <div className="flex items-center gap-2">
@@ -1233,19 +1282,19 @@ const DocumentDetails: FC<DocumentDetailsProps> = ({ kb, doc, onBack }) => {
             <div className="mt-4 bg-black/20 border border-white/5 rounded-2xl p-4 flex flex-wrap items-center gap-4 text-xs text-secondary">
               <div className="flex items-center gap-2">
                 <span className="h-3 w-3 rounded bg-red-500/80" />
-                High Retrieval (200+ times)
+                High Retrieval (hottest pages for this document)
               </div>
               <div className="flex items-center gap-2">
                 <span className="h-3 w-3 rounded bg-yellow-500/80" />
-                Medium Retrieval (50–200 times)
+                Medium Retrieval (above-average activity)
               </div>
               <div className="flex items-center gap-2">
                 <span className="h-3 w-3 rounded bg-blue-500/80" />
-                Low Retrieval (1–50 times)
+                Low Retrieval (some retrievals recorded)
               </div>
               <div className="flex items-center gap-2">
                 <span className="h-3 w-3 rounded bg-white/10 border border-white/10" />
-                Not Retrieved
+                Not Retrieved (no activity yet)
               </div>
             </div>
 
@@ -1257,8 +1306,17 @@ const DocumentDetails: FC<DocumentDetailsProps> = ({ kb, doc, onBack }) => {
               )}
 
               {!viewLoading && viewUrl && (
-                <div className="rounded-2xl overflow-hidden border border-white/10 bg-black/30">
+                <div className="relative rounded-2xl overflow-hidden border border-white/10 bg-black/30">
                   <iframe title="document-viewer" src={viewUrl} className="w-full h-[650px]" />
+                  {overlayAlpha > 0 && (
+                    <div
+                      className="pointer-events-none absolute inset-0"
+                      style={{
+                        background: `radial-gradient(circle at 50% 30%, rgba(239,68,68,${overlayAlpha}), rgba(59,130,246,${overlayAlpha * 0.5}))`,
+                        mixBlendMode: 'multiply',
+                      }}
+                    />
+                  )}
                 </div>
               )}
 
@@ -1269,6 +1327,12 @@ const DocumentDetails: FC<DocumentDetailsProps> = ({ kb, doc, onBack }) => {
                     Implement <code className="text-white/80">kbService.getDocumentViewUrl(kb_id, document_id)</code> and
                     return <code className="text-white/80">{`{ url, page_count }`}</code>.
                   </div>
+                </div>
+              )}
+
+              {!viewLoading && viewUrl && heatmapLoadedOnce && (heatmap?.max_retrievals ?? 0) === 0 && (
+                <div className="mt-3 text-xs text-secondary/80">
+                  No retrievals recorded yet for this document. The heatmap overlay will update after it is used in answers.
                 </div>
               )}
             </div>

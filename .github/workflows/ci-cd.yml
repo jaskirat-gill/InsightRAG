@@ -121,7 +121,9 @@ jobs:
 
     env:
       S3_BUCKET_NAME: ""
-      AWS_REGION: ""
+      # Use a valid default region so any AWS SDK clients
+      # created with env-based config still have a sane value.
+      AWS_REGION: "us-east-1"
       AWS_ACCESS_KEY_ID: ""
       AWS_SECRET_ACCESS_KEY: ""
       SQS_QUEUE_URL: ""
@@ -159,7 +161,7 @@ jobs:
     timeout-minutes: 40
     needs:
       - smoke-test
-    if: github.ref == 'refs/heads/main'
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
 
     env:
       DO_APP_PATH: ${{ secrets.DO_APP_PATH }}
