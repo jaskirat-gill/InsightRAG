@@ -137,47 +137,45 @@ def _track_retrievals(vector_ids: List[str]) -> None:
         logger.warning("Failed to update retrieval counts: %s", exc)
 
 
-@mcp.tool()
-def search_knowledge_base(
+def _run_search(
     query: str,
-    top_k: int = 5,
-    kb_id: Optional[str] = None
+    top_k: int,
+    kb_id: Optional[str],
+    score_threshold: float,
 ) -> List[Dict]:
-    """
-    Search the knowledge base for relevant information.
-    
-    Args:
-        query: The search query text
-        top_k: Number of results to return (default 5, max 20)
-        kb_id: Optional knowledge base ID to search within
-    
-    Returns:
-        List of relevant document chunks with metadata
-    """
-    logger.info("Received search query: %s (top_k=%d, kb_id=%s)", 
-               query, top_k, kb_id or "all")
-    
+    """Shared search pipeline for MCP tools."""
+    logger.info(
+        "Received search query: %s (top_k=%d, kb_id=%s, threshold=%.3f)",
+        query,
+        top_k,
+        kb_id or "all",
+        score_threshold,
+    )
+
     # Validate inputs
     if not query or not query.strip():
         return {"error": "Query cannot be empty"}
-    
+
     if top_k < 1 or top_k > 20:
         top_k = min(max(top_k, 1), 20)
-    
+
+    if score_threshold < 0.0 or score_threshold > 1.0:
+        return {"error": "score_threshold must be between 0.0 and 1.0"}
+
     try:
         # Step 1: Generate embedding for query
         logger.info("Generating embedding for query...")
         query_embedding = generate_embedding(query)
-        
+
         # Step 2: Search Qdrant
         logger.info("Searching Qdrant...")
         results = search_qdrant(
             query_vector=query_embedding,
             top_k=top_k,
             kb_id=kb_id,
-            score_threshold=0.5  # Minimum relevance threshold
+            score_threshold=score_threshold,
         )
-        
+
         # Step 3: Track retrievals in PostgreSQL
         vector_ids = [str(r["vector_id"]) for r in results if r.get("vector_id")]
         _track_retrievals(vector_ids)
@@ -195,10 +193,62 @@ def search_knowledge_base(
 
         logger.info("Returning %d results", len(formatted_results))
         return formatted_results
-        
+
     except Exception as e:
         logger.exception("Search failed: %s", e)
         return {"error": f"Search failed: {str(e)}"}
+
+
+@mcp.tool()
+def search_knowledge_base(
+    query: str,
+    top_k: int = 5,
+    kb_id: Optional[str] = None
+) -> List[Dict]:
+    """
+    Search the knowledge base for relevant information.
+    
+    Args:
+        query: The search query text
+        top_k: Number of results to return (default 5, max 20)
+        kb_id: Optional knowledge base ID to search within
+    
+    Returns:
+        List of relevant document chunks with metadata
+    """
+    return _run_search(
+        query=query,
+        top_k=top_k,
+        kb_id=kb_id,
+        score_threshold=settings.DEFAULT_SCORE_THRESHOLD,
+    )
+
+
+@mcp.tool()
+def search_knowledge_base_with_threshold(
+    query: str,
+    score_threshold: float,
+    top_k: int = 5,
+    kb_id: Optional[str] = None
+) -> List[Dict]:
+    """
+    Search the knowledge base with a caller-provided similarity threshold.
+
+    Args:
+        query: The search query text
+        score_threshold: Similarity threshold from 0.0 to 1.0
+        top_k: Number of results to return (default 5, max 20)
+        kb_id: Optional knowledge base ID to search within
+
+    Returns:
+        List of relevant document chunks with metadata
+    """
+    return _run_search(
+        query=query,
+        top_k=top_k,
+        kb_id=kb_id,
+        score_threshold=score_threshold,
+    )
 
 
 @mcp.tool()

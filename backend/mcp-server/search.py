@@ -3,6 +3,7 @@ import os
 from typing import List, Dict, Optional
 from qdrant_client import QdrantClient
 from qdrant_client.models import Filter, FieldCondition, MatchValue, SearchRequest
+from config import settings
 
 logger = logging.getLogger("mcp_server.search")
 
@@ -36,7 +37,7 @@ def search_qdrant(
     query_vector: List[float],
     top_k: int = 5,
     kb_id: Optional[str] = None,
-    score_threshold: float = 0.5
+    score_threshold: float = settings.DEFAULT_SCORE_THRESHOLD
 ) -> List[Dict]:
     """
     Search Qdrant for similar vectors.

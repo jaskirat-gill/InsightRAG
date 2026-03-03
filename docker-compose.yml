@@ -127,6 +127,7 @@ services:
       - "8002:8002"
     environment:
       - QDRANT_URL=http://qdrant:6333
+      - DEFAULT_SCORE_THRESHOLD=0.3
       - DATABASE_URL=postgresql://user:password@postgres:5432/openwebui
       - MCP_TRANSPORT=http
       - MCP_HOST=0.0.0.0
@@ -139,6 +140,7 @@ services:
     build: ./backend/mcp-server
     environment:
       - QDRANT_URL=http://qdrant:6333
+      - DEFAULT_SCORE_THRESHOLD=0.3
       - DATABASE_URL=postgresql://user:password@postgres:5432/openwebui
       - MCP_TRANSPORT=stdio
       - FASTMCP_SHOW_SERVER_BANNER=false
