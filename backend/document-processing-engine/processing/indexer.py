@@ -85,9 +85,12 @@ def create_kb_and_document(
             file_path = payload["file_path"]
             file_name = os.path.basename(file_path)
             kb_name = _resolve_kb_name(file_path)
+            file_size = payload.get("file_size")
+            etag = payload.get("etag")
+            local_path = payload.get("local_path")
+
             existing_kb_id = payload.get("kb_id")
             existing_document_id = payload.get("document_id")
-            local_path = payload.get("local_path")
 
             if existing_kb_id and existing_document_id:
                 cur.execute(
@@ -128,6 +131,44 @@ def create_kb_and_document(
                         conn.commit()
                     return str(existing_kb_id), str(existing_document_id)
 
+            if existing_kb_id:
+                cur.execute(
+                    "SELECT kb_id FROM knowledge_bases WHERE kb_id = %s",
+                    (existing_kb_id,),
+                )
+                kb_exists = cur.fetchone()
+                if kb_exists:
+                    kb_id = str(existing_kb_id)
+                    cur.execute("""
+                        INSERT INTO documents (
+                            kb_id, source_path, document_type, title,
+                            file_size_bytes, file_hash, processing_status
+                        )
+                        VALUES (%s, %s, %s, %s, %s, %s, 'processing')
+                        ON CONFLICT (kb_id, source_path) DO UPDATE
+                            SET processing_status = 'processing',
+                                processing_error = NULL,
+                                file_hash = EXCLUDED.file_hash,
+                                file_size_bytes = EXCLUDED.file_size_bytes,
+                                updated_at = NOW()
+                        RETURNING document_id
+                    """, (
+                        kb_id,
+                        file_path,
+                        _get_doc_type(file_path),
+                        file_name,
+                        file_size,
+                        etag,
+                    ))
+                    doc_row = cur.fetchone()
+                    document_id = str(doc_row["document_id"])
+                    conn.commit()
+                    logger.info(
+                        "Created/updated document in routed KB=%s, Document=%s for %s",
+                        kb_id, document_id, file_path,
+                    )
+                    return kb_id, document_id
+
             # Upsert knowledge base (shared KB — many docs can map to the same KB)
             cur.execute("""
                 INSERT INTO knowledge_bases (
@@ -143,9 +184,6 @@ def create_kb_and_document(
             """, (kb_name, f"Auto-created KB: {kb_name}"))
             kb_row = cur.fetchone()
             kb_id = str(kb_row["kb_id"])
-
-            file_size = payload.get("file_size")
-            etag = payload.get("etag")
 
             cur.execute("""
                 INSERT INTO documents (

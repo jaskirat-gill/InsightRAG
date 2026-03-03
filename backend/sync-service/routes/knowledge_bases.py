@@ -27,6 +27,7 @@ class KBUpdate(BaseModel):
     processing_strategy: Optional[str] = None
     chunk_size: Optional[int] = None
     chunk_overlap: Optional[int] = None
+    storage_config: Optional[Dict[str, Any]] = None
 
 class KBResponse(BaseModel):
     kb_id: UUID
@@ -34,6 +35,7 @@ class KBResponse(BaseModel):
     name: str
     description: Optional[str]
     storage_provider: str
+    storage_config: Dict[str, Any]
     processing_strategy: str
     status: str
     health_score: int
@@ -156,8 +158,39 @@ async def update_knowledge_base(
     update_fields = []
     values = []
     param_count = 1
-    
-    for field, value in updates.dict(exclude_unset=True).items():
+    update_payload = updates.dict(exclude_unset=True)
+
+    # Storage config update is restricted: sync_paths can be updated, plugin source is immutable.
+    if "storage_config" in update_payload and update_payload["storage_config"] is not None:
+        import json
+
+        existing_config = kb["storage_config"] or {}
+        if isinstance(existing_config, str):
+            try:
+                existing_config = json.loads(existing_config)
+            except Exception:
+                existing_config = {}
+        incoming = update_payload["storage_config"] or {}
+
+        merged = dict(existing_config)
+        merged["sync_paths"] = incoming.get("sync_paths", [])
+
+        existing_plugin_id = existing_config.get("plugin_id")
+        incoming_plugin_id = incoming.get("plugin_id", existing_plugin_id)
+        if existing_plugin_id is not None and incoming_plugin_id != existing_plugin_id:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="plugin_id cannot be changed after KB creation",
+            )
+        if existing_plugin_id is not None:
+            merged["plugin_id"] = existing_plugin_id
+
+        update_fields.append(f"storage_config = ${param_count}::jsonb")
+        values.append(json.dumps(merged))
+        param_count += 1
+        del update_payload["storage_config"]
+
+    for field, value in update_payload.items():
         if value is not None:
             update_fields.append(f"{field} = ${param_count}")
             values.append(value)
