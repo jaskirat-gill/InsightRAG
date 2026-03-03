@@ -50,6 +50,24 @@ export interface DocumentChunk {
   created_at: string;
 }
 
+export interface DocumentPageHeatmapBin {
+  page_number: number;
+  raw_retrievals: number;
+  normalized_score: number;
+}
+
+export interface DocumentHeatmap {
+  document_id: string;
+  kb_id: string;
+  max_retrievals: number;
+  bins: DocumentPageHeatmapBin[];
+}
+
+export interface DocumentViewInfo {
+  url: string;
+  page_count?: number | null;
+}
+
 export interface DocumentRetrievalDay {
   date: string;
   retrieval_count: number;
@@ -233,6 +251,42 @@ class KBService {
 
     if (!response.ok) {
       throw new Error('Failed to fetch document retrieval history');
+    }
+
+    return await response.json();
+  }
+
+  // Get per-page retrieval heatmap (normalized per document)
+  async getDocumentHeatmap(kbId: string, docId: string): Promise<DocumentHeatmap> {
+    const response = await fetch(
+      `${this.API_URL}/api/v1/knowledge-bases/${kbId}/documents/${docId}/heatmap`,
+      {
+        headers: {
+          ...authService.getAuthHeader(),
+        },
+      },
+    );
+
+    if (!response.ok) {
+      throw new Error('Failed to fetch document retrieval heatmap');
+    }
+
+    return await response.json();
+  }
+
+  // Get document view URL (signed/proxy URL) and page count
+  async getDocumentViewUrl(kbId: string, docId: string): Promise<DocumentViewInfo> {
+    const response = await fetch(
+      `${this.API_URL}/api/v1/knowledge-bases/${kbId}/documents/${docId}/view`,
+      {
+        headers: {
+          ...authService.getAuthHeader(),
+        },
+      },
+    );
+
+    if (!response.ok) {
+      throw new Error('Failed to fetch document view URL');
     }
 
     return await response.json();
