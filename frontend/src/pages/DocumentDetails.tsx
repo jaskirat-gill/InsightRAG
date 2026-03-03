@@ -15,8 +15,16 @@ import {
   Code2,
   Table2,
   Link2,
+  X,
 } from 'lucide-react';
-import { KnowledgeBase, Document, DocumentRetrievalHistory, DocumentHeatmap, kbService } from '../services/kb';
+import {
+  KnowledgeBase,
+  Document,
+  DocumentRetrievalHistory,
+  DocumentHeatmap,
+  DocumentStrategyOption,
+  kbService,
+} from '../services/kb';
 
 type TabKey = 'overview' | 'strategy' | 'chunks' | 'health' | 'document-view';
 
@@ -98,6 +106,97 @@ type ChunkRow = {
   retrieval_count?: number | null;
 };
 
+type StrategyFeature = { key: string; title: string; subtitle?: string | null; icon: any };
+
+type StrategyProfile = {
+  summary: string;
+  rationale: string[];
+  features: StrategyFeature[];
+};
+
+const STRATEGY_CONTENT: Record<string, StrategyProfile> = {
+  semantic: {
+    summary:
+      'This document was processed using a semantic chunking strategy focused on preserving paragraph-level meaning and context continuity.',
+    rationale: [
+      'Narrative structure benefits from contiguous semantic units',
+      'Paragraph and sentence cohesion prioritized over strict layout boundaries',
+      'Policy/essay style content detected with fewer hard section breaks',
+      'Chunking tuned for conceptual retrieval quality',
+    ],
+    features: [
+      { key: 'cohesion', title: 'Semantic Cohesion', subtitle: 'Paragraph context preserved within chunk boundaries', icon: ClipboardList },
+      { key: 'flow', title: 'Narrative Flow', subtitle: 'Sentence ordering retained for better contextual retrieval', icon: Link2 },
+      { key: 'section', title: 'Soft Sectioning', subtitle: 'Loose section boundaries used instead of rigid layout splits', icon: Code2 },
+      { key: 'retrieval', title: 'Concept Retrieval', subtitle: 'Designed for meaning-level matches across long prose', icon: Table2 },
+    ],
+  },
+  pdf_auto: {
+    summary:
+      'This document was processed with automatic PDF parsing and default chunking, balancing layout handling and extraction quality.',
+    rationale: [
+      'No dominant structure type required hard override',
+      'Automatic parser strategy selected for mixed content',
+      'General-purpose extraction settings used',
+      'Balanced for speed and robustness',
+    ],
+    features: [
+      { key: 'auto', title: 'Adaptive Parse', subtitle: 'Automatic parsing selected based on PDF characteristics', icon: ClipboardList },
+      { key: 'layout', title: 'Layout Aware', subtitle: 'Preserves major visual/text boundaries where possible', icon: Table2 },
+      { key: 'fallback', title: 'Fallback Safe', subtitle: 'Compatible with multiple PDF styles', icon: Link2 },
+      { key: 'balanced', title: 'Balanced Pipeline', subtitle: 'Trade-off between fidelity and throughput', icon: Code2 },
+    ],
+  },
+  pdf_table_heavy: {
+    summary:
+      'This document was processed using a table-heavy strategy to improve extraction and retrieval of structured tabular content.',
+    rationale: [
+      'Tabular density indicates table-preserving extraction is preferred',
+      'Table inference enabled to avoid row/column loss',
+      'Chunking avoids splitting tables mid-structure',
+      'Optimized for financial/reporting style PDFs',
+    ],
+    features: [
+      { key: 'table-infer', title: 'Table Inference', subtitle: 'Parser tuned for table region detection', icon: Table2 },
+      { key: 'row-col', title: 'Row/Column Fidelity', subtitle: 'Retains table relationships for downstream retrieval', icon: ClipboardList },
+      { key: 'preserve', title: 'Structure Preservation', subtitle: 'Minimizes destructive splits inside tabular blocks', icon: Link2 },
+      { key: 'analytics', title: 'Data Retrieval', subtitle: 'Improves QA on values, totals, and comparisons', icon: Code2 },
+    ],
+  },
+  pdf_multicolumn: {
+    summary:
+      'This document was processed with a multi-column strategy to preserve reading order and reduce cross-column text mixing.',
+    rationale: [
+      '2/3-column layout cues detected in page structure',
+      'Extraction tuned to reduce column merge artifacts',
+      'Reading sequence prioritized for coherence',
+      'Improves retrieval relevance for magazine/journal layouts',
+    ],
+    features: [
+      { key: 'order', title: 'Reading Order', subtitle: 'Column flow preserved for coherent text reconstruction', icon: Link2 },
+      { key: 'layout', title: 'Column Boundaries', subtitle: 'Reduces accidental cross-column merges', icon: Table2 },
+      { key: 'coherence', title: 'Context Coherence', subtitle: 'Chunks reflect natural reading progression', icon: ClipboardList },
+      { key: 'precision', title: 'Precision Retrieval', subtitle: 'Improves matching for dense multi-column pages', icon: Code2 },
+    ],
+  },
+  pdf_dataviz_heavy: {
+    summary:
+      'This document was processed with a data-visualization-heavy strategy for chart/image-rich PDFs while retaining table signals.',
+    rationale: [
+      'High visual density detected across pages',
+      'Image-aware extraction enabled to preserve figure context',
+      'Table signals retained for mixed chart/table reports',
+      'Supports chart-adjacent explanatory text retrieval',
+    ],
+    features: [
+      { key: 'image', title: 'Image-Aware Parse', subtitle: 'Chart/figure regions considered during extraction', icon: Table2 },
+      { key: 'mixed', title: 'Mixed Content', subtitle: 'Handles chart, caption, and table combinations', icon: ClipboardList },
+      { key: 'context', title: 'Figure Context', subtitle: 'Keeps nearby explanatory text linked to visuals', icon: Link2 },
+      { key: 'reporting', title: 'Report QA', subtitle: 'Improves retrieval on dashboard-like documents', icon: Code2 },
+    ],
+  },
+};
+
 function pad3(n: number) {
   return String(n).padStart(3, '0');
 }
@@ -170,6 +269,12 @@ const DocumentDetails: FC<DocumentDetailsProps> = ({ kb, doc, onBack }) => {
   const [strategyLoading, setStrategyLoading] = useState(false);
   const [strategyErr, setStrategyErr] = useState<string | null>(null);
   const [strategyLoadedOnce, setStrategyLoadedOnce] = useState(false);
+  const [strategyOptions, setStrategyOptions] = useState<DocumentStrategyOption[]>([]);
+  const [overrideOpen, setOverrideOpen] = useState(false);
+  const [selectedStrategy, setSelectedStrategy] = useState<string>('pdf_auto');
+  const [overrideBusy, setOverrideBusy] = useState(false);
+  const [pendingReprocess, setPendingReprocess] = useState(false);
+  const [sawProcessingSinceReprocess, setSawProcessingSinceReprocess] = useState(false);
 
   // Document view state
   const [viewLoading, setViewLoading] = useState(false);
@@ -196,70 +301,68 @@ const DocumentDetails: FC<DocumentDetailsProps> = ({ kb, doc, onBack }) => {
     return doc.title ?? fallback;
   }, [doc.title, doc.source_path]);
 
+  const loadDetails = async (): Promise<DocDetails | null> => {
+    setLoading(true);
+    setErr(null);
+
+    try {
+      const liveDoc = await kbService.getDocumentDetails(kb.kb_id, doc.document_id);
+
+      const full: DocDetails = {
+        ...doc,
+        ...liveDoc,
+        created_at: (liveDoc as any).created_at ?? (doc as any).created_at ?? null,
+        updated_at: (liveDoc as any).updated_at ?? (doc as any).updated_at ?? null,
+
+        processing_strategy:
+          (liveDoc as any).processing_strategy ?? (doc as any).processing_strategy ?? null,
+        avg_chunk_size_tokens:
+          (liveDoc as any).avg_chunk_size_tokens ?? (doc as any).avg_chunk_size_tokens ?? null,
+        avg_chunk_size_chars:
+          (liveDoc as any).avg_chunk_size_chars ?? (doc as any).avg_chunk_size_chars ?? null,
+        embedding_model: (liveDoc as any).embedding_model ?? (doc as any).embedding_model ?? null,
+
+        total_retrievals:
+          (liveDoc as any).total_retrievals ??
+          (liveDoc as any).retrieval_count ??
+          doc.retrieval_count ??
+          0,
+        avg_similarity: (liveDoc as any).avg_similarity ?? (doc as any).avg_similarity ?? null,
+        preview_text: (liveDoc as any).preview_text ?? (doc as any).preview_text ?? null,
+
+        strategy_overridden:
+          (liveDoc as any).strategy_overridden ?? (doc as any).strategy_overridden ?? null,
+        strategy_display_name:
+          (liveDoc as any).strategy_display_name ?? (doc as any).strategy_display_name ?? null,
+        strategy_summary:
+          (liveDoc as any).strategy_summary ?? (doc as any).strategy_summary ?? null,
+        rationale_bullets:
+          (liveDoc as any).rationale_bullets ?? (doc as any).rationale_bullets ?? null,
+        detected_features:
+          (liveDoc as any).detected_features ?? (doc as any).detected_features ?? null,
+
+        view_url: (liveDoc as any).view_url ?? (doc as any).view_url ?? null,
+        view_page_count: (liveDoc as any).view_page_count ?? (doc as any).view_page_count ?? null,
+
+        chunks: (liveDoc as any).chunks ?? (doc as any).chunks ?? null,
+      };
+
+      setDetails(full);
+      return full;
+    } catch (e: any) {
+      setErr(e?.message || 'Failed to load document details');
+      return null;
+    } finally {
+      setLoading(false);
+    }
+  };
+
   // ────────────────────────────────────────────────────────────────────────────
   // Load doc details
   // ────────────────────────────────────────────────────────────────────────────
   useEffect(() => {
-    let mounted = true;
-
-    async function load() {
-      setLoading(true);
-      setErr(null);
-
-      try {
-        const liveDoc = await kbService.getDocumentDetails(kb.kb_id, doc.document_id);
-
-        const full: DocDetails = {
-          ...doc,
-          ...liveDoc,
-          created_at: (liveDoc as any).created_at ?? (doc as any).created_at ?? null,
-          updated_at: (liveDoc as any).updated_at ?? (doc as any).updated_at ?? null,
-
-          processing_strategy:
-            (liveDoc as any).processing_strategy ?? (doc as any).processing_strategy ?? null,
-          avg_chunk_size_tokens:
-            (liveDoc as any).avg_chunk_size_tokens ?? (doc as any).avg_chunk_size_tokens ?? null,
-          avg_chunk_size_chars:
-            (liveDoc as any).avg_chunk_size_chars ?? (doc as any).avg_chunk_size_chars ?? null,
-          embedding_model: (liveDoc as any).embedding_model ?? (doc as any).embedding_model ?? null,
-
-          total_retrievals:
-            (liveDoc as any).total_retrievals ??
-            (liveDoc as any).retrieval_count ??
-            doc.retrieval_count ??
-            0,
-          avg_similarity: (liveDoc as any).avg_similarity ?? (doc as any).avg_similarity ?? null,
-          preview_text: (liveDoc as any).preview_text ?? (doc as any).preview_text ?? null,
-
-          strategy_overridden:
-            (liveDoc as any).strategy_overridden ?? (doc as any).strategy_overridden ?? null,
-          strategy_display_name:
-            (liveDoc as any).strategy_display_name ?? (doc as any).strategy_display_name ?? null,
-          strategy_summary:
-            (liveDoc as any).strategy_summary ?? (doc as any).strategy_summary ?? null,
-          rationale_bullets:
-            (liveDoc as any).rationale_bullets ?? (doc as any).rationale_bullets ?? null,
-          detected_features:
-            (liveDoc as any).detected_features ?? (doc as any).detected_features ?? null,
-
-          view_url: (liveDoc as any).view_url ?? (doc as any).view_url ?? null,
-          view_page_count: (liveDoc as any).view_page_count ?? (doc as any).view_page_count ?? null,
-
-          chunks: (liveDoc as any).chunks ?? (doc as any).chunks ?? null,
-        };
-
-        if (mounted) setDetails(full);
-      } catch (e: any) {
-        if (mounted) setErr(e?.message || 'Failed to load document details');
-      } finally {
-        if (mounted) setLoading(false);
-      }
-    }
-
-    load();
-    return () => {
-      mounted = false;
-    };
+    void loadDetails();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [kb.kb_id, doc.document_id]);
 
   const showToast = (kind: 'ok' | 'err', msg: string) => {
@@ -283,6 +386,7 @@ const DocumentDetails: FC<DocumentDetailsProps> = ({ kb, doc, onBack }) => {
   const handleRefresh = async () => {
     setActionBusy(true);
     try {
+      await loadDetails();
       // Re-load tab data (only if it was loaded once before)
       if (chunksLoadedOnce) await loadChunks();
       if (strategyLoadedOnce) await loadStrategy();
@@ -312,13 +416,26 @@ const DocumentDetails: FC<DocumentDetailsProps> = ({ kb, doc, onBack }) => {
   };
 
   const handleOverrideStrategy = async () => {
-    showToast('err', 'Override Strategy not wired yet.');
+    setOverrideOpen(true);
+    if (!strategyLoadedOnce) await loadStrategy();
+    setSelectedStrategy(d.processing_strategy ?? 'pdf_auto');
   };
 
   const handleReprocess = async () => {
     setActionBusy(true);
     try {
-      showToast('ok', 'Reprocess triggered (wire API to make it real).');
+      const strategy = d.processing_strategy ?? 'pdf_auto';
+      const res = await kbService.overrideDocumentStrategy(kb.kb_id, doc.document_id, strategy);
+      setPendingReprocess(true);
+      setSawProcessingSinceReprocess(false);
+      setDetails((prev) => ({
+        ...(prev ?? (doc as any)),
+        processing_status: 'processing',
+        processing_strategy: strategy,
+      }));
+      await loadDetails();
+      if (chunksLoadedOnce) await loadChunks();
+      showToast('ok', res.message || 'Reprocess queued');
     } catch (e: any) {
       showToast('err', e?.message || 'Reprocess failed');
     } finally {
@@ -366,6 +483,7 @@ const DocumentDetails: FC<DocumentDetailsProps> = ({ kb, doc, onBack }) => {
   );
 
   const d = details ?? (doc as DocDetails);
+  const isProcessing = (d.processing_status ?? doc.processing_status) === 'processing';
 
   // ── Health Bar ────────────────────────────────────────────────────────────────
   const nowMs = Date.now();
@@ -470,45 +588,22 @@ const DocumentDetails: FC<DocumentDetailsProps> = ({ kb, doc, onBack }) => {
   };
 
   // ── Strategy Bar ────────────────────────────────────────────────────────────────
-
-  const strategyName =
-    d.strategy_display_name ?? d.processing_strategy ?? 'Hierarchical (Auto-detected)';
-  const defaultStrategySummary =
-    'This document was processed using a hierarchical chunking strategy. The algorithm detected clear document structure with headings, subheadings, and well-defined sections. This approach preserves semantic relationships between parent and child sections while maintaining optimal chunk sizes for retrieval.';
-  const defaultRationale = [
-    'Document contains multiple sections with hierarchical subsections',
-    'Consistent heading patterns detected (H1–H4)',
-    'Technical documentation format with code examples',
-    'Structure supports semantic grouping for better retrieval',
-  ];
-  const defaultFeatures: Array<{ key: string; title: string; subtitle?: string | null; icon: any }> =
-    [
-      {
-        key: 'toc',
-        title: 'Table of Contents',
-        subtitle: 'Structured TOC detected (sections + subsections)',
-        icon: ClipboardList,
-      },
-      { key: 'code', title: 'Code Blocks', subtitle: 'Code examples detected (JSON, Python, cURL)', icon: Code2 },
-      { key: 'tables', title: 'Tables & Diagrams', subtitle: 'Tables/figures detected throughout the document', icon: Table2 },
-      { key: 'xref', title: 'Cross-References', subtitle: 'Internal references/links detected between sections', icon: Link2 },
-    ];
+  const strategyName = d.strategy_display_name ?? d.processing_strategy ?? 'Auto (Default)';
+  const strategyKey = d.processing_strategy ?? 'pdf_auto';
+  const defaultStrategy = STRATEGY_CONTENT[strategyKey] ?? STRATEGY_CONTENT.pdf_auto;
 
   const loadStrategy = async () => {
     setStrategyLoading(true);
     setStrategyErr(null);
     try {
-      const svcAny = kbService as any;
-      if (typeof svcAny.getDocumentStrategy === 'function') {
-        const res = await svcAny.getDocumentStrategy(kb.kb_id, doc.document_id);
-        setDetails((prev) => ({
-          ...(prev ?? (doc as any)),
-          strategy_display_name: res?.strategy_display_name ?? res?.name ?? null,
-          strategy_summary: res?.strategy_summary ?? res?.summary ?? null,
-          rationale_bullets: res?.rationale_bullets ?? res?.rationale ?? null,
-          detected_features: res?.detected_features ?? res?.features ?? null,
-        }));
-      }
+      const res = await kbService.getDocumentStrategy(kb.kb_id, doc.document_id);
+      setStrategyOptions(res.options ?? []);
+      setDetails((prev) => ({
+        ...(prev ?? (doc as any)),
+        processing_strategy: res?.current_strategy ?? (prev as any)?.processing_strategy ?? 'pdf_auto',
+        strategy_display_name: res?.current_strategy_label ?? null,
+      }));
+      setSelectedStrategy(res?.current_strategy ?? 'pdf_auto');
       setStrategyLoadedOnce(true);
     } catch (e: any) {
       setStrategyErr(e?.message || 'Failed to load strategy');
@@ -517,9 +612,32 @@ const DocumentDetails: FC<DocumentDetailsProps> = ({ kb, doc, onBack }) => {
     }
   };
 
+  const handleApplyOverrideStrategy = async () => {
+    setOverrideBusy(true);
+    try {
+      const res = await kbService.overrideDocumentStrategy(kb.kb_id, doc.document_id, selectedStrategy);
+      setOverrideOpen(false);
+      setPendingReprocess(true);
+      setSawProcessingSinceReprocess(false);
+      setDetails((prev) => ({
+        ...(prev ?? (doc as any)),
+        processing_status: 'processing',
+        processing_strategy: selectedStrategy,
+      }));
+      await loadDetails();
+      await loadStrategy();
+      if (chunksLoadedOnce) await loadChunks();
+      showToast('ok', res.message || 'Strategy override queued');
+    } catch (e: any) {
+      showToast('err', e?.message || 'Strategy override failed');
+    } finally {
+      setOverrideBusy(false);
+    }
+  };
+
   // ── Chunk Tab ────────────────────────────────────────────────────────────────
   const totalChunksNumber = useMemo(() => {
-    const n = safeNumber((doc as any).total_chunks ?? (d as any).total_chunks ?? 0, 0);
+    const n = safeNumber((d as any).total_chunks ?? (doc as any).total_chunks ?? 0, 0);
     return Math.max(0, n);
   }, [doc, d]);
 
@@ -552,6 +670,28 @@ const DocumentDetails: FC<DocumentDetailsProps> = ({ kb, doc, onBack }) => {
     if (activeTab === 'health' && !historyLoadedOnce && !historyLoading) loadRetrievalHistory();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeTab]);
+
+  useEffect(() => {
+    if (!isProcessing && !pendingReprocess) return;
+    const interval = window.setInterval(async () => {
+      const full = await loadDetails();
+      const status = full?.processing_status;
+
+      if (status === 'processing') {
+        setSawProcessingSinceReprocess(true);
+      }
+
+      if (pendingReprocess && sawProcessingSinceReprocess && status && status !== 'processing') {
+        setPendingReprocess(false);
+        setSawProcessingSinceReprocess(false);
+      }
+
+      if (chunksLoadedOnce) void loadChunks();
+      if (strategyLoadedOnce) void loadStrategy();
+    }, 2500);
+    return () => window.clearInterval(interval);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isProcessing, pendingReprocess, sawProcessingSinceReprocess, chunksLoadedOnce, strategyLoadedOnce]);
 
   const loadRetrievalHistory = async () => {
     setHistoryLoading(true);
@@ -761,11 +901,11 @@ const DocumentDetails: FC<DocumentDetailsProps> = ({ kb, doc, onBack }) => {
 
               <button
                 onClick={handleReprocess}
-                disabled={actionBusy}
+                disabled={actionBusy || isProcessing}
                 className="px-4 py-2 bg-primary hover:bg-primary/90 text-white text-sm font-medium rounded-xl transition-colors disabled:opacity-50 inline-flex items-center gap-2"
               >
-                {actionBusy ? <Loader2 size={14} className="animate-spin" /> : <RefreshCw size={14} />}
-                Reprocess
+                {actionBusy || isProcessing ? <Loader2 size={14} className="animate-spin" /> : <RefreshCw size={14} />}
+                {isProcessing ? 'Processing...' : 'Reprocess'}
               </button>
 
               <button
@@ -788,7 +928,7 @@ const DocumentDetails: FC<DocumentDetailsProps> = ({ kb, doc, onBack }) => {
             <InfoItem label="Created" value={d.created_at ? kbService.formatRelativeTime(d.created_at) : '—'} />
 
             <InfoItem label="Processing Strategy" value={d.processing_strategy ?? '—'} />
-            <InfoItem label="Total Chunks" value={doc.total_chunks?.toLocaleString?.() ?? '—'} />
+            <InfoItem label="Total Chunks" value={d.total_chunks?.toLocaleString?.() ?? '—'} />
             <InfoItem
               label="Avg Chunk Size"
               value={
@@ -862,9 +1002,7 @@ const DocumentDetails: FC<DocumentDetailsProps> = ({ kb, doc, onBack }) => {
           <div className="bg-surface/50 backdrop-blur border border-white/5 rounded-2xl p-6">
             <div className="text-white font-semibold mb-4">Document Preview</div>
             <div className="bg-black/30 border border-white/5 rounded-2xl p-5 text-sm text-secondary leading-6 whitespace-pre-wrap">
-              {d.preview_text
-                ? d.preview_text
-                : 'Preview not available yet. (Wire an API endpoint that returns a text preview for this document.)'}
+              Preview not available yet. (Wire an API endpoint that returns a text preview for this document.)
             </div>
           </div>
         </div>
@@ -892,13 +1030,13 @@ const DocumentDetails: FC<DocumentDetailsProps> = ({ kb, doc, onBack }) => {
                   <div>
                     <div className="text-white font-semibold">Processing Strategy</div>
                     <div className="text-secondary text-sm mt-3 leading-6 max-w-4xl">
-                      {d.strategy_summary ?? defaultStrategySummary}
+                      {d.strategy_summary ?? defaultStrategy.summary}
                     </div>
 
                     <div className="mt-5">
                       <div className="text-white font-semibold text-sm mb-2">Rationale</div>
                       <ul className="list-disc pl-5 text-sm text-secondary space-y-1">
-                        {(d.rationale_bullets ?? defaultRationale).map((x, i) => (
+                        {(d.rationale_bullets ?? defaultStrategy.rationale).map((x, i) => (
                           <li key={i}>{x}</li>
                         ))}
                       </ul>
@@ -936,7 +1074,7 @@ const DocumentDetails: FC<DocumentDetailsProps> = ({ kb, doc, onBack }) => {
                       ));
                     }
 
-                    return defaultFeatures.map((f) => {
+                    return defaultStrategy.features.map((f) => {
                       const Icon = f.icon;
                       return (
                         <div
@@ -1197,6 +1335,85 @@ const DocumentDetails: FC<DocumentDetailsProps> = ({ kb, doc, onBack }) => {
                   No retrievals recorded yet for this document. The heatmap overlay will update after it is used in answers.
                 </div>
               )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Override Strategy Modal */}
+      {overrideOpen && (
+        <div className="fixed inset-0 z-50 bg-black/65 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="w-full max-w-2xl bg-surface border border-white/10 rounded-2xl p-6">
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <h2 className="text-xl font-semibold text-white">Override Processing Strategy</h2>
+                <p className="text-sm text-secondary mt-1">
+                  Current strategy: <span className="text-white/90">{d.processing_strategy ?? 'pdf_auto'}</span>
+                </p>
+              </div>
+              <button
+                onClick={() => setOverrideOpen(false)}
+                className="h-9 w-9 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 flex items-center justify-center text-white/80"
+                aria-label="Close"
+              >
+                <X size={16} />
+              </button>
+            </div>
+
+            <div className="mt-5 space-y-3 max-h-[55vh] overflow-auto pr-1">
+              {(strategyOptions.length ? strategyOptions : [
+                { key: 'semantic', label: 'Semantic (Essay/Policy)', description: 'Paragraph-oriented semantic chunking for narrative documents.' },
+                { key: 'pdf_auto', label: 'Auto (Default)', description: 'General-purpose PDF parsing.' },
+              ]).map((option) => {
+                const isSelected = selectedStrategy === option.key;
+                return (
+                <label
+                  key={option.key}
+                  className={`block rounded-xl border p-4 cursor-pointer transition-colors ${
+                    isSelected
+                      ? 'border-green-400/50 bg-green-500/10'
+                      : 'border-white/10 bg-white/[0.03] hover:bg-white/[0.05]'
+                  }`}
+                >
+                  <div className="flex items-start gap-3">
+                    <input
+                      type="radio"
+                      name="strategy-option"
+                      value={option.key}
+                      checked={selectedStrategy === option.key}
+                      onChange={() => setSelectedStrategy(option.key)}
+                      className="mt-1 accent-green-500"
+                    />
+                    <div>
+                      <div className={`text-sm font-medium ${isSelected ? 'text-green-300' : 'text-white'}`}>
+                        {option.label}
+                      </div>
+                      <div className={`text-xs mt-1 ${isSelected ? 'text-green-200/90' : 'text-secondary'}`}>
+                        {option.description}
+                      </div>
+                    </div>
+                  </div>
+                </label>
+                );
+              })}
+            </div>
+
+            <div className="mt-6 flex items-center justify-end gap-3">
+              <button
+                onClick={() => setOverrideOpen(false)}
+                disabled={overrideBusy}
+                className="px-4 py-2 rounded-xl border border-white/15 bg-white/5 hover:bg-white/10 text-white text-sm disabled:opacity-50"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleApplyOverrideStrategy}
+                disabled={overrideBusy}
+                className="px-4 py-2 rounded-xl bg-primary hover:bg-primary/90 text-white text-sm font-medium disabled:opacity-50 inline-flex items-center gap-2"
+              >
+                {overrideBusy ? <Loader2 size={14} className="animate-spin" /> : <Settings2 size={14} />}
+                Apply and Reprocess
+              </button>
             </div>
           </div>
         </div>

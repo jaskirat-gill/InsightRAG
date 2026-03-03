@@ -33,6 +33,7 @@ export interface Document {
   avg_chunk_size_chars?: number | null;
   created_at: string;
   uploaded_at: string | null;
+  processing_strategy?: string | null;
 }
 
 export interface DocumentChunk {
@@ -111,6 +112,18 @@ export interface CreateKBRequest {
   processing_strategy?: string;
   chunk_size?: number;
   chunk_overlap?: number;
+}
+
+export interface DocumentStrategyOption {
+  key: string;
+  label: string;
+  description: string;
+}
+
+export interface DocumentStrategyDetails {
+  current_strategy: string | null;
+  current_strategy_label: string;
+  options: DocumentStrategyOption[];
 }
 
 class KBService {
@@ -234,6 +247,85 @@ class KBService {
     return await response.json();
   }
 
+  async getDocumentStrategy(kbId: string, docId: string): Promise<DocumentStrategyDetails> {
+    const response = await fetch(
+      `${this.API_URL}/api/v1/knowledge-bases/${kbId}/documents/${docId}/strategy`,
+      {
+        headers: {
+          ...authService.getAuthHeader(),
+        },
+      },
+    );
+
+    if (!response.ok) {
+      throw new Error('Failed to fetch document strategy');
+    }
+
+    return await response.json();
+  }
+
+  async overrideDocumentStrategy(
+    kbId: string,
+    docId: string,
+    strategy: string,
+  ): Promise<{ message: string; strategy: string; status: string }> {
+    const response = await fetch(
+      `${this.API_URL}/api/v1/knowledge-bases/${kbId}/documents/${docId}/strategy/override`,
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...authService.getAuthHeader(),
+        },
+        body: JSON.stringify({ strategy }),
+      },
+    );
+
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({}));
+      throw new Error(error.detail || 'Failed to override strategy');
+    }
+
+    return await response.json();
+  }
+
+  async getDocumentViewUrl(
+    kbId: string,
+    docId: string,
+  ): Promise<{ url: string; page_count?: number | null }> {
+    const response = await fetch(
+      `${this.API_URL}/api/v1/knowledge-bases/${kbId}/documents/${docId}/view`,
+      {
+        headers: {
+          ...authService.getAuthHeader(),
+        },
+      },
+    );
+
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({}));
+      throw new Error(error.detail || 'Failed to fetch document view URL');
+    }
+
+    const contentType = response.headers.get('content-type') || '';
+    if (contentType.includes('application/json')) {
+      return await response.json();
+    }
+    if (contentType.includes('application/pdf')) {
+      const blob = await response.blob();
+      return { url: URL.createObjectURL(blob), page_count: null };
+    }
+
+    try {
+      return await response.json();
+    } catch {
+      const body = await response.text().catch(() => '');
+      throw new Error(
+        `Failed to parse document view response (${contentType || 'unknown content-type'}): ${body.slice(0, 80)}`,
+      );
+    }
+  }
+
   // Get per-document retrieval history and summary metrics
   async getDocumentRetrievalHistory(
     kbId: string,
@@ -269,24 +361,6 @@ class KBService {
 
     if (!response.ok) {
       throw new Error('Failed to fetch document retrieval heatmap');
-    }
-
-    return await response.json();
-  }
-
-  // Get document view URL (signed/proxy URL) and page count
-  async getDocumentViewUrl(kbId: string, docId: string): Promise<DocumentViewInfo> {
-    const response = await fetch(
-      `${this.API_URL}/api/v1/knowledge-bases/${kbId}/documents/${docId}/view`,
-      {
-        headers: {
-          ...authService.getAuthHeader(),
-        },
-      },
-    );
-
-    if (!response.ok) {
-      throw new Error('Failed to fetch document view URL');
     }
 
     return await response.json();

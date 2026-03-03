@@ -1,4 +1,5 @@
 import logging
+import sys
 from fastmcp import FastMCP
 from typing import List, Dict, Optional
 import os
@@ -10,7 +11,8 @@ from config import settings
 # Configure logging
 logging.basicConfig(
     level=logging.INFO,
-    format="%(asctime)s [%(name)s] %(levelname)s: %(message)s"
+    format="%(asctime)s [%(name)s] %(levelname)s: %(message)s",
+    stream=sys.stderr,
 )
 logger = logging.getLogger("mcp_server")
 
@@ -251,4 +253,9 @@ if __name__ == "__main__":
         )
     else:
         logger.info("MCP transport: stdio")
-        mcp.run(transport="stdio")
+        # Keep stdio transport clean for MCP clients (no banner/update chatter on stdout).
+        os.environ.setdefault("FASTMCP_SHOW_SERVER_BANNER", "false")
+        os.environ.setdefault("FASTMCP_CHECK_FOR_UPDATES", "off")
+        os.environ.setdefault("FASTMCP_ENABLE_RICH_LOGGING", "false")
+        os.environ.setdefault("FASTMCP_LOG_ENABLED", "false")
+        mcp.run(transport="stdio", show_banner=False)

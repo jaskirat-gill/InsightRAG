@@ -85,6 +85,39 @@ def create_kb_and_document(
             file_path = payload["file_path"]
             file_name = os.path.basename(file_path)
             kb_name = _resolve_kb_name(file_path)
+            existing_kb_id = payload.get("kb_id")
+            existing_document_id = payload.get("document_id")
+            local_path = payload.get("local_path")
+
+            if existing_kb_id and existing_document_id:
+                cur.execute(
+                    """
+                    SELECT document_id
+                    FROM documents
+                    WHERE document_id = %s AND kb_id = %s
+                    """,
+                    (existing_document_id, existing_kb_id),
+                )
+                existing_doc = cur.fetchone()
+                if existing_doc:
+                    cur.execute(
+                        """
+                        UPDATE documents
+                        SET processing_status = 'processing',
+                            processing_error = NULL,
+                            updated_at = NOW()
+                        WHERE document_id = %s
+                        """,
+                        (existing_document_id,),
+                    )
+                    conn.commit()
+                    logger.info(
+                        "Reprocessing existing document: KB=%s, Document=%s, Path=%s",
+                        existing_kb_id,
+                        existing_document_id,
+                        file_path,
+                    )
+                    return str(existing_kb_id), str(existing_document_id)
 
             # Upsert knowledge base (shared KB — many docs can map to the same KB)
             cur.execute("""

@@ -7,8 +7,6 @@ import hashlib
 import logging
 import os
 import json
-import boto3
-
 from botocore.exceptions import ClientError
 
 import boto3
@@ -23,6 +21,14 @@ logger = logging.getLogger("sync_service.documents")
 
 QDRANT_URL = os.getenv("QDRANT_URL", "http://qdrant:6333")
 COLLECTION_NAME = "document_chunks"
+DOWNLOAD_BASE = os.getenv("DOWNLOAD_BASE", "/data/downloads")
+
+try:
+    from celery_app import celery_app
+    CELERY_AVAILABLE = True
+except ImportError:
+    celery_app = None
+    CELERY_AVAILABLE = False
 
 S3_BUCKET_NAME = os.getenv("S3_BUCKET_NAME") or os.getenv("AWS_S3_BUCKET")  # support either name
 AWS_REGION = os.getenv("AWS_REGION", "us-east-1")
@@ -43,6 +49,7 @@ class DocumentResponse(BaseModel):
     document_type: Optional[str]
     title: Optional[str]
     file_size_bytes: Optional[int]
+    processing_strategy: Optional[str] = None
     processing_status: str
     total_chunks: int
     health_score: int
@@ -50,6 +57,9 @@ class DocumentResponse(BaseModel):
     last_retrieved_at: Optional[datetime] = None
     avg_chunk_size_tokens: Optional[int] = None
     avg_chunk_size_chars: Optional[int] = None
+    preview_text: Optional[str] = None
+    view_url: Optional[str] = None
+    view_page_count: Optional[int] = None
     created_at: datetime
 
 
@@ -84,6 +94,50 @@ class DocumentRetrievalHistoryResponse(BaseModel):
     last7_total: int = 0
     prev7_total: int = 0
 
+class DocumentStrategyOption(BaseModel):
+    key: str
+    label: str
+    description: str
+
+
+class DocumentStrategyResponse(BaseModel):
+    current_strategy: Optional[str] = None
+    current_strategy_label: str
+    options: List[DocumentStrategyOption]
+
+
+class OverrideDocumentStrategyRequest(BaseModel):
+    strategy: str
+
+
+PDF_STRATEGY_OPTIONS: List[DocumentStrategyOption] = [
+    DocumentStrategyOption(
+        key="semantic",
+        label="Semantic (Essay/Policy)",
+        description="Paragraph-oriented semantic chunking for narrative documents.",
+    ),
+    DocumentStrategyOption(
+        key="pdf_auto",
+        label="Auto (Default)",
+        description="Uses automatic PDF partition strategy with general-purpose settings.",
+    ),
+    DocumentStrategyOption(
+        key="pdf_table_heavy",
+        label="Table Heavy",
+        description="Optimized for table extraction from dense tabular PDFs.",
+    ),
+    DocumentStrategyOption(
+        key="pdf_multicolumn",
+        label="Multi-Column",
+        description="Optimized for 2/3-column PDFs to preserve reading order.",
+    ),
+    DocumentStrategyOption(
+        key="pdf_dataviz_heavy",
+        label="Data Visualization Heavy",
+        description="Optimized for chart/image-heavy PDFs while retaining table signals.",
+    ),
+]
+PDF_STRATEGY_KEYS = {o.key for o in PDF_STRATEGY_OPTIONS}
 
 class PageHeatmapBin(BaseModel):
     page_number: int
@@ -122,6 +176,34 @@ async def _ensure_daily_retrieval_table(db: Database) -> None:
         """
     )
 
+
+async def _resolve_document_local_path(
+    db: Database,
+    source_path: str,
+) -> Optional[str]:
+    if source_path.startswith("/") and os.path.exists(source_path):
+        return source_path
+
+    synced = await db.fetch_one(
+        """
+        SELECT plugin_id
+        FROM synced_file
+        WHERE file_path = $1 AND status != 'deleted'
+        ORDER BY updated_at DESC
+        LIMIT 1
+        """,
+        source_path,
+    )
+    if synced:
+        synced_data = dict(synced)
+        if synced_data.get("plugin_id") is None:
+            return None
+        candidate = os.path.join(DOWNLOAD_BASE, str(synced_data["plugin_id"]), source_path)
+        if os.path.exists(candidate):
+            return candidate
+
+    return None
+
 # List documents in KB
 @router.get("/{kb_id}/documents", response_model=List[DocumentResponse])
 async def list_documents(
@@ -153,6 +235,7 @@ async def list_documents(
             d.document_type,
             d.title,
             d.file_size_bytes,
+            d.processing_strategy,
             d.processing_status,
             d.total_chunks,
             d.health_score,
@@ -238,7 +321,7 @@ async def upload_document(
     
     # TODO: Trigger processing (for now, just return)
     # In real implementation: send to Celery or call processing function
-    
+
     return DocumentResponse(**dict(doc))
 
 # Get document details
@@ -272,6 +355,7 @@ async def get_document(
             d.document_type,
             d.title,
             d.file_size_bytes,
+            d.processing_strategy,
             d.processing_status,
             d.total_chunks,
             d.health_score,
@@ -279,6 +363,7 @@ async def get_document(
             cm.last_retrieved_at,
             cm.avg_chunk_size_tokens,
             cm.avg_chunk_size_chars,
+            preview.preview_text,
             d.created_at
         FROM documents d
         LEFT JOIN (
@@ -292,6 +377,16 @@ async def get_document(
             WHERE kb_id = $1
             GROUP BY document_id
         ) cm ON cm.document_id = d.document_id
+        LEFT JOIN LATERAL (
+            SELECT string_agg(pre.chunk_text, E'\n\n' ORDER BY pre.chunk_index) AS preview_text
+            FROM (
+                SELECT chunk_text, chunk_index
+                FROM chunk_metadata
+                WHERE document_id = d.document_id
+                ORDER BY chunk_index
+                LIMIT 3
+            ) pre
+        ) preview ON TRUE
         WHERE d.document_id = $2 AND d.kb_id = $1
         """,
         str(kb_id), str(doc_id)
@@ -346,6 +441,156 @@ async def get_document_s3_url(
     except ClientError as e:
         logger.exception("Failed to generate presigned url: %s", e)
         raise HTTPException(status_code=500, detail="Failed to generate S3 URL")
+
+@router.get("/{kb_id}/documents/{doc_id}/strategy", response_model=DocumentStrategyResponse)
+async def get_document_strategy(
+    kb_id: UUID,
+    doc_id: UUID,
+    current_user: dict = require_permission("doc.read"),
+    db: Database = Depends(get_db),
+):
+    kb = await db.fetch_one(
+        "SELECT owner_id FROM knowledge_bases WHERE kb_id = $1",
+        str(kb_id),
+    )
+    if not kb:
+        raise HTTPException(status_code=404, detail="KB not found")
+
+    if "admin" not in current_user["roles"] and str(kb["owner_id"]) != current_user["user_id"]:
+        raise HTTPException(status_code=403, detail="Access denied")
+
+    doc = await db.fetch_one(
+        """
+        SELECT document_id, document_type, processing_strategy
+        FROM documents
+        WHERE document_id = $1 AND kb_id = $2
+        """,
+        str(doc_id), str(kb_id),
+    )
+    if not doc:
+        raise HTTPException(status_code=404, detail="Document not found")
+    doc_data = dict(doc)
+
+    strategy = doc_data.get("processing_strategy")
+    strategy_label = next((o.label for o in PDF_STRATEGY_OPTIONS if o.key == strategy), None)
+    if not strategy_label:
+        strategy_label = "Auto (Default)"
+
+    return DocumentStrategyResponse(
+        current_strategy=strategy,
+        current_strategy_label=strategy_label,
+        options=PDF_STRATEGY_OPTIONS,
+    )
+
+
+@router.post("/{kb_id}/documents/{doc_id}/strategy/override", status_code=202)
+async def override_document_strategy(
+    kb_id: UUID,
+    doc_id: UUID,
+    body: OverrideDocumentStrategyRequest,
+    current_user: dict = require_permission("kb.update"),
+    db: Database = Depends(get_db),
+):
+    if body.strategy not in PDF_STRATEGY_KEYS:
+        raise HTTPException(status_code=400, detail="Unknown strategy")
+
+    if not CELERY_AVAILABLE:
+        raise HTTPException(status_code=503, detail="Document worker queue is unavailable")
+
+    kb = await db.fetch_one(
+        "SELECT owner_id FROM knowledge_bases WHERE kb_id = $1",
+        str(kb_id),
+    )
+    if not kb:
+        raise HTTPException(status_code=404, detail="KB not found")
+
+    if "admin" not in current_user["roles"] and str(kb["owner_id"]) != current_user["user_id"]:
+        raise HTTPException(status_code=403, detail="Access denied")
+
+    doc = await db.fetch_one(
+        """
+        SELECT document_id, kb_id, source_path, document_type, file_size_bytes
+        FROM documents
+        WHERE document_id = $1 AND kb_id = $2
+        """,
+        str(doc_id), str(kb_id),
+    )
+    if not doc:
+        raise HTTPException(status_code=404, detail="Document not found")
+    doc_data = dict(doc)
+
+    if (doc_data.get("document_type") or "").lower() != "pdf":
+        raise HTTPException(status_code=400, detail="Strategy override currently supports PDF documents only")
+
+    synced = await db.fetch_one(
+        """
+        SELECT plugin_id, etag, file_size
+        FROM synced_file
+        WHERE file_path = $1 AND status != 'deleted'
+        ORDER BY updated_at DESC
+        LIMIT 1
+        """,
+        doc_data["source_path"],
+    )
+    if not synced:
+        raise HTTPException(status_code=409, detail="Cannot locate source plugin mapping for this document")
+    synced_data = dict(synced)
+
+    plugin = await db.fetch_one(
+        """
+        SELECT id, name
+        FROM source_plugin_config
+        WHERE id = $1
+        """,
+        synced_data["plugin_id"],
+    )
+    if not plugin:
+        raise HTTPException(status_code=409, detail="Source plugin is missing for this document")
+    plugin_data = dict(plugin)
+
+    local_path = await _resolve_document_local_path(
+        db=db,
+        source_path=doc_data["source_path"],
+    )
+    if not local_path:
+        raise HTTPException(
+            status_code=409,
+            detail="Local document file not found. Run sync first, then retry strategy override.",
+        )
+
+    await db.execute(
+        """
+        UPDATE documents
+        SET processing_status = 'processing',
+            processing_strategy = $3,
+            processing_error = NULL,
+            updated_at = NOW()
+        WHERE document_id = $1 AND kb_id = $2
+        """,
+        str(doc_id), str(kb_id), body.strategy,
+    )
+
+    payload = {
+        "plugin_id": int(synced_data["plugin_id"]),
+        "plugin_name": plugin_data["name"],
+        "file_path": doc_data["source_path"],
+        "local_path": local_path,
+        "file_size": doc_data.get("file_size_bytes") or synced_data.get("file_size"),
+        "etag": synced_data.get("etag"),
+        "kb_id": str(kb_id),
+        "document_id": str(doc_id),
+        "parse_profile": body.strategy,
+    }
+    celery_app.send_task("process_document", args=[payload])
+
+    return {
+        "message": f"Reprocessing queued with strategy '{body.strategy}'",
+        "document_id": str(doc_id),
+        "kb_id": str(kb_id),
+        "strategy": body.strategy,
+        "status": "processing",
+    }
+
 
 @router.get("/{kb_id}/documents/{doc_id}/chunks", response_model=List[ChunkResponse])
 async def list_document_chunks(

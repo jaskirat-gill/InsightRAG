@@ -41,6 +41,7 @@ class Database:
         Ensure auth/KB schema exists and seed baseline users/roles.
         - Runs init.sql only when the core schema is missing.
         - Runs seed_user_kb.sql every startup (idempotent) so demo users exist.
+        - Runs SQL migrations in DB_SQL_DIR/migrations every startup (once per file).
         """
         schema_exists = await self._table_exists("users")
         if not schema_exists:
@@ -51,6 +52,7 @@ class Database:
 
         logger.info("Ensuring roles/permissions/demo users via seed_user_kb.sql")
         await self._run_sql_file_async("seed_user_kb.sql")
+        await self._apply_pending_migrations()
         logger.info("Schema/seed bootstrap complete")
     
     async def fetch_one(self, query: str, *args):
@@ -86,6 +88,10 @@ class Database:
         import asyncio
         await asyncio.to_thread(self._run_sql_file_sync, filename)
 
+    async def _apply_pending_migrations(self):
+        import asyncio
+        await asyncio.to_thread(self._apply_pending_migrations_sync)
+
     def _run_sql_file_sync(self, filename: str):
         sql_path = self._resolve_sql_file(filename)
         logger.info("Executing SQL file: %s", sql_path)
@@ -95,6 +101,57 @@ class Database:
             conn.autocommit = True
             with conn.cursor() as cur:
                 cur.execute(sql)
+
+    def _apply_pending_migrations_sync(self):
+        migrations_dir = Path(settings.DB_SQL_DIR) / "migrations"
+        if not migrations_dir.exists():
+            logger.info("No migrations directory at %s; skipping migrations", migrations_dir)
+            return
+
+        migration_files = sorted(
+            [p for p in migrations_dir.iterdir() if p.is_file() and p.suffix.lower() == ".sql"],
+            key=lambda p: p.name,
+        )
+        if not migration_files:
+            logger.info("No SQL migration files found in %s", migrations_dir)
+            return
+
+        logger.info("Checking %d migration file(s) in %s", len(migration_files), migrations_dir)
+        with psycopg2.connect(settings.DATABASE_URL) as conn:
+            conn.autocommit = False
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    CREATE TABLE IF NOT EXISTS schema_migrations (
+                        migration_name TEXT PRIMARY KEY,
+                        applied_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                    )
+                    """
+                )
+                cur.execute("SELECT migration_name FROM schema_migrations")
+                applied = {row[0] for row in cur.fetchall()}
+
+            for migration_path in migration_files:
+                migration_name = migration_path.name
+                if migration_name in applied:
+                    continue
+
+                logger.info("Applying migration: %s", migration_name)
+                sql = migration_path.read_text(encoding="utf-8")
+                try:
+                    with conn.cursor() as cur:
+                        cur.execute(sql)
+                        cur.execute(
+                            "INSERT INTO schema_migrations (migration_name) VALUES (%s)",
+                            (migration_name,),
+                        )
+                    conn.commit()
+                except Exception:
+                    conn.rollback()
+                    logger.exception("Failed migration: %s", migration_name)
+                    raise
+
+        logger.info("Database migrations check complete")
 
     def _resolve_sql_file(self, filename: str) -> Path:
         candidates = [

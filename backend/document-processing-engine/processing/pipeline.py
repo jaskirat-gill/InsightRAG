@@ -27,12 +27,13 @@ def process_document(payload: dict):
     """
     local_path = payload["local_path"]
     file_path = payload["file_path"]
+    parse_profile = payload.get("parse_profile")
 
     kb_id, document_id = create_kb_and_document(payload)
 
     try:
         logger.info("Step 1/5: Parsing %s", local_path)
-        elements = parse_document(local_path)
+        elements = parse_document(local_path, parse_profile=parse_profile)
         if not elements:
             update_document_status(document_id, "failed", error="No content extracted")
             return
@@ -55,7 +56,7 @@ def process_document(payload: dict):
             document_id,
             status="completed",
             total_chunks=len(chunks),
-            strategy="semantic",
+            strategy=parse_profile or "semantic",
         )
 
         logger.info(
