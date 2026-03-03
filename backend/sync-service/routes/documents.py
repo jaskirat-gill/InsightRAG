@@ -7,6 +7,9 @@ import hashlib
 import logging
 import os
 import json
+import boto3
+
+from botocore.exceptions import ClientError
 
 import boto3
 from qdrant_client import QdrantClient
@@ -21,7 +24,17 @@ logger = logging.getLogger("sync_service.documents")
 QDRANT_URL = os.getenv("QDRANT_URL", "http://qdrant:6333")
 COLLECTION_NAME = "document_chunks"
 
+S3_BUCKET_NAME = os.getenv("S3_BUCKET_NAME") or os.getenv("AWS_S3_BUCKET")  # support either name
+AWS_REGION = os.getenv("AWS_REGION", "us-east-1")
+
 router = APIRouter(prefix="/knowledge-bases", tags=["Documents"])
+
+_s3 = boto3.client(
+    "s3",
+    region_name=AWS_REGION,
+    aws_access_key_id=os.getenv("AWS_ACCESS_KEY_ID"),
+    aws_secret_access_key=os.getenv("AWS_SECRET_ACCESS_KEY"),
+)
 
 class DocumentResponse(BaseModel):
     document_id: UUID
@@ -289,6 +302,50 @@ async def get_document(
     
     return DocumentResponse(**dict(doc))
 
+@router.get("/{kb_id}/documents/{doc_id}/s3-url")
+async def get_document_s3_url(
+    kb_id: UUID,
+    doc_id: UUID,
+    current_user: dict = require_permission("doc.read"),
+    db: Database = Depends(get_db),
+):
+    """
+    Return a presigned S3 URL for this document.
+    Assumes documents.source_path stores the S3 key (e.g. 'Test/Qdrant Schema.png')
+    and S3 bucket is provided via env S3_BUCKET_NAME.
+    """
+    # Verify KB exists + access (same pattern as other endpoints)
+    kb = await db.fetch_one(
+        "SELECT owner_id, storage_provider FROM knowledge_bases WHERE kb_id = $1",
+        str(kb_id),
+    )
+    if not kb:
+        raise HTTPException(status_code=404, detail="KB not found")
+    if "admin" not in current_user["roles"] and str(kb["owner_id"]) != current_user["user_id"]:
+        raise HTTPException(status_code=403, detail="Access denied")
+
+    doc = await db.fetch_one(
+        "SELECT source_path FROM documents WHERE document_id = $1 AND kb_id = $2",
+        str(doc_id), str(kb_id),
+    )
+    if not doc:
+        raise HTTPException(status_code=404, detail="Document not found")
+
+    if not S3_BUCKET_NAME:
+        raise HTTPException(status_code=500, detail="S3_BUCKET_NAME is not configured")
+
+    # treat source_path as key
+    s3_key = str(doc["source_path"]).lstrip("/")
+    try:
+        url = _s3.generate_presigned_url(
+            ClientMethod="get_object",
+            Params={"Bucket": S3_BUCKET_NAME, "Key": s3_key},
+            ExpiresIn=300,
+        )
+        return {"url": url}
+    except ClientError as e:
+        logger.exception("Failed to generate presigned url: %s", e)
+        raise HTTPException(status_code=500, detail="Failed to generate S3 URL")
 
 @router.get("/{kb_id}/documents/{doc_id}/chunks", response_model=List[ChunkResponse])
 async def list_document_chunks(
@@ -694,17 +751,53 @@ async def delete_document(
     kb_id: UUID,
     doc_id: UUID,
     current_user: dict = require_permission("doc.delete"),
-    db: Database = Depends(get_db)
+    db: Database = Depends(get_db),
 ):
-    """Delete a document"""
-    
-    result = await db.execute(
-        "DELETE FROM documents WHERE document_id = $1 AND kb_id = $2",
-        str(doc_id), str(kb_id)
+    """Delete a document (SQL + Qdrant + S3)."""
+
+    kb = await db.fetch_one(
+        "SELECT owner_id FROM knowledge_bases WHERE kb_id = $1",
+        str(kb_id),
     )
-    
-    # TODO: Also delete from Qdrant
-    
+    if not kb:
+        raise HTTPException(status_code=404, detail="KB not found")
+    if "admin" not in current_user["roles"] and str(kb["owner_id"]) != current_user["user_id"]:
+        raise HTTPException(status_code=403, detail="Access denied")
+
+    doc = await db.fetch_one(
+        "SELECT source_path FROM documents WHERE document_id = $1 AND kb_id = $2",
+        str(doc_id), str(kb_id),
+    )
+    if not doc:
+        return None  # idempotent delete (204)
+
+    # 1. Delete Qdrant points for this doc
+    try:
+        qdrant = QdrantClient(url=QDRANT_URL)
+        qdrant.delete(
+            collection_name=COLLECTION_NAME,
+            points_selector=Filter(
+                must=[FieldCondition(key="document_id", match=MatchValue(value=str(doc_id)))]
+            ),
+        )
+    except Exception as e:
+        # Don't block deletion if qdrant fails
+        logger.warning("Qdrant delete failed for doc %s: %s", doc_id, e)
+
+    # 2. Delete S3 object (best-effort)
+    if S3_BUCKET_NAME:
+        try:
+            s3_key = str(doc["source_path"]).lstrip("/")
+            _s3.delete_object(Bucket=S3_BUCKET_NAME, Key=s3_key)
+        except Exception as e:
+            logger.warning("S3 delete failed for doc %s: %s", doc_id, e)
+
+    # 3. Delete SQL rows (documents table; chunks should cascade if FK is set)
+    await db.execute(
+        "DELETE FROM documents WHERE document_id = $1 AND kb_id = $2",
+        str(doc_id), str(kb_id),
+    )
+
     return None
 
 # Reassign documents to a different KB
