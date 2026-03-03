@@ -12,9 +12,9 @@ class Settings(BaseSettings):
     
     # Search Defaults
     DEFAULT_TOP_K: int = 5
-    # Lower default threshold to avoid filtering out valid semantic matches
-    # for short/broad user queries (e.g., "M2 test plan main focus").
-    DEFAULT_SCORE_THRESHOLD: float = 0.3
+    # Default similarity threshold for search_knowledge_base.
+    # Callers can lower this per request if no results are returned.
+    DEFAULT_SCORE_THRESHOLD: float = 0.5
     MAX_TOP_K: int = 20
     
     # Vector Dimensions (for validation)

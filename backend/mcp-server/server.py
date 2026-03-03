@@ -3,6 +3,7 @@ import sys
 from fastmcp import FastMCP
 from typing import List, Dict, Optional
 import os
+from os.path import basename
 
 from embeddings import generate_embedding
 from search import search_qdrant
@@ -203,46 +204,25 @@ def _run_search(
 def search_knowledge_base(
     query: str,
     top_k: int = 5,
-    kb_id: Optional[str] = None
+    kb_id: Optional[str] = None,
+    score_threshold: Optional[float] = None,
 ) -> List[Dict]:
     """
     Search the knowledge base for relevant information.
-    
+
     Args:
         query: The search query text
         top_k: Number of results to return (default 5, max 20)
         kb_id: Optional knowledge base ID to search within
-    
-    Returns:
-        List of relevant document chunks with metadata
-    """
-    return _run_search(
-        query=query,
-        top_k=top_k,
-        kb_id=kb_id,
-        score_threshold=settings.DEFAULT_SCORE_THRESHOLD,
-    )
-
-
-@mcp.tool()
-def search_knowledge_base_with_threshold(
-    query: str,
-    score_threshold: float,
-    top_k: int = 5,
-    kb_id: Optional[str] = None
-) -> List[Dict]:
-    """
-    Search the knowledge base with a caller-provided similarity threshold.
-
-    Args:
-        query: The search query text
-        score_threshold: Similarity threshold from 0.0 to 1.0
-        top_k: Number of results to return (default 5, max 20)
-        kb_id: Optional knowledge base ID to search within
+        score_threshold: Optional similarity threshold (0.0 to 1.0).
+            Default is 0.5. If no results are returned, lower this value.
 
     Returns:
         List of relevant document chunks with metadata
     """
+    if score_threshold is None:
+        score_threshold = settings.DEFAULT_SCORE_THRESHOLD
+
     return _run_search(
         query=query,
         top_k=top_k,
@@ -280,6 +260,73 @@ def get_available_collections() -> Dict:
         }
     except Exception as e:
         return {"error": str(e)}
+
+
+@mcp.tool()
+def list_kb_resources() -> List[Dict]:
+    """
+    List knowledge bases and their documents from PostgreSQL.
+
+    Returns:
+        List of KB objects with nested document metadata.
+    """
+    if not settings.DATABASE_URL:
+        return {"error": "DATABASE_URL is not configured for MCP server"}
+
+    try:
+        import psycopg2
+        import psycopg2.extras
+
+        conn = psycopg2.connect(settings.DATABASE_URL)
+        with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+            cur.execute(
+                """
+                SELECT
+                    kb.kb_id,
+                    kb.name AS kb_name,
+                    kb.owner_id,
+                    d.document_id,
+                    d.title,
+                    d.source_path,
+                    d.processing_status
+                FROM knowledge_bases kb
+                LEFT JOIN documents d ON d.kb_id = kb.kb_id
+                ORDER BY kb.name ASC, d.created_at DESC NULLS LAST
+                """
+            )
+            rows = cur.fetchall()
+        conn.close()
+
+        grouped: Dict[str, Dict] = {}
+        for row in rows:
+            kb_id = str(row["kb_id"])
+            if kb_id not in grouped:
+                grouped[kb_id] = {
+                    "kb_id": kb_id,
+                    "kb_name": row["kb_name"],
+                    "owner_id": str(row["owner_id"]) if row["owner_id"] else None,
+                    "document_count": 0,
+                    "documents": [],
+                }
+
+            if row["document_id"]:
+                source_path = row["source_path"] or ""
+                doc_name = (row["title"] or "").strip() or basename(source_path) or source_path
+                grouped[kb_id]["documents"].append(
+                    {
+                        "document_id": str(row["document_id"]),
+                        "document_name": doc_name,
+                        "source_path": source_path,
+                        "processing_status": row["processing_status"],
+                    }
+                )
+                grouped[kb_id]["document_count"] += 1
+
+        return list(grouped.values())
+
+    except Exception as e:
+        logger.exception("Failed to list KB resources: %s", e)
+        return {"error": f"Failed to list KB resources: {str(e)}"}
 
 
 if __name__ == "__main__":
