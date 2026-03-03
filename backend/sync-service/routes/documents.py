@@ -6,7 +6,9 @@ from datetime import datetime, date, timedelta
 import hashlib
 import logging
 import os
+import json
 
+import boto3
 from qdrant_client import QdrantClient
 from qdrant_client.models import Filter, FieldCondition, MatchValue
 
@@ -68,6 +70,24 @@ class DocumentRetrievalHistoryResponse(BaseModel):
     trend_pct: float = 0.0
     last7_total: int = 0
     prev7_total: int = 0
+
+
+class PageHeatmapBin(BaseModel):
+    page_number: int
+    raw_retrievals: int
+    normalized_score: float
+
+
+class DocumentHeatmapResponse(BaseModel):
+    document_id: UUID
+    kb_id: UUID
+    max_retrievals: int
+    bins: List[PageHeatmapBin]
+
+
+class DocumentViewResponse(BaseModel):
+    url: str
+    page_count: Optional[int] = None
 
 
 async def _ensure_daily_retrieval_table(db: Database) -> None:
@@ -414,6 +434,259 @@ async def get_document_retrieval_history(
         last7_total=last7_total,
         prev7_total=prev7_total,
     )
+
+
+@router.get(
+    "/{kb_id}/documents/{doc_id}/heatmap",
+    response_model=DocumentHeatmapResponse,
+)
+async def get_document_heatmap(
+    kb_id: UUID,
+    doc_id: UUID,
+    current_user: dict = require_permission("doc.read"),
+    db: Database = Depends(get_db),
+):
+    """
+    Return per-page retrieval heatmap data for one document.
+
+    Aggregates chunk_metadata.retrieval_count by page_number for the given
+    document, then normalizes per document so that the hottest page has
+    normalized_score = 1.0. Pages with no retrievals have score 0.0.
+    """
+
+    kb = await db.fetch_one(
+        "SELECT owner_id FROM knowledge_bases WHERE kb_id = $1",
+        str(kb_id),
+    )
+    if not kb:
+        raise HTTPException(status_code=404, detail="KB not found")
+
+    if "admin" not in current_user["roles"] and str(kb["owner_id"]) != current_user["user_id"]:
+        raise HTTPException(status_code=403, detail="Access denied")
+
+    doc_exists = await db.fetch_one(
+        "SELECT document_id FROM documents WHERE document_id = $1 AND kb_id = $2",
+        str(doc_id),
+        str(kb_id),
+    )
+    if not doc_exists:
+        raise HTTPException(status_code=404, detail="Document not found")
+
+    rows = await db.fetch_all(
+        """
+        SELECT
+            COALESCE(page_number, 1) AS page_number,
+            COALESCE(SUM(retrieval_count), 0)::INT AS page_retrievals
+        FROM chunk_metadata
+        WHERE kb_id = $1
+          AND document_id = $2
+        GROUP BY COALESCE(page_number, 1)
+        ORDER BY page_number ASC
+        """,
+        str(kb_id),
+        str(doc_id),
+    )
+
+    bins: List[PageHeatmapBin] = []
+    max_retrievals = 0
+
+    for r in rows:
+        page_retrievals = int(r["page_retrievals"])
+        if page_retrievals > max_retrievals:
+            max_retrievals = page_retrievals
+
+    if max_retrievals <= 0:
+        for r in rows:
+            bins.append(
+                PageHeatmapBin(
+                    page_number=int(r["page_number"]),
+                    raw_retrievals=int(r["page_retrievals"]),
+                    normalized_score=0.0,
+                )
+            )
+        return DocumentHeatmapResponse(
+            document_id=doc_id,
+            kb_id=kb_id,
+            max_retrievals=0,
+            bins=bins,
+        )
+
+    for r in rows:
+        page_retrievals = int(r["page_retrievals"])
+        score = float(page_retrievals) / float(max_retrievals)
+        bins.append(
+            PageHeatmapBin(
+                page_number=int(r["page_number"]),
+                raw_retrievals=page_retrievals,
+                normalized_score=score,
+            )
+        )
+
+    return DocumentHeatmapResponse(
+        document_id=doc_id,
+        kb_id=kb_id,
+        max_retrievals=max_retrievals,
+        bins=bins,
+    )
+
+
+@router.get(
+    "/{kb_id}/documents/{doc_id}/view",
+    response_model=DocumentViewResponse,
+)
+async def get_document_view_url(
+    kb_id: UUID,
+    doc_id: UUID,
+    current_user: dict = require_permission("doc.read"),
+    db: Database = Depends(get_db),
+):
+    """
+    Return a signed/proxy URL for viewing the original document.
+
+    For S3-backed knowledge bases, this generates a short-lived pre-signed
+    URL for the document's S3 object. For other providers, the raw
+    source_path is returned as-is, assuming it is directly accessible.
+    Also returns an approximate page_count derived from chunk_metadata.
+    """
+    logger.info(f"Getting document view URL for document {doc_id} in KB {kb_id}")
+    kb = await db.fetch_one(
+        "SELECT owner_id, storage_provider, storage_config FROM knowledge_bases WHERE kb_id = $1",
+        str(kb_id),
+    )
+    if not kb:
+        raise HTTPException(status_code=404, detail="KB not found")
+
+    if "admin" not in current_user["roles"] and str(kb["owner_id"]) != current_user["user_id"]:
+        raise HTTPException(status_code=403, detail="Access denied")
+
+    doc = await db.fetch_one(
+        """
+        SELECT source_path, document_type
+        FROM documents
+        WHERE document_id = $1 AND kb_id = $2
+        """,
+        str(doc_id),
+        str(kb_id),
+    )
+    if not doc:
+        raise HTTPException(status_code=404, detail="Document not found")
+
+    source_path: str = doc["source_path"]
+    storage_provider = kb.get("storage_provider", "s3")
+
+    raw_cfg = kb.get("storage_config")
+    if isinstance(raw_cfg, dict):
+        storage_config = raw_cfg
+    elif isinstance(raw_cfg, str):
+        try:
+            storage_config = json.loads(raw_cfg)
+        except Exception:
+            storage_config = {}
+    else:
+        storage_config = {}
+
+    url = source_path
+
+    # Generate a pre-signed S3 URL when possible.
+    try:
+        bucket: Optional[str] = None
+        region: str = os.environ.get("AWS_REGION") or "us-east-1"
+        key: str = source_path
+
+        if storage_provider == "s3":
+            logger.info("VIEW provider=s3 storage_config=%r", storage_config)
+            bucket = storage_config.get("bucket_name")
+            region = storage_config.get("region") or region
+
+            if source_path.startswith("s3://"):
+                _, rest = source_path.split("://", 1)
+                bucket_from_path, key_part = rest.split("/", 1)
+                bucket = bucket or bucket_from_path
+                key = key_part
+            else:
+                key = source_path.lstrip("/")
+
+        elif storage_provider == "plugin":
+            # Mirror plugin-based storage: resolve S3 settings from SourcePluginConfig.
+            plugin_row = await db.fetch_one(
+                """
+                SELECT spc.config, sf.file_path
+                FROM source_plugin_config spc
+                JOIN synced_file sf ON sf.plugin_id = spc.id
+                WHERE sf.file_path = $1
+                ORDER BY sf.last_seen_at DESC
+                LIMIT 1
+                """,
+                source_path,
+            )
+            if plugin_row:
+                raw_plugin_cfg = plugin_row["config"]
+                if isinstance(raw_plugin_cfg, dict):
+                    plugin_cfg = raw_plugin_cfg
+                else:
+                    try:
+                        plugin_cfg = json.loads(raw_plugin_cfg)
+                    except Exception:
+                        plugin_cfg = {}
+
+                logger.info("VIEW provider=plugin plugin_cfg=%r", plugin_cfg)
+
+                bucket = plugin_cfg.get("bucket_name") or plugin_cfg.get("bucket")
+                region = plugin_cfg.get("region_name") or plugin_cfg.get("region") or region
+                key = str(plugin_row["file_path"]).lstrip("/")
+
+        # Fall back: if storage_provider is something else, but source_path looks like s3://bucket/key
+        if bucket is None and source_path.startswith("s3://"):
+            _, rest = source_path.split("://", 1)
+            bucket_from_path, key_part = rest.split("/", 1)
+            bucket = bucket_from_path
+            key = key_part
+
+        if bucket:
+            s3_client = boto3.client("s3", region_name=region)
+            url = s3_client.generate_presigned_url(
+                "get_object",
+                Params={"Bucket": bucket, "Key": key},
+                ExpiresIn=3600,
+            )
+            logger.info(
+                "Generated S3 presigned URL for doc %s (bucket=%s, key=%s, region=%s)",
+                doc_id,
+                bucket,
+                key,
+                region,
+            )
+        else:
+            logger.info(
+                "VIEW: no bucket resolved for doc %s (provider=%s, source_path=%s)",
+                doc_id,
+                storage_provider,
+                source_path,
+            )
+    except Exception as exc:
+        logger.warning("Failed to generate S3 pre-signed URL for document %s: %s", doc_id, exc)
+        # Fallback: leave url as source_path (may or may not be browser-accessible).
+
+    # Derive page count from chunk_metadata if available.
+    page_row = await db.fetch_one(
+        """
+        SELECT MAX(page_number) AS max_page
+        FROM chunk_metadata
+        WHERE document_id = $1 AND kb_id = $2
+        """,
+        str(doc_id),
+        str(kb_id),
+    )
+    max_page = page_row["max_page"] if page_row and page_row["max_page"] is not None else 1
+
+    try:
+        page_count = int(max_page)
+        if page_count <= 0:
+            page_count = 1
+    except (TypeError, ValueError):
+        page_count = 1
+
+    return DocumentViewResponse(url=url, page_count=page_count)
 
 # Delete document
 @router.delete("/{kb_id}/documents/{doc_id}", status_code=204)
