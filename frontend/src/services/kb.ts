@@ -294,7 +294,7 @@ class KBService {
     docId: string,
   ): Promise<{ url: string; page_count?: number | null }> {
     const response = await fetch(
-      `${this.API_URL}/api/v1/knowledge-bases/${kbId}/documents/${docId}/view-url`,
+      `${this.API_URL}/api/v1/knowledge-bases/${kbId}/documents/${docId}/view`,
       {
         headers: {
           ...authService.getAuthHeader(),
@@ -307,7 +307,23 @@ class KBService {
       throw new Error(error.detail || 'Failed to fetch document view URL');
     }
 
-    return await response.json();
+    const contentType = response.headers.get('content-type') || '';
+    if (contentType.includes('application/json')) {
+      return await response.json();
+    }
+    if (contentType.includes('application/pdf')) {
+      const blob = await response.blob();
+      return { url: URL.createObjectURL(blob), page_count: null };
+    }
+
+    try {
+      return await response.json();
+    } catch {
+      const body = await response.text().catch(() => '');
+      throw new Error(
+        `Failed to parse document view response (${contentType || 'unknown content-type'}): ${body.slice(0, 80)}`,
+      );
+    }
   }
 
   // Get per-document retrieval history and summary metrics

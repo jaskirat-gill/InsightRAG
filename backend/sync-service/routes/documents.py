@@ -1,5 +1,4 @@
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, status
-from fastapi.responses import FileResponse
 from pydantic import BaseModel
 from typing import List, Optional
 from uuid import UUID
@@ -8,8 +7,6 @@ import hashlib
 import logging
 import os
 import json
-import boto3
-
 from botocore.exceptions import ClientError
 
 import boto3
@@ -180,85 +177,11 @@ async def _ensure_daily_retrieval_table(db: Database) -> None:
     )
 
 
-async def _ensure_document_local_copy_table(db: Database) -> None:
-    await db.execute(
-        """
-        CREATE TABLE IF NOT EXISTS document_local_copies (
-            copy_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-            document_id UUID REFERENCES documents(document_id) ON DELETE CASCADE,
-            kb_id UUID REFERENCES knowledge_bases(kb_id) ON DELETE CASCADE,
-            source_path TEXT NOT NULL,
-            local_path TEXT NOT NULL,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-        )
-        """
-    )
-    await db.execute(
-        """
-        CREATE UNIQUE INDEX IF NOT EXISTS idx_document_local_copies_doc
-        ON document_local_copies(document_id)
-        """
-    )
-    await db.execute(
-        """
-        CREATE INDEX IF NOT EXISTS idx_document_local_copies_kb_source
-        ON document_local_copies(kb_id, source_path)
-        """
-    )
-
-
-async def _upsert_document_local_copy(
-    db: Database,
-    document_id: str,
-    kb_id: str,
-    source_path: str,
-    local_path: str,
-) -> None:
-    await _ensure_document_local_copy_table(db)
-    await db.execute(
-        """
-        INSERT INTO document_local_copies (
-            document_id, kb_id, source_path, local_path, created_at, updated_at
-        )
-        VALUES ($1, $2, $3, $4, NOW(), NOW())
-        ON CONFLICT (document_id) DO UPDATE
-        SET local_path = EXCLUDED.local_path,
-            source_path = EXCLUDED.source_path,
-            updated_at = NOW()
-        """,
-        document_id,
-        kb_id,
-        source_path,
-        local_path,
-    )
-
-
 async def _resolve_document_local_path(
     db: Database,
-    kb_id: str,
-    doc_id: str,
     source_path: str,
 ) -> Optional[str]:
-    await _ensure_document_local_copy_table(db)
-
-    local = await db.fetch_one(
-        """
-        SELECT local_path
-        FROM document_local_copies
-        WHERE document_id = $1 AND kb_id = $2
-        LIMIT 1
-        """,
-        doc_id,
-        kb_id,
-    )
-    if local:
-        local_data = dict(local)
-        if local_data.get("local_path") and os.path.exists(local_data["local_path"]):
-            return local_data["local_path"]
-
     if source_path.startswith("/") and os.path.exists(source_path):
-        await _upsert_document_local_copy(db, doc_id, kb_id, source_path, source_path)
         return source_path
 
     synced = await db.fetch_one(
@@ -277,7 +200,6 @@ async def _resolve_document_local_path(
             return None
         candidate = os.path.join(DOWNLOAD_BASE, str(synced_data["plugin_id"]), source_path)
         if os.path.exists(candidate):
-            await _upsert_document_local_copy(db, doc_id, kb_id, source_path, candidate)
             return candidate
 
     return None
@@ -400,14 +322,6 @@ async def upload_document(
     # TODO: Trigger processing (for now, just return)
     # In real implementation: send to Celery or call processing function
 
-    await _upsert_document_local_copy(
-        db,
-        document_id=str(doc["document_id"]),
-        kb_id=str(kb_id),
-        source_path=local_path,
-        local_path=local_path,
-    )
-    
     return DocumentResponse(**dict(doc))
 
 # Get document details
@@ -528,92 +442,6 @@ async def get_document_s3_url(
         logger.exception("Failed to generate presigned url: %s", e)
         raise HTTPException(status_code=500, detail="Failed to generate S3 URL")
 
-@router.get("/{kb_id}/documents/{doc_id}/view-url")
-async def get_document_view_url(
-    kb_id: UUID,
-    doc_id: UUID,
-    current_user: dict = require_permission("doc.read"),
-    db: Database = Depends(get_db),
-):
-    kb = await db.fetch_one(
-        "SELECT owner_id FROM knowledge_bases WHERE kb_id = $1",
-        str(kb_id),
-    )
-    if not kb:
-        raise HTTPException(status_code=404, detail="KB not found")
-    if "admin" not in current_user["roles"] and str(kb["owner_id"]) != current_user["user_id"]:
-        raise HTTPException(status_code=403, detail="Access denied")
-
-    doc = await db.fetch_one(
-        """
-        SELECT document_id, kb_id, source_path, document_type
-        FROM documents
-        WHERE document_id = $1 AND kb_id = $2
-        """,
-        str(doc_id), str(kb_id),
-    )
-    if not doc:
-        raise HTTPException(status_code=404, detail="Document not found")
-    doc_data = dict(doc)
-
-    local_path = await _resolve_document_local_path(
-        db=db,
-        kb_id=str(kb_id),
-        doc_id=str(doc_id),
-        source_path=doc_data["source_path"],
-    )
-    if not local_path:
-        raise HTTPException(status_code=404, detail="Local document copy not found")
-
-    return {
-        "url": f"/api/v1/knowledge-bases/{kb_id}/documents/{doc_id}/view",
-        "page_count": None,
-    }
-
-
-@router.get("/{kb_id}/documents/{doc_id}/view")
-async def stream_document_view(
-    kb_id: UUID,
-    doc_id: UUID,
-    current_user: dict = require_permission("doc.read"),
-    db: Database = Depends(get_db),
-):
-    kb = await db.fetch_one(
-        "SELECT owner_id FROM knowledge_bases WHERE kb_id = $1",
-        str(kb_id),
-    )
-    if not kb:
-        raise HTTPException(status_code=404, detail="KB not found")
-    if "admin" not in current_user["roles"] and str(kb["owner_id"]) != current_user["user_id"]:
-        raise HTTPException(status_code=403, detail="Access denied")
-
-    doc = await db.fetch_one(
-        """
-        SELECT document_id, kb_id, source_path, document_type, title
-        FROM documents
-        WHERE document_id = $1 AND kb_id = $2
-        """,
-        str(doc_id), str(kb_id),
-    )
-    if not doc:
-        raise HTTPException(status_code=404, detail="Document not found")
-    doc_data = dict(doc)
-
-    local_path = await _resolve_document_local_path(
-        db=db,
-        kb_id=str(kb_id),
-        doc_id=str(doc_id),
-        source_path=doc_data["source_path"],
-    )
-    if not local_path:
-        raise HTTPException(status_code=404, detail="Local document copy not found")
-
-    media_type = "application/pdf" if (doc_data.get("document_type") or "").lower() == "pdf" else "application/octet-stream"
-    filename = doc_data.get("title") or os.path.basename(local_path)
-    headers = {"Content-Disposition": f'inline; filename="{filename}"'}
-    return FileResponse(local_path, media_type=media_type, filename=filename, headers=headers)
-
-
 @router.get("/{kb_id}/documents/{doc_id}/strategy", response_model=DocumentStrategyResponse)
 async def get_document_strategy(
     kb_id: UUID,
@@ -722,14 +550,12 @@ async def override_document_strategy(
 
     local_path = await _resolve_document_local_path(
         db=db,
-        kb_id=str(kb_id),
-        doc_id=str(doc_id),
         source_path=doc_data["source_path"],
     )
     if not local_path:
         raise HTTPException(
             status_code=409,
-            detail="Local document copy not found. Run sync first, then retry strategy override.",
+            detail="Local document file not found. Run sync first, then retry strategy override.",
         )
 
     await db.execute(

@@ -117,15 +117,6 @@ def create_kb_and_document(
                         existing_document_id,
                         file_path,
                     )
-                    if local_path:
-                        _upsert_document_local_copy(
-                            cur=cur,
-                            document_id=str(existing_document_id),
-                            kb_id=str(existing_kb_id),
-                            source_path=file_path,
-                            local_path=local_path,
-                        )
-                        conn.commit()
                     return str(existing_kb_id), str(existing_document_id)
 
             # Upsert knowledge base (shared KB — many docs can map to the same KB)
@@ -170,15 +161,6 @@ def create_kb_and_document(
             ))
             doc_row = cur.fetchone()
             document_id = str(doc_row["document_id"])
-
-            if local_path:
-                _upsert_document_local_copy(
-                    cur=cur,
-                    document_id=document_id,
-                    kb_id=kb_id,
-                    source_path=file_path,
-                    local_path=local_path,
-                )
 
             conn.commit()
             logger.info("Created KB=%s, Document=%s for %s", kb_id, document_id, file_path)
@@ -373,51 +355,6 @@ def _sanitize_for_pg(text: str) -> str:
     if not text:
         return text
     return text.replace("\x00", "")
-
-
-def _ensure_document_local_copy_table(cur):
-    cur.execute(
-        """
-        CREATE TABLE IF NOT EXISTS document_local_copies (
-            copy_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-            document_id UUID REFERENCES documents(document_id) ON DELETE CASCADE,
-            kb_id UUID REFERENCES knowledge_bases(kb_id) ON DELETE CASCADE,
-            source_path TEXT NOT NULL,
-            local_path TEXT NOT NULL,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-        )
-        """
-    )
-    cur.execute(
-        """
-        CREATE UNIQUE INDEX IF NOT EXISTS idx_document_local_copies_doc
-        ON document_local_copies(document_id)
-        """
-    )
-    cur.execute(
-        """
-        CREATE INDEX IF NOT EXISTS idx_document_local_copies_kb_source
-        ON document_local_copies(kb_id, source_path)
-        """
-    )
-
-
-def _upsert_document_local_copy(cur, document_id: str, kb_id: str, source_path: str, local_path: str):
-    _ensure_document_local_copy_table(cur)
-    cur.execute(
-        """
-        INSERT INTO document_local_copies (
-            document_id, kb_id, source_path, local_path, created_at, updated_at
-        )
-        VALUES (%s, %s, %s, %s, NOW(), NOW())
-        ON CONFLICT (document_id) DO UPDATE
-        SET local_path = EXCLUDED.local_path,
-            source_path = EXCLUDED.source_path,
-            updated_at = NOW()
-        """,
-        (document_id, kb_id, source_path, local_path),
-    )
 
 
 def _get_doc_type(file_path: str) -> str:
