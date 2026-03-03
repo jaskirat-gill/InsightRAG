@@ -98,6 +98,43 @@ export interface CreateKBRequest {
 class KBService {
   private readonly API_URL = API_URL;
 
+    // Get a presigned S3 URL for a document (View in S3)
+    async getDocumentS3Url(kbId: string, docId: string): Promise<{ url: string }> {
+      const response = await fetch(
+        `${this.API_URL}/api/v1/knowledge-bases/${kbId}/documents/${docId}/s3-url`,
+        {
+          headers: {
+            ...authService.getAuthHeader(),
+          },
+        },
+      );
+  
+      if (!response.ok) {
+        const error = await response.json().catch(() => ({}));
+        throw new Error(error.detail || 'Failed to fetch S3 URL');
+      }
+  
+      return await response.json();
+    }
+  
+    // Delete a single document (S3 + SQL + Qdrant handled by backend)
+    async deleteDocument(kbId: string, docId: string): Promise<void> {
+      const response = await fetch(
+        `${this.API_URL}/api/v1/knowledge-bases/${kbId}/documents/${docId}`,
+        {
+          method: 'DELETE',
+          headers: {
+            ...authService.getAuthHeader(),
+          },
+        },
+      );
+  
+      if (!response.ok) {
+        const error = await response.json().catch(() => ({}));
+        throw new Error(error.detail || 'Failed to delete document');
+      }
+    }
+
   // List all KBs
   async listKnowledgeBases(): Promise<KnowledgeBase[]> {
     const response = await fetch(`${this.API_URL}/api/v1/knowledge-bases`, {
