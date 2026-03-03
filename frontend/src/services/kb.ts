@@ -234,6 +234,27 @@ class KBService {
     return await response.json();
   }
 
+  async getDocumentViewUrl(
+    kbId: string,
+    docId: string,
+  ): Promise<{ url: string; page_count?: number | null }> {
+    const response = await fetch(
+      `${this.API_URL}/api/v1/knowledge-bases/${kbId}/documents/${docId}/view-url`,
+      {
+        headers: {
+          ...authService.getAuthHeader(),
+        },
+      },
+    );
+
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({}));
+      throw new Error(error.detail || 'Failed to fetch document view URL');
+    }
+
+    return await response.json();
+  }
+
   // Get per-document retrieval history and summary metrics
   async getDocumentRetrievalHistory(
     kbId: string,
