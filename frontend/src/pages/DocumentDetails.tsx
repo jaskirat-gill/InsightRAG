@@ -272,6 +272,8 @@ const DocumentDetails: FC<DocumentDetailsProps> = ({ kb, doc, onBack }) => {
   const [overrideOpen, setOverrideOpen] = useState(false);
   const [selectedStrategy, setSelectedStrategy] = useState<string>('pdf_auto');
   const [overrideBusy, setOverrideBusy] = useState(false);
+  const [pendingReprocess, setPendingReprocess] = useState(false);
+  const [sawProcessingSinceReprocess, setSawProcessingSinceReprocess] = useState(false);
 
   // Document view state
   const [viewLoading, setViewLoading] = useState(false);
@@ -292,7 +294,7 @@ const DocumentDetails: FC<DocumentDetailsProps> = ({ kb, doc, onBack }) => {
     return doc.title ?? fallback;
   }, [doc.title, doc.source_path]);
 
-  const loadDetails = async () => {
+  const loadDetails = async (): Promise<DocDetails | null> => {
     setLoading(true);
     setErr(null);
 
@@ -339,8 +341,10 @@ const DocumentDetails: FC<DocumentDetailsProps> = ({ kb, doc, onBack }) => {
       };
 
       setDetails(full);
+      return full;
     } catch (e: any) {
       setErr(e?.message || 'Failed to load document details');
+      return null;
     } finally {
       setLoading(false);
     }
@@ -414,6 +418,13 @@ const DocumentDetails: FC<DocumentDetailsProps> = ({ kb, doc, onBack }) => {
     try {
       const strategy = d.processing_strategy ?? 'pdf_auto';
       const res = await kbService.overrideDocumentStrategy(kb.kb_id, doc.document_id, strategy);
+      setPendingReprocess(true);
+      setSawProcessingSinceReprocess(false);
+      setDetails((prev) => ({
+        ...(prev ?? (doc as any)),
+        processing_status: 'processing',
+        processing_strategy: strategy,
+      }));
       await loadDetails();
       if (chunksLoadedOnce) await loadChunks();
       showToast('ok', res.message || 'Reprocess queued');
@@ -598,6 +609,13 @@ const DocumentDetails: FC<DocumentDetailsProps> = ({ kb, doc, onBack }) => {
     try {
       const res = await kbService.overrideDocumentStrategy(kb.kb_id, doc.document_id, selectedStrategy);
       setOverrideOpen(false);
+      setPendingReprocess(true);
+      setSawProcessingSinceReprocess(false);
+      setDetails((prev) => ({
+        ...(prev ?? (doc as any)),
+        processing_status: 'processing',
+        processing_strategy: selectedStrategy,
+      }));
       await loadDetails();
       await loadStrategy();
       if (chunksLoadedOnce) await loadChunks();
@@ -611,7 +629,7 @@ const DocumentDetails: FC<DocumentDetailsProps> = ({ kb, doc, onBack }) => {
 
   // ── Chunk Tab ────────────────────────────────────────────────────────────────
   const totalChunksNumber = useMemo(() => {
-    const n = safeNumber((doc as any).total_chunks ?? (d as any).total_chunks ?? 0, 0);
+    const n = safeNumber((d as any).total_chunks ?? (doc as any).total_chunks ?? 0, 0);
     return Math.max(0, n);
   }, [doc, d]);
 
@@ -645,15 +663,26 @@ const DocumentDetails: FC<DocumentDetailsProps> = ({ kb, doc, onBack }) => {
   }, [activeTab]);
 
   useEffect(() => {
-    if (!isProcessing) return;
-    const interval = window.setInterval(() => {
-      void loadDetails();
+    if (!isProcessing && !pendingReprocess) return;
+    const interval = window.setInterval(async () => {
+      const full = await loadDetails();
+      const status = full?.processing_status;
+
+      if (status === 'processing') {
+        setSawProcessingSinceReprocess(true);
+      }
+
+      if (pendingReprocess && sawProcessingSinceReprocess && status && status !== 'processing') {
+        setPendingReprocess(false);
+        setSawProcessingSinceReprocess(false);
+      }
+
       if (chunksLoadedOnce) void loadChunks();
       if (strategyLoadedOnce) void loadStrategy();
-    }, 4000);
+    }, 2500);
     return () => window.clearInterval(interval);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isProcessing, chunksLoadedOnce, strategyLoadedOnce]);
+  }, [isProcessing, pendingReprocess, sawProcessingSinceReprocess, chunksLoadedOnce, strategyLoadedOnce]);
 
   const loadRetrievalHistory = async () => {
     setHistoryLoading(true);
@@ -866,7 +895,7 @@ const DocumentDetails: FC<DocumentDetailsProps> = ({ kb, doc, onBack }) => {
             <InfoItem label="Created" value={d.created_at ? kbService.formatRelativeTime(d.created_at) : '—'} />
 
             <InfoItem label="Processing Strategy" value={d.processing_strategy ?? '—'} />
-            <InfoItem label="Total Chunks" value={doc.total_chunks?.toLocaleString?.() ?? '—'} />
+            <InfoItem label="Total Chunks" value={d.total_chunks?.toLocaleString?.() ?? '—'} />
             <InfoItem
               label="Avg Chunk Size"
               value={
