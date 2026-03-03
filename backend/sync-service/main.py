@@ -8,6 +8,10 @@ from datetime import datetime
 import asyncio
 import logging
 import os
+import uuid
+from pathlib import PurePosixPath
+
+from sqlalchemy import text
 
 # Auth imports
 from database import db
@@ -28,6 +32,155 @@ SYNC_INTERVAL_SECONDS = int(os.environ.get("SYNC_INTERVAL_SECONDS", "300"))
 
 # Global Plugin Manager
 plugin_manager = PluginManager()
+
+# documents materialization helpers
+def _guess_doc_type(path: str) -> Optional[str]:
+    ext = PurePosixPath(path).suffix.lower().lstrip(".")
+    return ext or None
+
+def _guess_title(path: str) -> str:
+    return PurePosixPath(path).name or path
+
+def _stable_doc_uuid(kb_id: str, source_path: str) -> str:
+    """
+    Deterministic UUID:
+    - if the same (kb_id, source_path) comes back during sync,
+      it reuses the same document_id
+    """
+    return str(uuid.uuid5(uuid.NAMESPACE_URL, f"{kb_id}:{source_path}"))
+
+def _resolve_target_kb_id(session: Session, plugin_config: SourcePluginConfig) -> Optional[str]:
+    """
+    Decide which KB this plugin should populate.
+    Priority:
+      1) plugin_config.config contains kb_id (recommended)
+      2) fallback to KB named 'Unassigned' (if exists)
+    """
+    cfg = plugin_config.config or {}
+    kb_id = (
+        cfg.get("kb_id")
+        or cfg.get("kbId")
+        or cfg.get("knowledge_base_id")
+        or cfg.get("knowledgeBaseId")
+    )
+    if kb_id:
+        return str(kb_id)
+
+    # Fallback: Unassigned KB by name
+    row = session.exec(text("SELECT kb_id FROM knowledge_bases WHERE name = 'Unassigned' LIMIT 1")).first()
+    if row:
+        # row is a tuple-like result; kb_id at index 0
+        return str(row[0])
+
+    return None
+
+def _extract_source_path(synced_file: SyncedFile) -> Optional[str]:
+    """
+    Your SyncedFile schema might name path fields differently.
+    This tries common ones. Adjust if needed.
+    """
+    for attr in ("path", "source_path", "file_path", "key", "s3_key"):
+        if hasattr(synced_file, attr):
+            v = getattr(synced_file, attr)
+            if v:
+                return str(v)
+    return None
+
+
+def _extract_size_bytes(synced_file: SyncedFile) -> Optional[int]:
+    for attr in ("size_bytes", "size", "file_size_bytes"):
+        if hasattr(synced_file, attr):
+            v = getattr(synced_file, attr)
+            if v is None:
+                return None
+            try:
+                return int(v)
+            except Exception:
+                return None
+    return None
+
+def _upsert_synced_files_into_documents(session: Session, plugin_config: SourcePluginConfig) -> None:
+    """
+    This is the key fix:
+      - SyncService produces SyncedFile rows
+      - Frontend reads from `documents`
+    So we materialize (upsert) SyncedFile -> documents.
+    """
+
+    kb_id = _resolve_target_kb_id(session, plugin_config)
+    if not kb_id:
+        logger.warning("No kb_id resolved for plugin '%s' — skipping documents upsert", plugin_config.name)
+        return
+
+    # Pull SyncedFile rows for this plugin config
+    files = session.exec(
+        select(SyncedFile).where(SyncedFile.plugin_config_id == plugin_config.id)
+    ).all()
+
+    if not files:
+        return
+
+    for f in files:
+        source_path = _extract_source_path(f)
+        if not source_path:
+            continue
+
+        file_size = _extract_size_bytes(f)
+        doc_type = _guess_doc_type(source_path)
+        title = _guess_title(source_path)
+        doc_id = _stable_doc_uuid(kb_id, source_path)
+
+        # IMPORTANT:
+        # This assumes created a UNIQUE constraint/index on (kb_id, source_path):
+        #   CREATE UNIQUE INDEX IF NOT EXISTS uq_documents_kb_source ON documents (kb_id, source_path);
+        session.exec(
+            text(
+                """
+                INSERT INTO documents (
+                    document_id,
+                    kb_id,
+                    source_path,
+                    document_type,
+                    title,
+                    file_size_bytes,
+                    processing_status,
+                    total_chunks,
+                    health_score,
+                    created_at,
+                    updated_at
+                )
+                VALUES (
+                    :document_id,
+                    :kb_id,
+                    :source_path,
+                    :document_type,
+                    :title,
+                    :file_size_bytes,
+                    'completed',
+                    0,
+                    100,
+                    NOW(),
+                    NOW()
+                )
+                ON CONFLICT (kb_id, source_path)
+                DO UPDATE SET
+                    document_type = EXCLUDED.document_type,
+                    title = EXCLUDED.title,
+                    file_size_bytes = EXCLUDED.file_size_bytes,
+                    updated_at = NOW()
+                """
+            ),
+            {
+                "document_id": doc_id,
+                "kb_id": kb_id,
+                "source_path": source_path,
+                "document_type": doc_type,
+                "title": title,
+                "file_size_bytes": file_size,
+            },
+        )
+
+    session.commit()
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):

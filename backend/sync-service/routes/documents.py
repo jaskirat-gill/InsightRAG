@@ -3,6 +3,10 @@ from pydantic import BaseModel
 from typing import List, Optional
 from uuid import UUID
 from datetime import datetime, date, timedelta
+from sqlmodel import Session, select
+from app.database import engine
+from app.models import SyncedFile
+
 import hashlib
 import logging
 import os
@@ -480,7 +484,7 @@ async def delete_document(
     current_user: dict = require_permission("doc.delete"),
     db: Database = Depends(get_db),
 ):
-    """Delete a document (SQL + Qdrant + S3)."""
+    """Delete a document (SQL + Qdrant). Also clears sync cache so it can re-sync from S3."""
 
     kb = await db.fetch_one(
         "SELECT owner_id FROM knowledge_bases WHERE kb_id = $1",
@@ -498,7 +502,10 @@ async def delete_document(
     if not doc:
         return None  # idempotent delete (204)
 
-    # 1. Delete Qdrant points for this doc
+    # Capture source_path BEFORE deleting SQL row
+    source_path = str(doc["source_path"]).lstrip("/")
+
+    # 1. Delete Qdrant points for this doc (best-effort)
     try:
         qdrant = QdrantClient(url=QDRANT_URL)
         qdrant.delete(
@@ -508,21 +515,53 @@ async def delete_document(
             ),
         )
     except Exception as e:
-        # Don't block deletion if qdrant fails
         logger.warning("Qdrant delete failed for doc %s: %s", doc_id, e)
 
-    # 2. Delete S3 object (best-effort)
-    if S3_BUCKET_NAME:
-        try:
-            s3_key = str(doc["source_path"]).lstrip("/")
-            _s3.delete_object(Bucket=S3_BUCKET_NAME, Key=s3_key)
-        except Exception as e:
-            logger.warning("S3 delete failed for doc %s: %s", doc_id, e)
+    # 2. Delete SQL rows
+    # If chunk_metadata doesn't have FK cascade, uncomment the next line:
+    # await db.execute("DELETE FROM chunk_metadata WHERE document_id = $1", str(doc_id))
 
-    # 3. Delete SQL rows (documents table; chunks should cascade if FK is set)
     await db.execute(
         "DELETE FROM documents WHERE document_id = $1 AND kb_id = $2",
         str(doc_id), str(kb_id),
+    )
+
+    # 3. IMPORTANT: clear sync cache so SyncService will ingest it again from S3
+    try:
+        with Session(engine) as session:
+            # --- Adjust field names if SyncedFile model differs ---
+            sf = session.exec(
+                select(SyncedFile).where(
+                    SyncedFile.kb_id == str(kb_id),
+                    SyncedFile.source_path == source_path,
+                )
+            ).first()
+
+            if sf:
+                session.delete(sf)
+                session.commit()
+    except Exception as e:
+        logger.warning("Failed to clear SyncedFile cache for %s: %s", source_path, e)
+
+    # 4. Refresh KB aggregates so the frontend card updates
+    await db.execute(
+        """
+        UPDATE knowledge_bases
+        SET
+            total_documents = (
+                SELECT COUNT(*)
+                FROM documents
+                WHERE kb_id = $1
+            ),
+            total_size_bytes = (
+                SELECT COALESCE(SUM(file_size_bytes), 0)
+                FROM documents
+                WHERE kb_id = $1
+            ),
+            updated_at = NOW()
+        WHERE kb_id = $1
+        """,
+        str(kb_id),
     )
 
     return None
