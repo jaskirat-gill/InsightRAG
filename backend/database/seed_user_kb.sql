@@ -58,21 +58,24 @@ WITH role_perms AS (
 )
 INSERT INTO role_permissions (role_id, permission_id)
 SELECT role_id, permission_id FROM role_perms
-WHERE 
+WHERE
     -- Admin gets everything
-    (role_name = 'admin') OR
-    
-    -- Developer gets API access and queries
+    (role_name = 'admin')
+    OR
+    -- Developer can create users (but backend restricts roles they can create)
     (role_name = 'developer' AND permission_name IN (
-        'kb.read', 'doc.read', 'query.execute', 
+        'kb.read', 'doc.read', 'query.execute',
         'apikey.create', 'apikey.read', 'apikey.revoke',
-        'analytics.view', 'sync.view_status'
-    )) OR
-    
-    -- End user gets query only
-    (role_name = 'end_user' AND permission_name = 'query.execute')
+        'analytics.view', 'sync.view_status',
+        'user.create', 'user.read'
+    ))
+    OR
+    -- End user can query + create/read users (but backend restricts to end_user only)
+    (role_name = 'end_user' AND permission_name IN (
+        'query.execute',
+        'user.create', 'user.read'
+    ))
 ON CONFLICT (role_id, permission_id) DO NOTHING;
-
 
 DO $$
 DECLARE
