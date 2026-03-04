@@ -599,19 +599,19 @@ const KBCard: FC<KBCardProps> = ({ kb, onView, onConfigure, onDeleteClick, onHea
       <div className="flex gap-2 pt-4 border-t border-white/5">
         <button
           onClick={(e) => { e.stopPropagation(); onView(); }}
-          className="flex-1 px-3 py-2 bg-white/5 hover:bg-white/10 text-white text-sm font-medium rounded-lg transition-colors"
+          className="flex-1 px-3 py-2 bg-white/5 border border-white/10 hover:bg-white/10 text-white text-sm font-medium rounded-lg transition-colors"
         >
           View
         </button>
         <button
           onClick={(e) => { e.stopPropagation(); onConfigure(); }}
-          className="flex-1 px-3 py-2 bg-white/5 hover:bg-white/10 text-white text-sm font-medium rounded-lg transition-colors"
+          className="flex-1 px-3 py-2 bg-white/5 border border-white/10 hover:bg-white/10 text-white text-sm font-medium rounded-lg transition-colors"
         >
           Configure
         </button>
         <button
           onClick={(e) => { e.stopPropagation(); onDeleteClick(); }}
-          className="flex-1 px-3 py-2 bg-white/5 hover:bg-red-500/10 text-white hover:text-red-400 text-sm font-medium rounded-lg transition-colors flex items-center justify-center gap-1.5"
+          className="flex-1 px-3 py-2 bg-white/5 border border-white/10 hover:bg-red-500/10 hover:border-red-500/20 text-white hover:text-red-400 text-sm font-medium rounded-lg transition-colors flex items-center justify-center gap-1.5"
         >
           <Trash2 size={13} />
           Delete

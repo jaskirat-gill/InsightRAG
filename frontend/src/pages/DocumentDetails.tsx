@@ -1387,10 +1387,10 @@ const DocumentDetails: FC<DocumentDetailsProps> = ({ kb, doc, onBack }) => {
                       className="mt-1 accent-green-500"
                     />
                     <div>
-                      <div className={`text-sm font-medium ${isSelected ? 'text-green-300' : 'text-white'}`}>
+                      <div className={`text-sm font-medium ${isSelected ? 'text-green-400' : 'text-white'}`}>
                         {option.label}
                       </div>
-                      <div className={`text-xs mt-1 ${isSelected ? 'text-green-200/90' : 'text-secondary'}`}>
+                      <div className={`text-xs mt-1 ${isSelected ? 'text-green-300' : 'text-secondary'}`}>
                         {option.description}
                       </div>
                     </div>
@@ -1426,7 +1426,7 @@ const DocumentDetails: FC<DocumentDetailsProps> = ({ kb, doc, onBack }) => {
         <div className="fixed inset-0 z-50 flex items-center justify-center">
           {/* Backdrop */}
           <div
-            className="absolute inset-0 bg-black/70 backdrop-blur-sm"
+            className="absolute inset-0 bg-black/65 backdrop-blur-sm"
             onClick={() => !actionBusy && setShowDeleteModal(false)}
           />
 

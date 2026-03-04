@@ -10,11 +10,39 @@ import { authService, UserResponse } from './services/auth';
 import { KnowledgeBase, Document } from './services/kb';
 
 type Page = 'home' | 'kb' | 'kb-health' | 'doc' | 'chat';
+type Theme = 'dark' | 'light';
+
+const THEME_STORAGE_KEY = 'openwebui-theme';
+const THEME_VARS: Record<Theme, Record<string, string>> = {
+  dark: {
+    '--color-primary': '59 130 246',
+    '--color-secondary': '100 116 139',
+    '--color-accent': '139 92 246',
+    '--color-background': '15 23 42',
+    '--color-surface': '30 41 59',
+    '--color-foreground': '248 250 252',
+    '--grid-dot-color': 'rgba(255, 255, 255, 0.1)',
+  },
+  light: {
+    '--color-primary': '30 41 59',
+    '--color-secondary': '55 65 81',
+    '--color-accent': '51 65 85',
+    '--color-background': '255 255 255',
+    '--color-surface': '255 255 255',
+    '--color-foreground': '15 23 42',
+    '--grid-dot-color': 'rgba(15, 23, 42, 0.06)',
+  },
+};
 
 function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [user, setUser] = useState<UserResponse | null>(null);
   const [loading, setLoading] = useState(true);
+  const [theme, setTheme] = useState<Theme>(() => {
+    const savedTheme = localStorage.getItem(THEME_STORAGE_KEY);
+    if (savedTheme === 'light' || savedTheme === 'dark') return savedTheme;
+    return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+  });
 
   const [currentPage, setCurrentPage] = useState<Page>('home');
   const [selectedKB, setSelectedKB] = useState<KnowledgeBase | null>(null);
@@ -36,6 +64,25 @@ function App() {
     };
     checkAuth();
   }, []);
+
+  useEffect(() => {
+    const root = document.documentElement;
+    const vars = THEME_VARS[theme];
+
+    Object.entries(vars).forEach(([key, value]) => {
+      root.style.setProperty(key, value);
+    });
+
+    root.classList.toggle('light', theme === 'light');
+    root.setAttribute('data-theme', theme);
+    document.body.style.backgroundColor = theme === 'light' ? '#ffffff' : '#0f172a';
+    document.body.style.color = theme === 'light' ? '#0f172a' : '#f8fafc';
+    localStorage.setItem(THEME_STORAGE_KEY, theme);
+  }, [theme]);
+
+  const toggleTheme = () => {
+    setTheme((prevTheme) => (prevTheme === 'dark' ? 'light' : 'dark'));
+  };
 
   const handleLogin = async () => {
     try {
@@ -84,7 +131,13 @@ function App() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-background flex items-center justify-center">
+      <div
+        className="min-h-screen flex items-center justify-center"
+        style={{
+          backgroundColor: theme === 'light' ? '#ffffff' : '#0f172a',
+          color: theme === 'light' ? '#0f172a' : '#f8fafc',
+        }}
+      >
         <div className="text-white">Loading...</div>
       </div>
     );
@@ -92,8 +145,25 @@ function App() {
 
   if (!isAuthenticated) {
     return (
-      <div className="relative min-h-screen text-white font-sans antialiased selection:bg-primary/30">
+      <div
+        className="relative min-h-screen font-sans antialiased selection:bg-primary/30"
+        style={{
+          backgroundColor: theme === 'light' ? '#ffffff' : '#0f172a',
+          color: theme === 'light' ? '#0f172a' : '#f8fafc',
+        }}
+      >
         <Login onLogin={handleLogin} />
+        <button
+          onClick={toggleTheme}
+          className="theme-toggle-btn absolute top-4 left-4 z-20 px-2.5 py-1.5 rounded-lg border text-xs transition-colors"
+          style={{
+            backgroundColor: theme === 'light' ? 'rgba(241, 245, 249, 0.95)' : 'rgba(51, 65, 85, 0.75)',
+            color: theme === 'light' ? '#0f172a' : '#f8fafc',
+            borderColor: theme === 'light' ? 'rgba(148, 163, 184, 0.55)' : 'rgba(148, 163, 184, 0.35)',
+          }}
+        >
+          {theme === 'dark' ? 'Light mode' : 'Dark mode'}
+        </button>
       </div>
     );
   }
@@ -143,7 +213,13 @@ function App() {
     }
 
     return (
-      <Layout onLogout={handleLogout} onNavigate={handleNavigate} currentPage={currentPage}>
+      <Layout
+        onLogout={handleLogout}
+        onNavigate={handleNavigate}
+        currentPage={currentPage}
+        theme={theme}
+        onToggleTheme={toggleTheme}
+      >
         {content}
       </Layout>
     );

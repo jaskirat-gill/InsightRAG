@@ -211,7 +211,8 @@ const UserGroupPanel: FC<{ me: MeResponse }> = ({ me }) => {
           onClick={load}
           disabled={loading}
           className="inline-flex items-center gap-2 px-3 py-2 rounded-xl text-sm font-medium
-                     bg-white/5 hover:bg-white/10 text-white transition-colors disabled:opacity-50"
+                     border border-primary/30 bg-primary/10 hover:bg-primary/15 text-primary
+                     transition-colors shadow-sm disabled:opacity-50"
         >
           {loading ? <Loader2 className="animate-spin" size={16} /> : null}
           Refresh
@@ -410,7 +411,8 @@ const UserManagement: FC = () => {
             onClick={loadMe}
             disabled={!isAuthed || loadingMe}
             className="inline-flex items-center gap-2 px-3 py-2 rounded-xl text-sm font-medium
-                       bg-white/5 hover:bg-white/10 text-white transition-colors disabled:opacity-50"
+                       border border-primary/30 bg-primary/10 hover:bg-primary/15 text-primary
+                       transition-colors shadow-sm disabled:opacity-50"
           >
             {loadingMe ? <Loader2 className="animate-spin" size={16} /> : null}
             Load my account
