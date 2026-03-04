@@ -22,6 +22,8 @@ const THEME_VARS: Record<Theme, Record<string, string>> = {
     '--color-surface': '30 41 59',
     '--color-foreground': '248 250 252',
     '--grid-dot-color': 'rgba(255, 255, 255, 0.1)',
+    '--ring-track-stroke': 'rgba(148, 163, 184, 0.22)',
+    '--ring-progress-stroke': 'rgba(34, 197, 94, 0.95)',
   },
   light: {
     '--color-primary': '30 41 59',
@@ -31,6 +33,8 @@ const THEME_VARS: Record<Theme, Record<string, string>> = {
     '--color-surface': '255 255 255',
     '--color-foreground': '15 23 42',
     '--grid-dot-color': 'rgba(15, 23, 42, 0.06)',
+    '--ring-track-stroke': 'rgba(71, 85, 105, 0.24)',
+    '--ring-progress-stroke': 'rgba(22, 163, 74, 0.95)',
   },
 };
 
@@ -248,7 +252,7 @@ const HomePage = ({
             {user.roles.map((role) => (
               <span
                 key={role}
-                className="px-3 py-1 bg-primary/20 text-primary text-xs font-medium rounded-full"
+                className="px-3 py-1 bg-blue-500/20 text-blue-400 text-xs font-medium rounded-full"
               >
                 {role}
               </span>
@@ -261,7 +265,7 @@ const HomePage = ({
         onClick={() => onNavigate?.('kb')}
         className="bg-surface/50 backdrop-blur border border-white/5 p-6 rounded-2xl hover:border-primary/50 transition-colors group cursor-pointer"
       >
-        <div className="h-10 w-10 bg-primary/20 rounded-lg flex items-center justify-center mb-4 text-primary group-hover:scale-110 transition-transform">
+        <div className="h-10 w-10 bg-blue-500/20 rounded-lg flex items-center justify-center mb-4 text-blue-500 group-hover:scale-110 transition-transform">
           <Database size={20} />
         </div>
         <h3 className="text-xl font-semibold mb-2">Knowledge Bases</h3>
@@ -275,7 +279,7 @@ const HomePage = ({
           onClick={() => onNavigate?.('chat')}
           className="bg-surface/50 backdrop-blur border border-white/5 p-6 rounded-2xl hover:border-primary/50 transition-colors group cursor-pointer"
         >
-        <div className="h-10 w-10 bg-accent/20 rounded-lg flex items-center justify-center mb-4 text-accent group-hover:scale-110 transition-transform">
+        <div className="h-10 w-10 bg-violet-500/20 rounded-lg flex items-center justify-center mb-4 text-violet-500 group-hover:scale-110 transition-transform">
           <BookOpen size={20} />
         </div>
         <h3 className="text-xl font-semibold mb-2">Chat Interface</h3>
