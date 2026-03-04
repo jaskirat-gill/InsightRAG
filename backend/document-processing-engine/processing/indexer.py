@@ -49,6 +49,56 @@ def ensure_qdrant_collection(client: QdrantClient):
         )
 
 
+def _find_covering_kb(cur, file_path: str, plugin_id: int) -> Optional[str]:
+    """
+    Check if any KB's sync_paths cover this file_path (longest-prefix-wins).
+    Mirrors SyncService._resolve_target_kb_for_file logic so the indexer
+    never auto-creates a KB for a path already claimed by a user-created KB.
+    Returns the covering kb_id or None.
+    """
+    import json as _json
+
+    cur.execute(
+        """
+        SELECT kb_id, storage_config
+        FROM knowledge_bases
+        WHERE storage_config ? 'plugin_id'
+          AND storage_config->>'plugin_id' = %s
+        """,
+        (str(plugin_id),),
+    )
+    rows = cur.fetchall()
+    if not rows:
+        return None
+
+    normalized_path = file_path.strip().strip("/")
+    best_kb_id: Optional[str] = None
+    best_prefix_len = -1
+
+    for row in rows:
+        kb_id = str(row["kb_id"])
+        storage_config = row.get("storage_config") or {}
+        if isinstance(storage_config, str):
+            try:
+                storage_config = _json.loads(storage_config)
+            except Exception:
+                storage_config = {}
+
+        raw_paths = storage_config.get("sync_paths") or []
+        if not isinstance(raw_paths, list):
+            raw_paths = []
+
+        prefixes = [str(p).strip().strip("/") for p in raw_paths if str(p).strip()]
+
+        for prefix in prefixes:
+            if normalized_path == prefix or normalized_path.startswith(prefix + "/"):
+                if len(prefix) > best_prefix_len:
+                    best_prefix_len = len(prefix)
+                    best_kb_id = kb_id
+
+    return best_kb_id
+
+
 def _resolve_kb_name(file_path: str) -> str:
     """
     Determine KB name from the S3 key structure.
@@ -165,6 +215,51 @@ def create_kb_and_document(
                     conn.commit()
                     logger.info(
                         "Created/updated document in routed KB=%s, Document=%s for %s",
+                        kb_id, document_id, file_path,
+                    )
+                    return kb_id, document_id
+
+            # Safety check: if a user-created KB's sync_paths already covers
+            # this file, route into that KB instead of auto-creating a new one.
+            plugin_id_from_payload = payload.get("plugin_id")
+            if plugin_id_from_payload is not None:
+                covering_kb_id = _find_covering_kb(cur, file_path, int(plugin_id_from_payload))
+                if covering_kb_id:
+                    kb_id = covering_kb_id
+                    cur.execute("""
+                        INSERT INTO documents (
+                            kb_id, source_path, document_type, title,
+                            file_size_bytes, file_hash, processing_status
+                        )
+                        VALUES (%s, %s, %s, %s, %s, %s, 'processing')
+                        ON CONFLICT (kb_id, source_path) DO UPDATE
+                            SET processing_status = 'processing',
+                                processing_error = NULL,
+                                file_hash = EXCLUDED.file_hash,
+                                file_size_bytes = EXCLUDED.file_size_bytes,
+                                updated_at = NOW()
+                        RETURNING document_id
+                    """, (
+                        kb_id,
+                        file_path,
+                        _get_doc_type(file_path),
+                        file_name,
+                        file_size,
+                        etag,
+                    ))
+                    doc_row = cur.fetchone()
+                    document_id = str(doc_row["document_id"])
+                    if local_path:
+                        _upsert_document_local_copy(
+                            cur=cur,
+                            document_id=document_id,
+                            kb_id=kb_id,
+                            source_path=file_path,
+                            local_path=local_path,
+                        )
+                    conn.commit()
+                    logger.info(
+                        "Routed to covering KB=%s (sync_paths match), Document=%s for %s",
                         kb_id, document_id, file_path,
                     )
                     return kb_id, document_id

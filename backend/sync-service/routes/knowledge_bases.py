@@ -3,10 +3,17 @@ from pydantic import BaseModel
 from typing import List, Optional, Dict, Any
 from uuid import UUID
 from datetime import datetime
+import json
+import logging
+
+import httpx
 
 from database import get_db, Database
 from middleware.auth import get_current_active_user
 from middleware.permissions import require_permission
+from config import settings
+
+logger = logging.getLogger("knowledge_bases")
 
 router = APIRouter(prefix="/knowledge-bases", tags=["Knowledge Bases"])
 
@@ -45,6 +52,169 @@ class KBResponse(BaseModel):
     created_at: datetime
     updated_at: datetime
 
+def _normalize_prefix(path: str) -> str:
+    """Strip leading/trailing whitespace and slashes for consistent prefix matching."""
+    return path.strip().strip("/")
+
+
+async def _reassign_documents_to_kb(
+    db: Database,
+    target_kb_id: str,
+    sync_paths: List[str],
+    plugin_id: int,
+) -> int:
+    """
+    Find documents whose source_path matches the given sync_paths (longest-prefix-wins)
+    and reassign them to target_kb_id.
+
+    Updates documents.kb_id, chunk_metadata.kb_id, and the kb_id payload in Qdrant.
+    Refreshes total_documents / total_size_bytes on all affected KBs.
+    Returns the count of reassigned documents.
+    """
+    if not sync_paths:
+        return 0
+
+    normalized_targets = [_normalize_prefix(p) for p in sync_paths if str(p).strip()]
+    if not normalized_targets:
+        return 0
+
+    # Build a mapping of ALL KBs for this plugin so we can apply longest-prefix-wins
+    # across the entire set (not just the target KB).
+    all_kb_rows = await db.fetch_all(
+        """
+        SELECT kb_id, storage_config
+        FROM knowledge_bases
+        WHERE storage_config::jsonb ? 'plugin_id'
+          AND storage_config::jsonb->>'plugin_id' = $1
+        """,
+        str(plugin_id),
+    )
+
+    # Parse all KBs' sync_paths into a list of (kb_id, prefix) tuples
+    kb_prefixes: List[tuple] = []  # (kb_id_str, prefix_str)
+    for row in all_kb_rows:
+        row_dict = dict(row)
+        kb_id_str = str(row_dict["kb_id"])
+        sc = row_dict.get("storage_config") or {}
+        if isinstance(sc, str):
+            try:
+                sc = json.loads(sc)
+            except Exception:
+                sc = {}
+        paths = sc.get("sync_paths") or []
+        if not isinstance(paths, list):
+            paths = []
+        for p in paths:
+            normalized = _normalize_prefix(str(p))
+            if normalized:
+                kb_prefixes.append((kb_id_str, normalized))
+
+    # Fetch all documents across all KBs that are NOT already in the target KB
+    candidate_docs = await db.fetch_all(
+        """
+        SELECT d.document_id, d.kb_id, d.source_path
+        FROM documents d
+        WHERE d.kb_id != $1
+        """,
+        target_kb_id,
+    )
+
+    # For each candidate, check if its source_path matches one of the target KB's
+    # sync_paths AND that the target KB is the best (longest prefix) match.
+    to_reassign: List[tuple] = []  # (document_id, old_kb_id)
+
+    for doc in candidate_docs:
+        doc_dict = dict(doc)
+        doc_path = _normalize_prefix(doc_dict["source_path"])
+        doc_id = str(doc_dict["document_id"])
+        old_kb_id = str(doc_dict["kb_id"])
+
+        # Check if this doc matches any of the target KB's sync_paths
+        target_match_len = -1
+        for tp in normalized_targets:
+            if doc_path == tp or doc_path.startswith(tp + "/"):
+                if len(tp) > target_match_len:
+                    target_match_len = len(tp)
+
+        if target_match_len < 0:
+            continue  # doc doesn't match target KB's paths
+
+        # Check if another KB has a longer matching prefix (longest-prefix-wins)
+        best_kb = target_kb_id
+        best_len = target_match_len
+        for kb_id_str, prefix in kb_prefixes:
+            if kb_id_str == target_kb_id:
+                continue
+            if doc_path == prefix or doc_path.startswith(prefix + "/"):
+                if len(prefix) > best_len:
+                    best_len = len(prefix)
+                    best_kb = kb_id_str
+
+        if best_kb == target_kb_id:
+            to_reassign.append((doc_id, old_kb_id))
+
+    if not to_reassign:
+        return 0
+
+    # Perform the reassignment
+    reassigned = 0
+    affected_kb_ids = {target_kb_id}
+
+    for doc_id, old_kb_id in to_reassign:
+        affected_kb_ids.add(old_kb_id)
+
+        # 1. Update documents table
+        await db.execute(
+            "UPDATE documents SET kb_id = $1, updated_at = NOW() WHERE document_id = $2",
+            target_kb_id, doc_id,
+        )
+        # 2. Update chunk_metadata table
+        await db.execute(
+            "UPDATE chunk_metadata SET kb_id = $1 WHERE document_id = $2",
+            target_kb_id, doc_id,
+        )
+        # 3. Update Qdrant kb_id payload
+        try:
+            async with httpx.AsyncClient(timeout=10.0) as client:
+                await client.post(
+                    f"{settings.QDRANT_URL}/collections/document_chunks/points/payload",
+                    json={
+                        "payload": {"kb_id": target_kb_id},
+                        "filter": {
+                            "must": [
+                                {"key": "document_id", "match": {"value": doc_id}}
+                            ]
+                        },
+                    },
+                )
+        except Exception as e:
+            logger.warning("Qdrant payload update failed for doc %s: %s", doc_id, e)
+
+        reassigned += 1
+
+    # Refresh totals on all affected KBs
+    for kb_id in affected_kb_ids:
+        await db.execute(
+            """
+            UPDATE knowledge_bases
+            SET total_documents = (
+                SELECT COUNT(*) FROM documents
+                WHERE kb_id = $1 AND processing_status = 'completed'
+            ),
+            total_size_bytes = (
+                SELECT COALESCE(SUM(file_size_bytes), 0) FROM documents
+                WHERE kb_id = $1 AND processing_status = 'completed'
+            ),
+            updated_at = NOW()
+            WHERE kb_id = $1
+            """,
+            kb_id,
+        )
+
+    logger.info("Reassigned %d documents into KB %s", reassigned, target_kb_id)
+    return reassigned
+
+
 # Endpoints
 @router.post("", response_model=KBResponse, status_code=status.HTTP_201_CREATED)
 async def create_knowledge_base(
@@ -67,7 +237,6 @@ async def create_knowledge_base(
         )
     
     # Create KB
-    import json
     result = await db.fetch_one("""
         INSERT INTO knowledge_bases (
             owner_id, name, description, storage_provider, storage_config,
@@ -85,7 +254,30 @@ async def create_knowledge_base(
         kb.chunk_size,
         kb.chunk_overlap
     )
-    
+
+    # Post-creation: reassign existing documents that match the new KB's sync_paths
+    storage_config = kb.storage_config or {}
+    sync_paths = storage_config.get("sync_paths", [])
+    plugin_id = storage_config.get("plugin_id")
+
+    if sync_paths and plugin_id is not None:
+        reassigned = await _reassign_documents_to_kb(
+            db=db,
+            target_kb_id=str(result["kb_id"]),
+            sync_paths=sync_paths,
+            plugin_id=int(plugin_id),
+        )
+        if reassigned > 0:
+            logger.info(
+                "Post-creation: reassigned %d documents into KB %s",
+                reassigned, result["kb_id"],
+            )
+            # Re-fetch to get updated counts
+            result = await db.fetch_one(
+                "SELECT * FROM knowledge_bases WHERE kb_id = $1",
+                str(result["kb_id"]),
+            )
+
     return KBResponse(**dict(result))
 
 @router.get("", response_model=List[KBResponse])
@@ -161,9 +353,10 @@ async def update_knowledge_base(
     update_payload = updates.dict(exclude_unset=True)
 
     # Storage config update is restricted: sync_paths can be updated, plugin source is immutable.
-    if "storage_config" in update_payload and update_payload["storage_config"] is not None:
-        import json
+    new_sync_paths = None
+    resolved_plugin_id = None
 
+    if "storage_config" in update_payload and update_payload["storage_config"] is not None:
         existing_config = kb["storage_config"] or {}
         if isinstance(existing_config, str):
             try:
@@ -185,6 +378,9 @@ async def update_knowledge_base(
         if existing_plugin_id is not None:
             merged["plugin_id"] = existing_plugin_id
 
+        new_sync_paths = merged["sync_paths"]
+        resolved_plugin_id = existing_plugin_id
+
         update_fields.append(f"storage_config = ${param_count}::jsonb")
         values.append(json.dumps(merged))
         param_count += 1
@@ -195,14 +391,34 @@ async def update_knowledge_base(
             update_fields.append(f"{field} = ${param_count}")
             values.append(value)
             param_count += 1
-    
+
     if not update_fields:
         return KBResponse(**dict(kb))
-    
+
     values.append(str(kb_id))
     query = f"UPDATE knowledge_bases SET {', '.join(update_fields)} WHERE kb_id = ${param_count} RETURNING *"
-    
+
     result = await db.fetch_one(query, *values)
+
+    # If sync_paths were updated, reassign matching documents into this KB
+    if new_sync_paths and resolved_plugin_id is not None:
+        reassigned = await _reassign_documents_to_kb(
+            db=db,
+            target_kb_id=str(kb_id),
+            sync_paths=new_sync_paths,
+            plugin_id=int(resolved_plugin_id),
+        )
+        if reassigned > 0:
+            logger.info(
+                "Post-update: reassigned %d documents into KB %s",
+                reassigned, kb_id,
+            )
+            # Re-fetch to get updated counts
+            result = await db.fetch_one(
+                "SELECT * FROM knowledge_bases WHERE kb_id = $1",
+                str(kb_id),
+            )
+
     return KBResponse(**dict(result))
 
 @router.delete("/{kb_id}", status_code=status.HTTP_204_NO_CONTENT)
@@ -212,9 +428,6 @@ async def delete_knowledge_base(
     db: Database = Depends(get_db)
 ):
     """Delete knowledge base and all associated data (SQL + Qdrant vectors)"""
-    import httpx
-    from config import settings
-
     kb = await db.fetch_one(
         "SELECT owner_id FROM knowledge_bases WHERE kb_id = $1",
         str(kb_id)
@@ -251,10 +464,7 @@ async def delete_knowledge_base(
             )
     except Exception as exc:
         # Network errors etc. — log and continue so SQL is still cleaned up
-        import logging
-        logging.getLogger("knowledge_bases").warning(
-            "Qdrant deletion failed for kb %s: %s", kb_id_str, exc
-        )
+        logger.warning("Qdrant deletion failed for kb %s: %s", kb_id_str, exc)
 
     # 2. Delete from SQL (cascade removes documents + chunks via FK)
     await db.execute("DELETE FROM knowledge_bases WHERE kb_id = $1", kb_id_str)
