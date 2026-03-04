@@ -2,7 +2,7 @@ import { FC, useState, useEffect } from 'react';
 import {
   Database, Search, Loader2, Plus, AlertCircle,
   X, File, FileText, ChevronDown, Settings, CheckCircle,
-  Trash2, AlertTriangle, RefreshCw, BarChart3,
+  Trash2, AlertTriangle, RefreshCw, BarChart3, RotateCcw,
 } from 'lucide-react';
 import { kbService, KnowledgeBase, Document } from '../services/kb';
 import CreateKBModal from '../components/CreateKBModal';
@@ -148,8 +148,16 @@ const ConfigureKBModal: FC<ConfigureModalProps> = ({ kb, allKbs, onClose, onSucc
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
+  const [syncPathsInput, setSyncPathsInput] = useState('');
   // document_id → target kb_id (starts as current KB)
   const [assignments, setAssignments] = useState<Record<string, string>>({});
+
+  useEffect(() => {
+    const paths = Array.isArray(kb.storage_config?.sync_paths)
+      ? (kb.storage_config?.sync_paths as string[])
+      : [];
+    setSyncPathsInput(paths.join('\n'));
+  }, [kb.kb_id, kb.storage_config]);
 
   useEffect(() => {
     kbService
@@ -171,18 +179,47 @@ const ConfigureKBModal: FC<ConfigureModalProps> = ({ kb, allKbs, onClose, onSucc
   };
 
   const changedDocs = docs.filter((d) => assignments[d.document_id] !== kb.kb_id);
-  const hasChanges = changedDocs.length > 0;
+  const parsedSyncPaths = syncPathsInput
+    .split(/[,\n]/)
+    .map((p) => p.trim().replace(/^\/+|\/+$/g, ''))
+    .filter(Boolean);
+  const existingSyncPaths = Array.isArray(kb.storage_config?.sync_paths)
+    ? (kb.storage_config?.sync_paths as string[]).map((p) => String(p).trim().replace(/^\/+|\/+$/g, '')).filter(Boolean)
+    : [];
+  const syncPathsChanged =
+    parsedSyncPaths.length !== existingSyncPaths.length ||
+    parsedSyncPaths.some((p, idx) => p !== existingSyncPaths[idx]);
+  const hasChanges = changedDocs.length > 0 || syncPathsChanged;
+  const pluginSourceLabel = (() => {
+    const pluginId = kb.storage_config?.plugin_id;
+    if (pluginId !== undefined && pluginId !== null) {
+      return `${kb.storage_provider.toUpperCase()} (Plugin #${pluginId})`;
+    }
+    return kb.storage_provider.toUpperCase();
+  })();
 
   const handleSave = async () => {
     if (!hasChanges) return;
     setSaving(true);
     setSaveError(null);
     try {
-      const items = changedDocs.map((d) => ({
-        document_id: d.document_id,
-        to_kb_id: assignments[d.document_id],
-      }));
-      await kbService.reassignDocuments(kb.kb_id, items);
+      if (syncPathsChanged) {
+        await kbService.updateKnowledgeBase(kb.kb_id, {
+          storage_config: {
+            ...(kb.storage_config ?? {}),
+            sync_paths: parsedSyncPaths,
+          },
+        });
+      }
+
+      if (changedDocs.length > 0) {
+        const items = changedDocs.map((d) => ({
+          document_id: d.document_id,
+          to_kb_id: assignments[d.document_id],
+        }));
+        await kbService.reassignDocuments(kb.kb_id, items);
+      }
+
       setSaved(true);
       onSuccess(); // refresh KB list in parent
       setTimeout(() => {
@@ -211,7 +248,7 @@ const ConfigureKBModal: FC<ConfigureModalProps> = ({ kb, allKbs, onClose, onSucc
             </div>
             <div>
               <h2 className="text-lg font-semibold text-white">Configure — {kb.name}</h2>
-              <p className="text-xs text-secondary">Reassign documents to a different knowledge base</p>
+              <p className="text-xs text-secondary">Update sync folders and reassign documents</p>
             </div>
           </div>
           <button
@@ -224,6 +261,35 @@ const ConfigureKBModal: FC<ConfigureModalProps> = ({ kb, allKbs, onClose, onSucc
 
         {/* Body */}
         <div className="flex-1 overflow-y-auto p-6">
+          <div className="mb-5 p-4 rounded-xl border border-white/10 bg-white/[0.03] space-y-3">
+            <div className="space-y-1.5">
+              <label className="text-xs font-medium text-secondary">Plugin Source</label>
+              <input
+                type="text"
+                value={pluginSourceLabel}
+                readOnly
+                className="w-full px-3 py-2 bg-white/5 border border-white/10 rounded-lg text-xs text-secondary"
+              />
+              <p className="text-[11px] text-secondary/70">
+                Plugin source is fixed after KB creation.
+              </p>
+            </div>
+            <div className="space-y-1.5">
+              <label className="text-xs font-medium text-secondary">Sync Folders</label>
+              <textarea
+                value={syncPathsInput}
+                onChange={(e) => setSyncPathsInput(e.target.value)}
+                rows={2}
+                disabled={saving || saved}
+                placeholder="test1, test2/subfolder"
+                className="w-full px-3 py-2 bg-white/5 border border-white/10 rounded-lg text-xs text-white focus:outline-none focus:border-primary/50 resize-none disabled:opacity-60 disabled:cursor-not-allowed"
+              />
+              <p className="text-[11px] text-secondary/70">
+                Comma or newline separated folder paths synced into this KB.
+              </p>
+            </div>
+          </div>
+
           {loading && (
             <div className="flex items-center justify-center py-12">
               <Loader2 size={24} className="animate-spin text-primary" />
@@ -304,7 +370,12 @@ const ConfigureKBModal: FC<ConfigureModalProps> = ({ kb, allKbs, onClose, onSucc
             ) : (
               <p className="text-xs text-secondary">
                 {hasChanges
-                  ? `${changedDocs.length} document${changedDocs.length > 1 ? 's' : ''} will be moved`
+                  ? [
+                      changedDocs.length > 0
+                        ? `${changedDocs.length} document${changedDocs.length > 1 ? 's' : ''} will be moved`
+                        : null,
+                      syncPathsChanged ? 'sync folders will be updated' : null,
+                    ].filter(Boolean).join(' · ')
                   : 'No changes made'}
               </p>
             )}
@@ -563,6 +634,7 @@ const KnowledgeBases: FC<KnowledgeBasesProps> = ({ onSelectKB }) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [syncing, setSyncing] = useState(false);
+  const [resettingSync, setResettingSync] = useState(false);
   const [syncMessage, setSyncMessage] = useState<string | null>(null);
 
   const [viewingKB, setViewingKB] = useState<KnowledgeBase | null>(null);
@@ -594,6 +666,8 @@ const KnowledgeBases: FC<KnowledgeBasesProps> = ({ onSelectKB }) => {
   };
 
   const handleSync = async () => {
+    const minSpinMs = 2500;
+    const startedAt = Date.now();
     setSyncing(true);
     setSyncMessage(null);
     try {
@@ -604,7 +678,32 @@ const KnowledgeBases: FC<KnowledgeBasesProps> = ({ onSelectKB }) => {
       setSyncMessage(`Sync failed: ${err.message}`);
       setTimeout(() => setSyncMessage(null), 4000);
     } finally {
+      const elapsed = Date.now() - startedAt;
+      const wait = Math.max(0, minSpinMs - elapsed);
+      if (wait > 0) {
+        await new Promise((resolve) => setTimeout(resolve, wait));
+      }
       setSyncing(false);
+    }
+  };
+
+  const handleResetSync = async () => {
+    const confirmed = window.confirm(
+      'Reset sync state for all plugins? This clears sync cache so next sync re-processes all files.',
+    );
+    if (!confirmed) return;
+
+    setResettingSync(true);
+    setSyncMessage(null);
+    try {
+      const result = await kbService.resetSyncState();
+      setSyncMessage(`${result.message} (${result.deleted_rows} entries removed)`);
+      setTimeout(() => setSyncMessage(null), 5000);
+    } catch (err: any) {
+      setSyncMessage(`Reset failed: ${err.message}`);
+      setTimeout(() => setSyncMessage(null), 5000);
+    } finally {
+      setResettingSync(false);
     }
   };
 
@@ -662,8 +761,17 @@ const KnowledgeBases: FC<KnowledgeBasesProps> = ({ onSelectKB }) => {
             className="flex items-center gap-2 px-4 py-3 bg-white/5 hover:bg-white/10 text-white rounded-xl transition-all disabled:opacity-50"
             title="Trigger sync for all active plugins"
           >
-            <RefreshCw size={16} className={syncing ? 'animate-spin' : ''} />
+            {syncing ? <Loader2 size={16} className="animate-spin" /> : <RefreshCw size={16} />}
             {syncing ? 'Syncing…' : 'Sync Now'}
+          </button>
+          <button
+            onClick={handleResetSync}
+            disabled={resettingSync || syncing}
+            className="flex items-center gap-2 px-4 py-3 bg-red-500/15 hover:bg-red-500/25 text-red-300 rounded-xl transition-all disabled:opacity-50"
+            title="Clear sync cache so next sync re-ingests files"
+          >
+            {resettingSync ? <Loader2 size={16} className="animate-spin" /> : <RotateCcw size={16} />}
+            {resettingSync ? 'Resetting…' : 'Reset Sync'}
           </button>
           <button
             onClick={() => setIsCreateModalOpen(true)}

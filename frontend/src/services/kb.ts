@@ -7,6 +7,7 @@ export interface KnowledgeBase {
   name: string;
   description: string | null;
   storage_provider: string;
+  storage_config?: Record<string, any>;
   processing_strategy: string;
   status: string;
   health_score: number;
@@ -125,6 +126,16 @@ export interface DocumentStrategyDetails {
   current_strategy: string | null;
   current_strategy_label: string;
   options: DocumentStrategyOption[];
+}
+
+export interface UpdateKBRequest {
+  name?: string;
+  description?: string;
+  status?: string;
+  processing_strategy?: string;
+  chunk_size?: number;
+  chunk_overlap?: number;
+  storage_config?: Record<string, any>;
 }
 
 class KBService {
@@ -406,6 +417,28 @@ class KBService {
     return await response.json();
   }
 
+  // Reset sync state (synced_file cache and optional download cache)
+  async resetSyncState(pluginId?: number | null): Promise<{ message: string; deleted_rows: number }> {
+    const response = await fetch(`${this.API_URL}/sync/reset`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...authService.getAuthHeader(),
+      },
+      body: JSON.stringify({
+        plugin_id: pluginId ?? null,
+        clear_download_cache: true,
+      }),
+    });
+
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({}));
+      throw new Error(error.detail || 'Failed to reset sync state');
+    }
+
+    return await response.json();
+  }
+
   // Get KB health stats (documents + chunk retrieval metrics)
   async getKBHealth(kbId: string): Promise<KBHealthStats> {
     const response = await fetch(`${this.API_URL}/api/v1/knowledge-bases/${kbId}/health`, {
@@ -450,6 +483,40 @@ class KBService {
     if (!response.ok) {
       const error = await response.json();
       throw new Error(error.detail || 'Failed to create knowledge base');
+    }
+
+    return await response.json();
+  }
+
+  // Update KB configuration
+  async updateKnowledgeBase(kbId: string, data: UpdateKBRequest): Promise<KnowledgeBase> {
+    const response = await fetch(`${this.API_URL}/api/v1/knowledge-bases/${kbId}`, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+        ...authService.getAuthHeader(),
+      },
+      body: JSON.stringify(data),
+    });
+
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({}));
+      throw new Error(error.detail || 'Failed to update knowledge base');
+    }
+
+    return await response.json();
+  }
+
+  // List available processing strategies (single source of truth)
+  async listStrategies(): Promise<DocumentStrategyOption[]> {
+    const response = await fetch(`${this.API_URL}/api/v1/knowledge-bases/strategies`, {
+      headers: {
+        ...authService.getAuthHeader(),
+      },
+    });
+
+    if (!response.ok) {
+      throw new Error('Failed to fetch strategies');
     }
 
     return await response.json();

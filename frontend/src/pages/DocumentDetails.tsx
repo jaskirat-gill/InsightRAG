@@ -402,14 +402,14 @@ const DocumentDetails: FC<DocumentDetailsProps> = ({ kb, doc, onBack }) => {
     }
   };
 
-  const handleViewInS3 = async () => {
+  const handleViewInSource = async () => {
     setActionBusy(true);
     try {
       const { url } = await (kbService as any).getDocumentS3Url(kb.kb_id, doc.document_id);
       if (!url) throw new Error('No URL returned');
       window.open(url, '_blank', 'noopener,noreferrer');
     } catch (e: any) {
-      showToast('err', e?.message || 'Failed to open S3 link');
+      showToast('err', e?.message || 'Failed to open source link');
     } finally {
       setActionBusy(false);
     }
@@ -882,12 +882,12 @@ const DocumentDetails: FC<DocumentDetailsProps> = ({ kb, doc, onBack }) => {
 
             <div className="flex items-center gap-2 shrink-0">
               <button
-                onClick={handleViewInS3}
+                onClick={handleViewInSource}
                 disabled={actionBusy}
                 className="px-4 py-2 bg-white/5 hover:bg-white/10 text-white text-sm rounded-xl transition-colors disabled:opacity-50 inline-flex items-center gap-2"
               >
                 <ExternalLink size={14} />
-                View in S3
+                View Source
               </button>
 
               <button
@@ -1448,7 +1448,7 @@ const DocumentDetails: FC<DocumentDetailsProps> = ({ kb, doc, onBack }) => {
                 <div className="flex gap-2 text-red-200">
                   <span className="mt-[2px]">•</span>
                   <span>
-                    This document will be permanently removed from the SQL database and Qdrant vector store (and S3 if wired).
+                    This document will be permanently removed from the SQL database and Qdrant vector store (and source storage if wired).
                   </span>
                 </div>
                 <div className="mt-2 flex gap-2 text-yellow-200/90">
