@@ -376,7 +376,15 @@ class SyncService:
                         best_prefix_len = len(prefix)
                         best_kb_id = kb_id
 
-        return best_kb_id or fallback_kb_id
+        if best_kb_id:
+            return best_kb_id
+        # Only route to a catch-all KB (no sync_paths configured) when the file
+        # is genuinely at the bucket root (no parent directory).  Files that live
+        # inside a sub-folder should return None so the document-processing-engine
+        # can auto-create the correct KB from the folder name via _resolve_kb_name.
+        if fallback_kb_id and not os.path.dirname(SyncService._normalize_prefix(file_path)):
+            return fallback_kb_id
+        return None
 
     @staticmethod
     def _normalize_prefix(path: str) -> str:
