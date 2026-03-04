@@ -1,5 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException, status
-from pydantic import BaseModel
+from pydantic import BaseModel, validator
 from typing import List, Optional, Dict, Any
 from uuid import UUID
 from datetime import datetime
@@ -51,6 +51,12 @@ class KBResponse(BaseModel):
     last_synced_at: Optional[datetime]
     created_at: datetime
     updated_at: datetime
+
+    @validator("storage_config", pre=True)
+    def parse_storage_config(cls, v):
+        if isinstance(v, str):
+            return json.loads(v)
+        return v
 
 def _normalize_prefix(path: str) -> str:
     """Strip leading/trailing whitespace and slashes for consistent prefix matching."""
@@ -502,3 +508,10 @@ async def get_kb_health(
     result = dict(stats)
     result["total_retrievals"] = int(retrieval_stats["total_retrievals"])
     return result
+
+
+@router.get("/strategies")
+async def list_strategies():
+    """Return available processing strategies (single source of truth)."""
+    from routes.documents import PDF_STRATEGY_OPTIONS
+    return [{"key": o.key, "label": o.label, "description": o.description} for o in PDF_STRATEGY_OPTIONS]
