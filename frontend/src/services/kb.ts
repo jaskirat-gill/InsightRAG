@@ -31,6 +31,7 @@ export interface Document {
   last_retrieved_at: string | null;
   avg_chunk_size_tokens?: number | null;
   avg_chunk_size_chars?: number | null;
+  preview_text?: string | null;
   created_at: string;
   uploaded_at: string | null;
   processing_strategy?: string | null;

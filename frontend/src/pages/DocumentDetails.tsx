@@ -1002,7 +1002,9 @@ const DocumentDetails: FC<DocumentDetailsProps> = ({ kb, doc, onBack }) => {
           <div className="bg-surface/50 backdrop-blur border border-white/5 rounded-2xl p-6">
             <div className="text-white font-semibold mb-4">Document Preview</div>
             <div className="bg-black/30 border border-white/5 rounded-2xl p-5 text-sm text-secondary leading-6 whitespace-pre-wrap">
-              Preview not available yet. (Wire an API endpoint that returns a text preview for this document.)
+              {d.preview_text && d.preview_text.trim()
+                ? d.preview_text
+                : 'Preview not available yet. (This appears after the document has chunks.)'}
             </div>
           </div>
         </div>
