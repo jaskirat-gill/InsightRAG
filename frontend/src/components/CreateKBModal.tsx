@@ -400,7 +400,7 @@ const CreateKBModal: FC<CreateKBModalProps> = ({ isOpen, onClose, onSuccess }) =
       </form>
 
       {/* Footer */}
-      <div className="flex items-center justify-end gap-3 px-6 py-3 border-t border-white/5 bg-background/30">
+      <div className="create-kb-footer flex items-center justify-end gap-3 px-6 py-3 border-t border-white/5 bg-background/30">
         <button
           type="button"
           onClick={onClose}

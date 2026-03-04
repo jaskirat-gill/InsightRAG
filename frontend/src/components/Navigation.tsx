@@ -1,14 +1,23 @@
 import { FC, ReactNode } from 'react';
-import { Home, MessageSquare, Library, Database, Settings, LogOut } from 'lucide-react';
+import { Home, MessageSquare, Library, Database, Settings, LogOut, Moon, Sun } from 'lucide-react';
 
 interface NavigationProps {
     onSettingsClick: () => void;
     onLogout: () => void;
     onNavigate?: (page: string) => void;
-    currentPage?: string; // Add this prop
+    currentPage?: string;
+    theme: 'dark' | 'light';
+    onToggleTheme: () => void;
 }
 
-const Navigation: FC<NavigationProps> = ({ onSettingsClick, onLogout, onNavigate, currentPage = 'home' }) => {
+const Navigation: FC<NavigationProps> = ({
+    onSettingsClick,
+    onLogout,
+    onNavigate,
+    currentPage = 'home',
+    theme,
+    onToggleTheme,
+}) => {
     return (
         <div id="app-taskbar" className="fixed bottom-8 left-1/2 -translate-x-1/2 z-40">
             <div className="flex items-center gap-2 p-2 bg-surface/80 backdrop-blur-xl border border-white/10 rounded-full shadow-2xl shadow-black/50">
@@ -34,6 +43,11 @@ const Navigation: FC<NavigationProps> = ({ onSettingsClick, onLogout, onNavigate
 
                 <div className="w-px h-6 bg-white/10 mx-2" />
 
+                <NavItem
+                    icon={theme === 'dark' ? <Sun size={20} /> : <Moon size={20} />}
+                    label={theme === 'dark' ? 'Light Mode' : 'Dark Mode'}
+                    onClick={onToggleTheme}
+                />
                 <NavItem icon={<Settings size={20} />} label="Settings" onClick={onSettingsClick} />
                 <NavItem icon={<LogOut size={20} />} label="Logout" onClick={onLogout} danger />
             </div>
@@ -62,7 +76,7 @@ const NavItem: FC<NavItemProps> = ({ icon, label, active, onClick, danger }) => 
             {icon}
 
             {/* Tooltip */}
-            <span className="absolute -top-10 left-1/2 -translate-x-1/2 px-2 py-1 bg-black/80 backdrop-blur text-xs text-white rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none">
+            <span className="nav-tooltip absolute -top-10 left-1/2 -translate-x-1/2 px-2 py-1 bg-black/80 backdrop-blur text-xs rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none">
                 {label}
             </span>
 

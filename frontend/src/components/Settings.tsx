@@ -31,7 +31,7 @@ const Settings: FC<SettingsProps> = ({ isOpen, onClose }) => {
 
       {/* Panel */}
       <div
-        className="relative w-full max-w-2xl bg-background/95 backdrop-blur-xl border-l border-white/10 shadow-2xl
+        className="settings-panel relative w-full max-w-2xl bg-background/95 backdrop-blur-xl border-l border-white/10 shadow-2xl
           flex flex-col animate-in slide-in-from-right duration-300"
       >
         {/* Title Bar */}
@@ -47,7 +47,7 @@ const Settings: FC<SettingsProps> = ({ isOpen, onClose }) => {
 
         <div className="flex flex-1 overflow-hidden">
           {/* Sidebar Tabs */}
-          <div className="w-48 border-r border-white/5 py-4 px-3 space-y-1 flex-shrink-0">
+          <div className="settings-sidebar w-48 border-r border-white/5 py-4 px-3 space-y-1 flex-shrink-0">
             {tabs.map((tab) => {
               const Icon = tab.icon;
               const isActive = activeTab === tab.key;
@@ -87,6 +87,33 @@ const GeneralSettings: FC = () => {
     <div className="space-y-6">
       <div>
         <h3 className="text-lg font-semibold text-white mb-4">General</h3>
+        <p className="text-sm text-secondary">
+          Basic workspace preferences and defaults.
+        </p>
+      </div>
+
+      <div className="rounded-2xl border border-white/10 bg-surface/50 p-5 space-y-5">
+        <div className="flex items-center justify-between gap-4">
+          <div>
+            <div className="text-sm font-medium text-white">Compact Navigation</div>
+            <div className="text-xs text-secondary mt-1">Reduce spacing in the bottom taskbar.</div>
+          </div>
+          <button className="h-6 w-11 rounded-full bg-white/10 border border-white/10 relative">
+            <span className="absolute top-1 left-1 h-4 w-4 rounded-full bg-white/80" />
+          </button>
+        </div>
+
+        <div className="h-px bg-white/5" />
+
+        <div className="flex items-center justify-between gap-4">
+          <div>
+            <div className="text-sm font-medium text-white">Show Tooltips</div>
+            <div className="text-xs text-secondary mt-1">Display labels when hovering navigation icons.</div>
+          </div>
+          <button className="h-6 w-11 rounded-full bg-primary border border-primary/40 relative">
+            <span className="absolute top-1 right-1 h-4 w-4 rounded-full bg-white" />
+          </button>
+        </div>
       </div>
 
       <div className="pt-4 flex justify-end gap-3">
