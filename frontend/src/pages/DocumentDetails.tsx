@@ -549,7 +549,7 @@ const DocumentDetails: FC<DocumentDetailsProps> = ({ kb, doc, onBack }) => {
             cx="60"
             cy="60"
             r={radius}
-            stroke="rgba(255,255,255,0.10)"
+            stroke="var(--ring-track-stroke)"
             strokeWidth={stroke}
             fill="none"
           />
@@ -557,7 +557,7 @@ const DocumentDetails: FC<DocumentDetailsProps> = ({ kb, doc, onBack }) => {
             cx="60"
             cy="60"
             r={radius}
-            stroke="rgba(34,197,94,0.95)"
+            stroke="var(--ring-progress-stroke)"
             strokeWidth={stroke}
             fill="none"
             strokeLinecap="round"
@@ -577,7 +577,7 @@ const DocumentDetails: FC<DocumentDetailsProps> = ({ kb, doc, onBack }) => {
             x="60"
             y="74"
             textAnchor="middle"
-            className="fill-[rgba(255,255,255,0.55)]"
+            className="fill-secondary"
             style={{ fontSize: 11 }}
           >
             DAYS OLD
@@ -857,7 +857,7 @@ const DocumentDetails: FC<DocumentDetailsProps> = ({ kb, doc, onBack }) => {
               </button>
 
               <div className="flex items-start gap-3 min-w-0">
-                <div className="h-12 w-12 rounded-2xl bg-white/5 flex items-center justify-center text-primary shrink-0">
+                <div className="h-12 w-12 rounded-2xl bg-blue-500/20 border border-blue-500/20 flex items-center justify-center text-blue-500 shrink-0">
                   <FileText size={20} />
                 </div>
 
