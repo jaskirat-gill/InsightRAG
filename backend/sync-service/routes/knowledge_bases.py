@@ -91,16 +91,21 @@ async def list_knowledge_bases(
     current_user: Dict = require_permission("kb.read"),
     db: Database = Depends(get_db)
 ):
-    """List all knowledge bases owned by current user"""
-    
-    # Admins see all, others see only their own
-    if "admin" in current_user["roles"]:
-        query = "SELECT * FROM knowledge_bases ORDER BY created_at DESC"
-        results = await db.fetch_all(query)
-    else:
-        query = "SELECT * FROM knowledge_bases WHERE owner_id = $1 ORDER BY created_at DESC"
-        results = await db.fetch_all(query, current_user["user_id"])
-    
+    """
+    Everyone only sees their own KBs.
+    Even admin starts empty unless they create one.
+    """
+
+    results = await db.fetch_all(
+        """
+        SELECT *
+        FROM knowledge_bases
+        WHERE owner_id = $1
+        ORDER BY created_at DESC
+        """,
+        current_user["user_id"]
+    )
+
     return [KBResponse(**dict(r)) for r in results]
 
 @router.get("/{kb_id}", response_model=KBResponse)
