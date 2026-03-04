@@ -3,6 +3,7 @@ import os
 import re
 from typing import List, Dict, Optional, Tuple
 from qdrant_client import QdrantClient
+from qdrant_client.http.exceptions import UnexpectedResponse
 from qdrant_client.models import Filter, FieldCondition, MatchValue
 from config import settings
 
@@ -96,6 +97,17 @@ def search_qdrant(
                    len(results), top_k, score_threshold)
         return results
         
+    except UnexpectedResponse as e:
+        if "doesn't exist" in str(e):
+            logger.warning(
+                "Collection '%s' does not exist yet. "
+                "No documents have been uploaded and processed. "
+                "Please upload a document first to initialize the collection.",
+                COLLECTION_NAME,
+            )
+            return []
+        logger.error("Search failed: %s", e)
+        raise
     except Exception as e:
         logger.error("Search failed: %s", e)
         raise
