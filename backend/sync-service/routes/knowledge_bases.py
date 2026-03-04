@@ -221,6 +221,129 @@ async def _reassign_documents_to_kb(
     return reassigned
 
 
+async def _reassign_uncovered_documents(
+    db: Database, kb_id: str, old_sync_paths: List[str], new_sync_paths: List[str], plugin_id: int, owner_id: str,
+) -> int:
+    """
+    When sync_paths shrink, reassign documents that are no longer covered.
+    - Try to reassign to parent folder KB (e.g., "optional" for "test2/optional")
+    - If parent KB doesn't exist, move to "Unassigned" KB
+    """
+    # Find paths that were removed
+    old_prefixes = {_normalize_prefix(p) for p in (old_sync_paths or [])}
+    new_prefixes = {_normalize_prefix(p) for p in (new_sync_paths or [])}
+    removed_prefixes = old_prefixes - new_prefixes
+
+    if not removed_prefixes:
+        return 0
+
+    # Find all documents in this KB that match removed paths
+    uncovered_docs = await db.fetch_all(
+        "SELECT document_id, source_path FROM documents WHERE kb_id = $1 ORDER BY source_path",
+        kb_id,
+    )
+
+    # Get Unassigned KB (fallback for orphaned documents)
+    unassigned_kb = await db.fetch_one(
+        "SELECT kb_id FROM knowledge_bases WHERE owner_id = $1 AND name = 'Unassigned'",
+        owner_id,
+    )
+    unassigned_kb_id = str(unassigned_kb["kb_id"]) if unassigned_kb else None
+
+    reassigned = 0
+    affected_kb_ids = {kb_id}
+
+    for doc in uncovered_docs:
+        doc_path = _normalize_prefix(doc["source_path"])
+
+        # Check if doc matches any removed prefix
+        is_uncovered = False
+        for removed_prefix in removed_prefixes:
+            if doc_path == removed_prefix or doc_path.startswith(removed_prefix + "/"):
+                is_uncovered = True
+                break
+
+        if not is_uncovered:
+            continue
+
+        # Extract parent folder name (last component of the path before filename)
+        # e.g., "test2/optional/file.pdf" → parent is "optional"
+        path_parts = doc_path.split("/")
+        parent_folder = path_parts[-2] if len(path_parts) > 1 else None
+
+        target_kb_id = None
+
+        # Try to find KB named after parent folder
+        if parent_folder:
+            parent_kb = await db.fetch_one(
+                "SELECT kb_id FROM knowledge_bases WHERE owner_id = $1 AND name = $2 AND storage_config->>'plugin_id' = $3",
+                owner_id, parent_folder, str(plugin_id),
+            )
+            if parent_kb:
+                target_kb_id = str(parent_kb["kb_id"])
+
+        # Fall back to Unassigned
+        if not target_kb_id and unassigned_kb_id:
+            target_kb_id = unassigned_kb_id
+
+        # If no target found, keep in current KB (skip)
+        if not target_kb_id:
+            continue
+
+        # Reassign document
+        doc_id = doc["document_id"]
+        affected_kb_ids.add(target_kb_id)
+
+        # 1. Update documents table
+        await db.execute(
+            "UPDATE documents SET kb_id = $1, updated_at = NOW() WHERE document_id = $2",
+            target_kb_id, doc_id,
+        )
+        # 2. Update chunk_metadata table
+        await db.execute(
+            "UPDATE chunk_metadata SET kb_id = $1 WHERE document_id = $2",
+            target_kb_id, doc_id,
+        )
+        # 3. Update Qdrant kb_id payload
+        try:
+            async with httpx.AsyncClient(timeout=10.0) as client:
+                await client.post(
+                    f"{settings.QDRANT_URL}/collections/document_chunks/points/payload",
+                    json={
+                        "payload": {"kb_id": target_kb_id},
+                        "filter": {
+                            "must": [
+                                {"key": "document_id", "match": {"value": doc_id}},
+                            ]
+                        },
+                    },
+                )
+        except Exception as e:
+            logger.warning("Failed to update Qdrant for doc %s: %s", doc_id, e)
+
+        reassigned += 1
+
+    # Refresh total_documents and total_size_bytes for affected KBs
+    for kb in affected_kb_ids:
+        await db.execute(
+            """
+            UPDATE knowledge_bases SET
+            total_documents = (SELECT COUNT(*) FROM documents WHERE kb_id = $1),
+            total_size_bytes = (
+                SELECT COALESCE(SUM(file_size_bytes), 0) FROM documents
+                WHERE kb_id = $1 AND processing_status = 'completed'
+            ),
+            updated_at = NOW()
+            WHERE kb_id = $1
+            """,
+            kb,
+        )
+
+    if reassigned > 0:
+        logger.info("Reassigned %d uncovered documents from KB %s", reassigned, kb_id)
+    return reassigned
+
+
 # Endpoints
 @router.post("", response_model=KBResponse, status_code=status.HTTP_201_CREATED)
 async def create_knowledge_base(
@@ -366,6 +489,7 @@ async def update_knowledge_base(
 
     # Storage config update is restricted: sync_paths can be updated, plugin source is immutable.
     new_sync_paths = None
+    old_sync_paths = None
     resolved_plugin_id = None
 
     if "storage_config" in update_payload and update_payload["storage_config"] is not None:
@@ -376,6 +500,9 @@ async def update_knowledge_base(
             except Exception:
                 existing_config = {}
         incoming = update_payload["storage_config"] or {}
+
+        # Save old sync_paths before updating
+        old_sync_paths = existing_config.get("sync_paths", [])
 
         merged = dict(existing_config)
         merged["sync_paths"] = incoming.get("sync_paths", [])
@@ -412,24 +539,42 @@ async def update_knowledge_base(
 
     result = await db.fetch_one(query, *values)
 
-    # If sync_paths were updated, reassign matching documents into this KB
-    if new_sync_paths and resolved_plugin_id is not None:
-        reassigned = await _reassign_documents_to_kb(
+    # If sync_paths were updated, handle document reassignments
+    if new_sync_paths is not None and resolved_plugin_id is not None:
+        # 1. Reassign documents INTO this KB (paths added/expanded)
+        reassigned_in = await _reassign_documents_to_kb(
             db=db,
             target_kb_id=str(kb_id),
             sync_paths=new_sync_paths,
             plugin_id=int(resolved_plugin_id),
         )
-        if reassigned > 0:
+        if reassigned_in > 0:
             logger.info(
-                "Post-update: reassigned %d documents into KB %s",
-                reassigned, kb_id,
+                "Post-update: reassigned %d documents INTO KB %s",
+                reassigned_in, kb_id,
             )
-            # Re-fetch to get updated counts
-            result = await db.fetch_one(
-                "SELECT * FROM knowledge_bases WHERE kb_id = $1",
-                str(kb_id),
+
+        # 2. Reassign documents OUT OF this KB (paths removed/shrunk)
+        if old_sync_paths:
+            reassigned_out = await _reassign_uncovered_documents(
+                db=db,
+                kb_id=str(kb_id),
+                old_sync_paths=old_sync_paths,
+                new_sync_paths=new_sync_paths,
+                plugin_id=int(resolved_plugin_id),
+                owner_id=str(kb["owner_id"]),
             )
+            if reassigned_out > 0:
+                logger.info(
+                    "Post-update: reassigned %d documents OUT OF KB %s",
+                    reassigned_out, kb_id,
+                )
+
+        # Re-fetch to get updated counts
+        result = await db.fetch_one(
+            "SELECT * FROM knowledge_bases WHERE kb_id = $1",
+            str(kb_id),
+        )
 
     return KBResponse(**dict(result))
 
