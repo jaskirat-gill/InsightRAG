@@ -246,9 +246,9 @@ async def create_knowledge_base(
     result = await db.fetch_one("""
         INSERT INTO knowledge_bases (
             owner_id, name, description, storage_provider, storage_config,
-            processing_strategy, chunk_size, chunk_overlap
+            processing_strategy, chunk_size, chunk_overlap, status
         )
-        VALUES ($1, $2, $3, $4, $5::jsonb, $6, $7, $8)
+        VALUES ($1, $2, $3, $4, $5::jsonb, $6, $7, $8, 'active')
         RETURNING *
     """,
         current_user["user_id"],
@@ -302,6 +302,12 @@ async def list_knowledge_bases(
         results = await db.fetch_all(query, current_user["user_id"])
     
     return [KBResponse(**dict(r)) for r in results]
+
+@router.get("/strategies")
+async def list_strategies():
+    """Return available processing strategies (single source of truth)."""
+    from routes.documents import PDF_STRATEGY_OPTIONS
+    return [{"key": o.key, "label": o.label, "description": o.description} for o in PDF_STRATEGY_OPTIONS]
 
 @router.get("/{kb_id}", response_model=KBResponse)
 async def get_knowledge_base(
@@ -508,10 +514,3 @@ async def get_kb_health(
     result = dict(stats)
     result["total_retrievals"] = int(retrieval_stats["total_retrievals"])
     return result
-
-
-@router.get("/strategies")
-async def list_strategies():
-    """Return available processing strategies (single source of truth)."""
-    from routes.documents import PDF_STRATEGY_OPTIONS
-    return [{"key": o.key, "label": o.label, "description": o.description} for o in PDF_STRATEGY_OPTIONS]

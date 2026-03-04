@@ -265,18 +265,33 @@ def create_kb_and_document(
                     return kb_id, document_id
 
             # Upsert knowledge base (shared KB — many docs can map to the same KB)
+            # Populate storage_config with plugin_id and sync_paths so the UI
+            # shows the real folder path and routing stays consistent.
+            import json as _json_mod
+            parent_dir = os.path.dirname(file_path).strip("/")
+            auto_config: Dict[str, Any] = {}
+            if plugin_id_from_payload is not None:
+                auto_config["plugin_id"] = int(plugin_id_from_payload)
+            if parent_dir:
+                auto_config["sync_paths"] = [parent_dir]
+
             cur.execute("""
                 INSERT INTO knowledge_bases (
                     owner_id, name, description, storage_provider, storage_config, status
                 )
                 VALUES (
                     (SELECT user_id FROM users WHERE email = 'admin@example.com' LIMIT 1),
-                    %s, %s, 'plugin', '{}'::jsonb, 'active'
+                    %s, %s, 'plugin', %s::jsonb, 'active'
                 )
                 ON CONFLICT (owner_id, name) DO UPDATE
-                    SET updated_at = NOW()
+                    SET storage_config = CASE
+                        WHEN knowledge_bases.storage_config = '{}'::jsonb
+                        THEN EXCLUDED.storage_config
+                        ELSE knowledge_bases.storage_config
+                    END,
+                    updated_at = NOW()
                 RETURNING kb_id
-            """, (kb_name, f"Auto-created KB: {kb_name}"))
+            """, (kb_name, f"Auto-created KB: {kb_name}", _json_mod.dumps(auto_config)))
             kb_row = cur.fetchone()
             kb_id = str(kb_row["kb_id"])
 

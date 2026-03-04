@@ -1,8 +1,12 @@
 import { FC, useEffect, useMemo, useState } from 'react';
 import { X, Loader2, Database, CheckCircle } from 'lucide-react';
-import { kbService, CreateKBRequest } from '../services/kb';
+import { kbService, CreateKBRequest, DocumentStrategyOption } from '../services/kb';
 import { API_URL } from '../config';
 import { authService } from '../services/auth';
+
+const FALLBACK_STRATEGIES: DocumentStrategyOption[] = [
+  { key: 'semantic', label: 'Semantic (Essay/Policy)', description: 'Paragraph-oriented semantic chunking for narrative documents.' },
+];
 
 interface CreateKBModalProps {
   isOpen: boolean;
@@ -44,6 +48,7 @@ const CreateKBModal: FC<CreateKBModalProps> = ({ isOpen, onClose, onSuccess }) =
   const [selectedPluginId, setSelectedPluginId] = useState<number | null>(null);
   const [syncPathsInput, setSyncPathsInput] = useState('');
   const [pluginsLoading, setPluginsLoading] = useState(false);
+  const [strategies, setStrategies] = useState<DocumentStrategyOption[]>(FALLBACK_STRATEGIES);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -75,7 +80,16 @@ const CreateKBModal: FC<CreateKBModalProps> = ({ isOpen, onClose, onSuccess }) =
         setPluginsLoading(false);
       }
     };
+    const loadStrategies = async () => {
+      try {
+        const data = await kbService.listStrategies();
+        if (data.length > 0) setStrategies(data);
+      } catch {
+        // keep fallback
+      }
+    };
     void loadPlugins();
+    void loadStrategies();
   }, [isOpen]);
 
   useEffect(() => {
@@ -329,13 +343,15 @@ const CreateKBModal: FC<CreateKBModalProps> = ({ isOpen, onClose, onSuccess }) =
               onChange={(e) => setFormData({ ...formData, processing_strategy: e.target.value })}
               className="w-full px-3 py-2 bg-background/50 border border-white/5 rounded-xl focus:outline-none focus:border-primary/50 text-white text-sm transition-all"
             >
-              <option value="semantic">Semantic (Recommended)</option>
-              <option value="hierarchical">Hierarchical</option>
-              <option value="layout-aware">Layout-Aware</option>
-              <option value="table-preserving">Table-Preserving</option>
+              {strategies.map((s) => (
+                <option key={s.key} value={s.key}>
+                  {s.label}
+                </option>
+              ))}
             </select>
             <p className="text-xs text-secondary/60">
-              Semantic splitting works well for most document types
+              {strategies.find((s) => s.key === formData.processing_strategy)?.description
+                ?? 'Select a chunking strategy for documents in this KB'}
             </p>
           </div>
 

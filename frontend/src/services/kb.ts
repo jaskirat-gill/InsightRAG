@@ -454,6 +454,21 @@ class KBService {
     return await response.json();
   }
 
+  // List available processing strategies (single source of truth)
+  async listStrategies(): Promise<DocumentStrategyOption[]> {
+    const response = await fetch(`${this.API_URL}/api/v1/knowledge-bases/strategies`, {
+      headers: {
+        ...authService.getAuthHeader(),
+      },
+    });
+
+    if (!response.ok) {
+      throw new Error('Failed to fetch strategies');
+    }
+
+    return await response.json();
+  }
+
   // Format file size
   formatFileSize(bytes: number): string {
     if (bytes === 0) return '0 B';

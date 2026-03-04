@@ -330,7 +330,7 @@ class SyncService:
         - If multiple KB rules match, pick the longest matching prefix.
         - KB rows with matching plugin_id and empty sync_paths are catch-all.
         """
-        rows = session.exec(
+        rows = session.execute(
             text(
                 """
                 SELECT kb_id, storage_config
