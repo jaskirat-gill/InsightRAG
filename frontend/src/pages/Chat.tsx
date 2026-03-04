@@ -190,9 +190,10 @@ const Chat: FC = () => {
     const run = async () => {
       setLoading(true);
       try {
+        openWebUIChatService.reloadConfig();
         if (!openWebUIChatService.isConfigured()) {
           throw new Error(
-            'Chat is not configured. Set VITE_OPENWEBUI_BASE_URL and VITE_OPENWEBUI_TOKEN in .env.',
+            'Chat is not configured. Open Settings -> Chat and provide OpenWebUI Base URL and API token.',
           );
         }
 

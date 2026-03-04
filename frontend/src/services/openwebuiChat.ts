@@ -1,9 +1,5 @@
-import {
-  OPENWEBUI_BASE_URL,
-  OPENWEBUI_TOKEN,
-  OPENWEBUI_MCP_SERVER,
-  OPENWEBUI_TIMEOUT_MS,
-} from '../config';
+import { ChatRuntimeSettings, getDefaultChatSettings, loadChatSettings } from './chatSettings';
+import { OPENWEBUI_MCP_SERVER } from '../config';
 
 export interface OpenWebUIChatTitle {
   id: string;
@@ -67,37 +63,54 @@ interface CompletionEvent {
 }
 
 export class OpenWebUIChatService {
-  private readonly baseUrl: string;
-  private readonly token: string;
-  private readonly timeoutMs: number;
-  private readonly preferredMcpServer: string;
+  private baseUrl = '';
+  private token = '';
+  private timeoutMs = 120000;
+  private preferredMcpServer = '';
   private modelId: string | null = null;
 
-  constructor(
-    baseUrl: string = OPENWEBUI_BASE_URL,
-    token: string = OPENWEBUI_TOKEN,
-    preferredMcpServer: string = OPENWEBUI_MCP_SERVER,
-    timeoutMs: number = OPENWEBUI_TIMEOUT_MS,
-  ) {
-    this.baseUrl = baseUrl.replace(/\/$/, '');
-    this.token = token;
-    this.preferredMcpServer = preferredMcpServer;
-    this.timeoutMs = timeoutMs;
+  constructor(settings?: Partial<ChatRuntimeSettings>) {
+    const defaults = getDefaultChatSettings();
+    this.applySettings({
+      ...defaults,
+      ...loadChatSettings(),
+      ...(settings || {}),
+    });
+    this.preferredMcpServer = OPENWEBUI_MCP_SERVER;
+  }
+
+  private applySettings(settings: ChatRuntimeSettings): void {
+    this.baseUrl = settings.baseUrl.replace(/\/$/, '');
+    this.token = settings.token;
+    this.timeoutMs = settings.timeoutMs;
+  }
+
+  private refreshSettings(): void {
+    this.applySettings(loadChatSettings());
+    this.preferredMcpServer = OPENWEBUI_MCP_SERVER;
+  }
+
+  reloadConfig(): void {
+    this.refreshSettings();
   }
 
   isConfigured(): boolean {
-    return Boolean(this.baseUrl) && Boolean(this.token);
+    this.refreshSettings();
+    return Boolean(this.baseUrl.trim()) && Boolean(this.token.trim());
   }
 
   getBaseUrl(): string {
+    this.refreshSettings();
     return this.baseUrl;
   }
 
   getPreferredMcpServer(): string {
+    this.refreshSettings();
     return this.preferredMcpServer;
   }
 
   private async request<T>(path: string, init?: RequestInit): Promise<T> {
+    this.refreshSettings();
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), this.timeoutMs);
 
@@ -131,6 +144,7 @@ export class OpenWebUIChatService {
   }
 
   async healthCheck(): Promise<boolean> {
+    this.refreshSettings();
     try {
       const response = await fetch(`${this.baseUrl}/health`);
       return response.ok;
@@ -310,6 +324,7 @@ export class OpenWebUIChatService {
     mcpToolId: string | null,
     onUpdate?: (chat: OpenWebUIChatData) => void,
   ): Promise<{ chat: OpenWebUIChatData; reply: string }> {
+    this.refreshSettings();
     const model = await this.resolveModel(modelOverride);
 
     const userMsg = this.appendMessage(chat, 'user', userText);
