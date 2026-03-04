@@ -138,8 +138,47 @@ export interface UpdateKBRequest {
   storage_config?: Record<string, any>;
 }
 
+export interface AdminUserRow {
+  user_id: string;
+  email: string;
+  full_name: string | null;
+  is_active: boolean;
+  roles: string[];
+}
+
 class KBService {
   private readonly API_URL = API_URL;
+
+    async adminListUsers(): Promise<AdminUserRow[]> {
+      const response = await fetch(`${this.API_URL}/api/v1/admin/users`, {
+        headers: { ...authService.getAuthHeader() },
+      });
+
+      if (!response.ok) {
+        const error = await response.json().catch(() => ({}));
+        throw new Error(error.detail || 'Failed to fetch users');
+      }
+
+      return await response.json();
+    }
+
+    async adminSetUserRole(userId: string, roleName: string): Promise<AdminUserRow> {
+      const response = await fetch(`${this.API_URL}/api/v1/admin/users/${userId}/role`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...authService.getAuthHeader(),
+        },
+        body: JSON.stringify({ role_name: roleName }),
+      });
+
+      if (!response.ok) {
+        const error = await response.json().catch(() => ({}));
+        throw new Error(error.detail || 'Failed to update user role');
+      }
+
+      return await response.json();
+    }
 
     // Get a presigned S3 URL for a document (View in S3)
     async getDocumentS3Url(kbId: string, docId: string): Promise<{ url: string }> {
