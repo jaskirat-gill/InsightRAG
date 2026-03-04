@@ -63,21 +63,6 @@ CREATE TABLE IF NOT EXISTS role_permissions (
     PRIMARY KEY (role_id, permission_id)
 );
 
--- Admin user management permissions
-INSERT INTO permissions (permission_name, resource, action, description)
-VALUES
-  ('admin.user.read', 'admin_users', 'read', 'List users and their roles'),
-  ('admin.user.write', 'admin_users', 'write', 'Update a user role')
-ON CONFLICT (permission_name) DO NOTHING;
-
--- Grant to admin role
-INSERT INTO role_permissions (role_id, permission_id)
-SELECT r.role_id, p.permission_id
-FROM roles r
-JOIN permissions p ON p.permission_name IN ('admin.user.read', 'admin.user.write')
-WHERE r.role_name = 'admin'
-ON CONFLICT DO NOTHING;
-
 -- API Keys table
 CREATE TABLE IF NOT EXISTS api_keys (
     key_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),

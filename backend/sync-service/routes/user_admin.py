@@ -23,7 +23,7 @@ class UpdateUserRoleRequest(BaseModel):
 
 @router.get("/users", response_model=List[UserRow])
 async def list_users(
-    current_user: dict = require_permission("admin.user.read"),
+    current_user: dict = require_permission("user.read"),
     db: Database = Depends(get_db),
 ):
     rows = await db.fetch_all(
@@ -48,7 +48,7 @@ async def list_users(
 async def set_user_role(
     user_id: UUID,
     body: UpdateUserRoleRequest,
-    current_user: dict = require_permission("admin.user.write"),
+    current_user: dict = require_permission("user.update"),
     db: Database = Depends(get_db),
 ):
     role = await db.fetch_one(
