@@ -5,6 +5,8 @@ from contextlib import asynccontextmanager
 from sqlmodel import Session, select
 from pydantic import BaseModel
 from datetime import datetime
+from routes.user_admin import router as users_admin_router
+
 import asyncio
 import logging
 import os
@@ -122,6 +124,7 @@ app.include_router(users.router, prefix="/api/v1")
 app.include_router(api_keys.router, prefix="/api/v1")
 app.include_router(knowledge_bases.router, prefix="/api/v1")
 app.include_router(documents.router, prefix="/api/v1")
+app.include_router(users_admin_router, prefix="/api/v1")
 
 # Plugin sync endpoint
 # ──────────────────────────────
