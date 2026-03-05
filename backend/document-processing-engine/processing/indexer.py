@@ -240,14 +240,6 @@ def create_kb_and_document(
                     ))
                     doc_row = cur.fetchone()
                     document_id = str(doc_row["document_id"])
-                    if local_path:
-                        _upsert_document_local_copy(
-                            cur=cur,
-                            document_id=document_id,
-                            kb_id=kb_id,
-                            source_path=file_path,
-                            local_path=local_path,
-                        )
                     conn.commit()
                     logger.info(
                         "Routed to covering KB=%s (sync_paths match), Document=%s for %s",
