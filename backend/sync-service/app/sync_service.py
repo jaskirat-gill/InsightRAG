@@ -1,9 +1,12 @@
 import logging
 import os
+import json
 from datetime import datetime
 from typing import Dict, List, Optional
+from uuid import UUID
 
 from sqlmodel import Session, select, and_
+from sqlalchemy import text
 
 from app.models import SyncedFile, SourcePluginConfig
 from app.plugins.interface import SourcePlugin, FileEvent
@@ -111,11 +114,16 @@ class SyncService:
         # ── Phase 3: Download and enqueue processing tasks ────────────────
         for file_info in pending_files:
             try:
+                target_kb_id = SyncService._resolve_target_kb_for_file(
+                    session=session,
+                    plugin_id=plugin_id,
+                    file_path=file_info["file_path"],
+                )
                 local_path = SyncService._download_file(
                     plugin, plugin_id, file_info["file_path"]
                 )
                 SyncService._enqueue_process(
-                    file_info, plugin_id, plugin_config.name, local_path
+                    file_info, plugin_id, plugin_config.name, local_path, target_kb_id=target_kb_id
                 )
                 result.enqueued += 1
             except Exception as e:
@@ -272,7 +280,11 @@ class SyncService:
 
     @staticmethod
     def _enqueue_process(
-        file_info: Dict, plugin_id: int, plugin_name: str, local_path: str
+        file_info: Dict,
+        plugin_id: int,
+        plugin_name: str,
+        local_path: str,
+        target_kb_id: Optional[str] = None,
     ):
         """Send a process_document task to the Celery queue."""
         if not CELERY_AVAILABLE:
@@ -287,8 +299,14 @@ class SyncService:
             "file_size": file_info["metadata"].get("size"),
             "etag": file_info["metadata"].get("etag"),
         }
+        if target_kb_id:
+            payload["kb_id"] = target_kb_id
         celery_app.send_task("process_document", args=[payload])
-        logger.info("[ENQUEUED] process_document for %s", file_info["file_path"])
+        logger.info(
+            "[ENQUEUED] process_document for %s (target_kb=%s)",
+            file_info["file_path"],
+            target_kb_id or "auto",
+        )
 
     @staticmethod
     def _enqueue_delete(file_info: Dict, plugin_id: int, local_path: str):
@@ -304,3 +322,70 @@ class SyncService:
         }
         celery_app.send_task("delete_document", args=[payload])
         logger.info("[ENQUEUED] delete_document for %s", file_info["file_path"])
+
+    @staticmethod
+    def _resolve_target_kb_for_file(session: Session, plugin_id: int, file_path: str) -> Optional[str]:
+        """
+        Resolve KB routing by plugin_id + sync_paths stored in knowledge_bases.storage_config.
+        - If multiple KB rules match, pick the longest matching prefix.
+        - KB rows with matching plugin_id and empty sync_paths are catch-all.
+        """
+        rows = session.execute(
+            text(
+                """
+                SELECT kb_id, storage_config
+                FROM knowledge_bases
+                WHERE storage_config ? 'plugin_id'
+                  AND storage_config->>'plugin_id' = :plugin_id
+                """
+            ),
+            {"plugin_id": str(plugin_id)},
+        ).all()
+
+        if not rows:
+            return None
+
+        normalized_path = SyncService._normalize_prefix(file_path)
+        best_kb_id: Optional[str] = None
+        best_prefix_len = -1
+        fallback_kb_id: Optional[str] = None
+
+        for row in rows:
+            row_dict = dict(row._mapping) if hasattr(row, "_mapping") else dict(row)
+            kb_id = str(row_dict["kb_id"])
+            storage_config = row_dict.get("storage_config") or {}
+            if isinstance(storage_config, str):
+                try:
+                    storage_config = json.loads(storage_config)
+                except Exception:
+                    storage_config = {}
+
+            raw_paths = storage_config.get("sync_paths") or []
+            if not isinstance(raw_paths, list):
+                raw_paths = []
+
+            prefixes = [SyncService._normalize_prefix(str(p)) for p in raw_paths if str(p).strip()]
+            if not prefixes:
+                # Catch-all for this plugin if no explicit path list is set.
+                fallback_kb_id = fallback_kb_id or kb_id
+                continue
+
+            for prefix in prefixes:
+                if normalized_path == prefix or normalized_path.startswith(prefix + "/"):
+                    if len(prefix) > best_prefix_len:
+                        best_prefix_len = len(prefix)
+                        best_kb_id = kb_id
+
+        if best_kb_id:
+            return best_kb_id
+        # Only route to a catch-all KB (no sync_paths configured) when the file
+        # is genuinely at the bucket root (no parent directory).  Files that live
+        # inside a sub-folder should return None so the document-processing-engine
+        # can auto-create the correct KB from the folder name via _resolve_kb_name.
+        if fallback_kb_id and not os.path.dirname(SyncService._normalize_prefix(file_path)):
+            return fallback_kb_id
+        return None
+
+    @staticmethod
+    def _normalize_prefix(path: str) -> str:
+        return path.strip().strip("/")

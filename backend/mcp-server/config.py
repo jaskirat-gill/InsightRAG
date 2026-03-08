@@ -12,7 +12,9 @@ class Settings(BaseSettings):
     
     # Search Defaults
     DEFAULT_TOP_K: int = 5
-    DEFAULT_SCORE_THRESHOLD: float = 0.7
+    # Default similarity threshold for search_knowledge_base.
+    # Callers can lower this per request if no results are returned.
+    DEFAULT_SCORE_THRESHOLD: float = 0.5
     MAX_TOP_K: int = 20
     
     # Vector Dimensions (for validation)

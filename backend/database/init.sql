@@ -1,5 +1,9 @@
 -- Create the database schema for authentication
 
+-- document table
+-- CREATE UNIQUE INDEX IF NOT EXISTS uq_documents_kb_source
+-- ON documents (kb_id, source_path);
+
 -- Users table
 CREATE TABLE IF NOT EXISTS users (
     user_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),

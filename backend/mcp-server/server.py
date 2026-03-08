@@ -3,9 +3,10 @@ import sys
 from fastmcp import FastMCP
 from typing import List, Dict, Optional
 import os
+from os.path import basename
 
 from embeddings import generate_embedding
-from search import search_qdrant
+from search import search_hybrid
 from config import settings
 
 # Configure logging
@@ -137,47 +138,46 @@ def _track_retrievals(vector_ids: List[str]) -> None:
         logger.warning("Failed to update retrieval counts: %s", exc)
 
 
-@mcp.tool()
-def search_knowledge_base(
+def _run_search(
     query: str,
-    top_k: int = 5,
-    kb_id: Optional[str] = None
+    top_k: int,
+    kb_id: Optional[str],
+    score_threshold: float,
 ) -> List[Dict]:
-    """
-    Search the knowledge base for relevant information.
-    
-    Args:
-        query: The search query text
-        top_k: Number of results to return (default 5, max 20)
-        kb_id: Optional knowledge base ID to search within
-    
-    Returns:
-        List of relevant document chunks with metadata
-    """
-    logger.info("Received search query: %s (top_k=%d, kb_id=%s)", 
-               query, top_k, kb_id or "all")
-    
+    """Shared search pipeline for MCP tools."""
+    logger.info(
+        "Received search query: %s (top_k=%d, kb_id=%s, threshold=%.3f)",
+        query,
+        top_k,
+        kb_id or "all",
+        score_threshold,
+    )
+
     # Validate inputs
     if not query or not query.strip():
         return {"error": "Query cannot be empty"}
-    
+
     if top_k < 1 or top_k > 20:
         top_k = min(max(top_k, 1), 20)
-    
+
+    if score_threshold < 0.0 or score_threshold > 1.0:
+        return {"error": "score_threshold must be between 0.0 and 1.0"}
+
     try:
         # Step 1: Generate embedding for query
         logger.info("Generating embedding for query...")
         query_embedding = generate_embedding(query)
-        
-        # Step 2: Search Qdrant
-        logger.info("Searching Qdrant...")
-        results = search_qdrant(
+
+        # Step 2: Hybrid retrieval (vector + keyword), fused with RRF
+        logger.info("Searching hybrid index (vector + keyword)...")
+        results = search_hybrid(
+            query_text=query,
             query_vector=query_embedding,
             top_k=top_k,
             kb_id=kb_id,
-            score_threshold=0.5  # Minimum relevance threshold
+            score_threshold=score_threshold,
         )
-        
+
         # Step 3: Track retrievals in PostgreSQL
         vector_ids = [str(r["vector_id"]) for r in results if r.get("vector_id")]
         _track_retrievals(vector_ids)
@@ -185,20 +185,57 @@ def search_knowledge_base(
         # Step 4: Format for LLM consumption
         formatted_results = []
         for result in results:
+            relevance = result.get("score")
+            if relevance is None:
+                relevance = result.get("hybrid_rrf_score")
+            if relevance is None:
+                relevance = 0.0
             formatted_results.append({
                 "text": result["chunk_text"],
                 "source": f"Document {result['document_id'][:8]}",
                 "section": result.get("section_title") or "N/A",
                 "page": result.get("page_number") or "N/A",
-                "relevance_score": round(result["score"], 3)
+                "relevance_score": round(float(relevance), 3),
+                "retrieval_source": result.get("retrieval_source", "vector"),
             })
 
         logger.info("Returning %d results", len(formatted_results))
         return formatted_results
-        
+
     except Exception as e:
         logger.exception("Search failed: %s", e)
         return {"error": f"Search failed: {str(e)}"}
+
+
+@mcp.tool()
+def search_knowledge_base(
+    query: str,
+    top_k: int = 5,
+    kb_id: Optional[str] = None,
+    score_threshold: Optional[float] = None,
+) -> List[Dict]:
+    """
+    Search the knowledge base for relevant information.
+
+    Args:
+        query: The search query text
+        top_k: Number of results to return (default 5, max 20)
+        kb_id: Optional knowledge base ID to search within
+        score_threshold: Optional similarity threshold (0.0 to 1.0).
+            Default is 0.5. If no results are returned, lower this value.
+
+    Returns:
+        List of relevant document chunks with metadata
+    """
+    if score_threshold is None:
+        score_threshold = settings.DEFAULT_SCORE_THRESHOLD
+
+    return _run_search(
+        query=query,
+        top_k=top_k,
+        kb_id=kb_id,
+        score_threshold=score_threshold,
+    )
 
 
 @mcp.tool()
@@ -230,6 +267,73 @@ def get_available_collections() -> Dict:
         }
     except Exception as e:
         return {"error": str(e)}
+
+
+@mcp.tool()
+def list_kb_resources() -> List[Dict]:
+    """
+    List knowledge bases and their documents from PostgreSQL.
+
+    Returns:
+        List of KB objects with nested document metadata.
+    """
+    if not settings.DATABASE_URL:
+        return {"error": "DATABASE_URL is not configured for MCP server"}
+
+    try:
+        import psycopg2
+        import psycopg2.extras
+
+        conn = psycopg2.connect(settings.DATABASE_URL)
+        with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+            cur.execute(
+                """
+                SELECT
+                    kb.kb_id,
+                    kb.name AS kb_name,
+                    kb.owner_id,
+                    d.document_id,
+                    d.title,
+                    d.source_path,
+                    d.processing_status
+                FROM knowledge_bases kb
+                LEFT JOIN documents d ON d.kb_id = kb.kb_id
+                ORDER BY kb.name ASC, d.created_at DESC NULLS LAST
+                """
+            )
+            rows = cur.fetchall()
+        conn.close()
+
+        grouped: Dict[str, Dict] = {}
+        for row in rows:
+            kb_id = str(row["kb_id"])
+            if kb_id not in grouped:
+                grouped[kb_id] = {
+                    "kb_id": kb_id,
+                    "kb_name": row["kb_name"],
+                    "owner_id": str(row["owner_id"]) if row["owner_id"] else None,
+                    "document_count": 0,
+                    "documents": [],
+                }
+
+            if row["document_id"]:
+                source_path = row["source_path"] or ""
+                doc_name = (row["title"] or "").strip() or basename(source_path) or source_path
+                grouped[kb_id]["documents"].append(
+                    {
+                        "document_id": str(row["document_id"]),
+                        "document_name": doc_name,
+                        "source_path": source_path,
+                        "processing_status": row["processing_status"],
+                    }
+                )
+                grouped[kb_id]["document_count"] += 1
+
+        return list(grouped.values())
+
+    except Exception as e:
+        logger.exception("Failed to list KB resources: %s", e)
+        return {"error": f"Failed to list KB resources: {str(e)}"}
 
 
 if __name__ == "__main__":

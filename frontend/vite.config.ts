@@ -9,5 +9,20 @@ export default defineConfig({
     watch: {
       usePolling: true, // Needed for Docker file watching on some systems
     },
+    proxy: {
+      "/api": {
+        target: "http://localhost:8000",
+        changeOrigin: true,
+      },
+      // optional: these routes in your main.py are NOT under /api/v1
+      "/plugins": {
+        target: "http://localhost:8000",
+        changeOrigin: true,
+      },
+      "/sync": {
+        target: "http://localhost:8000",
+        changeOrigin: true,
+      },
+    }
   },
-})
+});

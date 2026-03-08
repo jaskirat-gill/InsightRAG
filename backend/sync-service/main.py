@@ -5,9 +5,12 @@ from contextlib import asynccontextmanager
 from sqlmodel import Session, select
 from pydantic import BaseModel
 from datetime import datetime
+from routes.user_admin import router as users_admin_router
+
 import asyncio
 import logging
 import os
+import shutil
 
 # Auth imports
 from database import db
@@ -121,6 +124,7 @@ app.include_router(users.router, prefix="/api/v1")
 app.include_router(api_keys.router, prefix="/api/v1")
 app.include_router(knowledge_bases.router, prefix="/api/v1")
 app.include_router(documents.router, prefix="/api/v1")
+app.include_router(users_admin_router, prefix="/api/v1")
 
 # Plugin sync endpoint
 # ──────────────────────────────
@@ -136,6 +140,55 @@ async def trigger_sync(background_tasks: BackgroundTasks):
 
     background_tasks.add_task(_run_sync_all_plugins)
     return {"message": f"Sync started for {len(active_plugins)} plugin(s)"}
+
+
+class SyncResetRequest(BaseModel):
+    plugin_id: Optional[int] = None
+    clear_download_cache: bool = True
+
+
+@app.post("/sync/reset")
+async def reset_sync_state(body: SyncResetRequest):
+    """
+    Reset synced_file state so next sync treats files as fresh.
+    Optional plugin_id scopes reset to a single plugin.
+    """
+    download_base = os.getenv("DOWNLOAD_BASE", "/data/downloads")
+
+    with Session(engine) as session:
+        if body.plugin_id is not None:
+            rows = session.exec(
+                select(SyncedFile).where(SyncedFile.plugin_id == body.plugin_id)
+            ).all()
+            removed = len(rows)
+            for row in rows:
+                session.delete(row)
+            session.commit()
+
+            if body.clear_download_cache:
+                plugin_dir = os.path.join(download_base, str(body.plugin_id))
+                shutil.rmtree(plugin_dir, ignore_errors=True)
+
+            return {
+                "message": f"Reset sync state for plugin {body.plugin_id}",
+                "deleted_rows": removed,
+                "plugin_id": body.plugin_id,
+            }
+
+        rows = session.exec(select(SyncedFile)).all()
+        removed = len(rows)
+        for row in rows:
+            session.delete(row)
+        session.commit()
+
+    if body.clear_download_cache:
+        shutil.rmtree(download_base, ignore_errors=True)
+
+    return {
+        "message": "Reset sync state for all plugins",
+        "deleted_rows": removed,
+        "plugin_id": None,
+    }
 
 
 def _run_sync_all_plugins():

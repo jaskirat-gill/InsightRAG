@@ -402,14 +402,14 @@ const DocumentDetails: FC<DocumentDetailsProps> = ({ kb, doc, onBack }) => {
     }
   };
 
-  const handleViewInS3 = async () => {
+  const handleViewInSource = async () => {
     setActionBusy(true);
     try {
       const { url } = await (kbService as any).getDocumentS3Url(kb.kb_id, doc.document_id);
       if (!url) throw new Error('No URL returned');
       window.open(url, '_blank', 'noopener,noreferrer');
     } catch (e: any) {
-      showToast('err', e?.message || 'Failed to open S3 link');
+      showToast('err', e?.message || 'Failed to open source link');
     } finally {
       setActionBusy(false);
     }
@@ -549,7 +549,7 @@ const DocumentDetails: FC<DocumentDetailsProps> = ({ kb, doc, onBack }) => {
             cx="60"
             cy="60"
             r={radius}
-            stroke="rgba(255,255,255,0.10)"
+            stroke="var(--ring-track-stroke)"
             strokeWidth={stroke}
             fill="none"
           />
@@ -557,7 +557,7 @@ const DocumentDetails: FC<DocumentDetailsProps> = ({ kb, doc, onBack }) => {
             cx="60"
             cy="60"
             r={radius}
-            stroke="rgba(34,197,94,0.95)"
+            stroke="var(--ring-progress-stroke)"
             strokeWidth={stroke}
             fill="none"
             strokeLinecap="round"
@@ -577,7 +577,7 @@ const DocumentDetails: FC<DocumentDetailsProps> = ({ kb, doc, onBack }) => {
             x="60"
             y="74"
             textAnchor="middle"
-            className="fill-[rgba(255,255,255,0.55)]"
+            className="fill-secondary"
             style={{ fontSize: 11 }}
           >
             DAYS OLD
@@ -857,7 +857,7 @@ const DocumentDetails: FC<DocumentDetailsProps> = ({ kb, doc, onBack }) => {
               </button>
 
               <div className="flex items-start gap-3 min-w-0">
-                <div className="h-12 w-12 rounded-2xl bg-white/5 flex items-center justify-center text-primary shrink-0">
+                <div className="h-12 w-12 rounded-2xl bg-blue-500/20 border border-blue-500/20 flex items-center justify-center text-blue-500 shrink-0">
                   <FileText size={20} />
                 </div>
 
@@ -882,12 +882,12 @@ const DocumentDetails: FC<DocumentDetailsProps> = ({ kb, doc, onBack }) => {
 
             <div className="flex items-center gap-2 shrink-0">
               <button
-                onClick={handleViewInS3}
+                onClick={handleViewInSource}
                 disabled={actionBusy}
                 className="px-4 py-2 bg-white/5 hover:bg-white/10 text-white text-sm rounded-xl transition-colors disabled:opacity-50 inline-flex items-center gap-2"
               >
                 <ExternalLink size={14} />
-                View in S3
+                View Source
               </button>
 
               <button
@@ -1002,7 +1002,9 @@ const DocumentDetails: FC<DocumentDetailsProps> = ({ kb, doc, onBack }) => {
           <div className="bg-surface/50 backdrop-blur border border-white/5 rounded-2xl p-6">
             <div className="text-white font-semibold mb-4">Document Preview</div>
             <div className="bg-black/30 border border-white/5 rounded-2xl p-5 text-sm text-secondary leading-6 whitespace-pre-wrap">
-              Preview not available yet. (Wire an API endpoint that returns a text preview for this document.)
+              {d.preview_text && d.preview_text.trim()
+                ? d.preview_text
+                : 'Preview not available yet. (This appears after the document has chunks.)'}
             </div>
           </div>
         </div>
@@ -1385,10 +1387,10 @@ const DocumentDetails: FC<DocumentDetailsProps> = ({ kb, doc, onBack }) => {
                       className="mt-1 accent-green-500"
                     />
                     <div>
-                      <div className={`text-sm font-medium ${isSelected ? 'text-green-300' : 'text-white'}`}>
+                      <div className={`text-sm font-medium ${isSelected ? 'text-green-400' : 'text-white'}`}>
                         {option.label}
                       </div>
-                      <div className={`text-xs mt-1 ${isSelected ? 'text-green-200/90' : 'text-secondary'}`}>
+                      <div className={`text-xs mt-1 ${isSelected ? 'text-green-300' : 'text-secondary'}`}>
                         {option.description}
                       </div>
                     </div>
@@ -1424,7 +1426,7 @@ const DocumentDetails: FC<DocumentDetailsProps> = ({ kb, doc, onBack }) => {
         <div className="fixed inset-0 z-50 flex items-center justify-center">
           {/* Backdrop */}
           <div
-            className="absolute inset-0 bg-black/70 backdrop-blur-sm"
+            className="absolute inset-0 bg-black/65 backdrop-blur-sm"
             onClick={() => !actionBusy && setShowDeleteModal(false)}
           />
 
@@ -1446,7 +1448,7 @@ const DocumentDetails: FC<DocumentDetailsProps> = ({ kb, doc, onBack }) => {
                 <div className="flex gap-2 text-red-200">
                   <span className="mt-[2px]">•</span>
                   <span>
-                    This document will be permanently removed from the SQL database and Qdrant vector store (and S3 if wired).
+                    This document will be permanently removed from the SQL database and Qdrant vector store (and source storage if wired).
                   </span>
                 </div>
                 <div className="mt-2 flex gap-2 text-yellow-200/90">

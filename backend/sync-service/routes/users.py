@@ -6,8 +6,42 @@ from middleware.auth import get_current_active_user
 from utils.password import hash_password
 from typing import List, Dict
 from uuid import UUID
+from typing import Set
 
 router = APIRouter(prefix="/users", tags=["Users"])
+
+async def get_user_role_names(db: Database, user_id: str) -> Set[str]:
+    rows = await db.fetch_all(
+        """
+        SELECT r.role_name
+        FROM user_roles ur
+        JOIN roles r ON ur.role_id = r.role_id
+        WHERE ur.user_id = $1
+        """,
+        user_id,
+    )
+    return {r["role_name"] for r in rows}
+
+def allowed_roles_for_creator(creator_roles: Set[str]) -> Set[str]:
+    # If a user has multiple roles, take the "most powerful" effect:
+    if "admin" in creator_roles:
+        return {"admin", "developer", "end_user"}
+    if "developer" in creator_roles:
+        return {"developer", "end_user"}
+    # default (end_user or anything else)
+    return {"end_user"}
+
+@router.get("/me")
+async def me(
+    current_user: Dict = Depends(get_current_active_user),
+    db: Database = Depends(get_db),
+):
+    roles = await get_user_role_names(db, current_user["user_id"])
+    return {
+        "user_id": current_user["user_id"],
+        "email": current_user.get("email"),
+        "roles": list(roles),
+    }
 
 @router.get("", response_model=List[UserResponse])
 async def list_users(
@@ -107,56 +141,62 @@ async def get_user(
         last_login=user["last_login"]
     )
 
-
 @router.post("", response_model=UserResponse, status_code=status.HTTP_201_CREATED)
 async def create_user(
     request: UserCreate,
-    current_user: Dict = require_admin(),
+    current_user: Dict = require_permission("user.create"),
     db: Database = Depends(get_db)
 ):
-    """Create a new user (admin only)"""
-    
-    # Check if user exists
+    """Create a new user (role-restricted)"""
+
+    # 1) Figure out creator roles
+    creator_roles = await get_user_role_names(db, current_user["user_id"])
+    allowed = allowed_roles_for_creator(creator_roles)
+
+    # 2) Enforce role creation rules
+    if request.role not in allowed:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=f"Not allowed to create role '{request.role}'. Allowed: {sorted(list(allowed))}",
+        )
+
+    # 3) Existing email check
     existing = await db.fetch_one(
         "SELECT user_id FROM users WHERE email = $1",
         request.email
     )
-    
     if existing:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Email already registered"
         )
-    
-    # Hash password
+
+    # 4) Create user
     hashed_pwd = hash_password(request.password)
-    
-    # Create user
     user = await db.fetch_one("""
         INSERT INTO users (email, hashed_password, full_name)
         VALUES ($1, $2, $3)
         RETURNING *
     """, request.email, hashed_pwd, request.full_name)
-    
-    # Assign role
+
+    # 5) Assign role
     role = await db.fetch_one(
         "SELECT role_id FROM roles WHERE role_name = $1",
         request.role
     )
-    
     if not role:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=f"Invalid role: {request.role}"
         )
-    
+
     await db.execute("""
         INSERT INTO user_roles (user_id, role_id, assigned_by)
         VALUES ($1, $2, $3)
     """, user["user_id"], role["role_id"], current_user["user_id"])
-    
-    # Return created user
+
     return await get_user(user["user_id"], current_user, db)
+
 
 
 @router.put("/{user_id}", response_model=UserResponse)

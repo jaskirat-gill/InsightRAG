@@ -7,6 +7,7 @@ export interface KnowledgeBase {
   name: string;
   description: string | null;
   storage_provider: string;
+  storage_config?: Record<string, any>;
   processing_strategy: string;
   status: string;
   health_score: number;
@@ -31,6 +32,7 @@ export interface Document {
   last_retrieved_at: string | null;
   avg_chunk_size_tokens?: number | null;
   avg_chunk_size_chars?: number | null;
+  preview_text?: string | null;
   created_at: string;
   uploaded_at: string | null;
   processing_strategy?: string | null;
@@ -126,8 +128,57 @@ export interface DocumentStrategyDetails {
   options: DocumentStrategyOption[];
 }
 
+export interface UpdateKBRequest {
+  name?: string;
+  description?: string;
+  status?: string;
+  processing_strategy?: string;
+  chunk_size?: number;
+  chunk_overlap?: number;
+  storage_config?: Record<string, any>;
+}
+
+export interface AdminUserRow {
+  user_id: string;
+  email: string;
+  full_name: string | null;
+  is_active: boolean;
+  roles: string[];
+}
+
 class KBService {
   private readonly API_URL = API_URL;
+
+    async adminListUsers(): Promise<AdminUserRow[]> {
+      const response = await fetch(`${this.API_URL}/api/v1/admin/users`, {
+        headers: { ...authService.getAuthHeader() },
+      });
+
+      if (!response.ok) {
+        const error = await response.json().catch(() => ({}));
+        throw new Error(error.detail || 'Failed to fetch users');
+      }
+
+      return await response.json();
+    }
+
+    async adminSetUserRole(userId: string, roleName: string): Promise<AdminUserRow> {
+      const response = await fetch(`${this.API_URL}/api/v1/admin/users/${userId}/role`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...authService.getAuthHeader(),
+        },
+        body: JSON.stringify({ role_name: roleName }),
+      });
+
+      if (!response.ok) {
+        const error = await response.json().catch(() => ({}));
+        throw new Error(error.detail || 'Failed to update user role');
+      }
+
+      return await response.json();
+    }
 
     // Get a presigned S3 URL for a document (View in S3)
     async getDocumentS3Url(kbId: string, docId: string): Promise<{ url: string }> {
@@ -405,6 +456,28 @@ class KBService {
     return await response.json();
   }
 
+  // Reset sync state (synced_file cache and optional download cache)
+  async resetSyncState(pluginId?: number | null): Promise<{ message: string; deleted_rows: number }> {
+    const response = await fetch(`${this.API_URL}/sync/reset`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...authService.getAuthHeader(),
+      },
+      body: JSON.stringify({
+        plugin_id: pluginId ?? null,
+        clear_download_cache: true,
+      }),
+    });
+
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({}));
+      throw new Error(error.detail || 'Failed to reset sync state');
+    }
+
+    return await response.json();
+  }
+
   // Get KB health stats (documents + chunk retrieval metrics)
   async getKBHealth(kbId: string): Promise<KBHealthStats> {
     const response = await fetch(`${this.API_URL}/api/v1/knowledge-bases/${kbId}/health`, {
@@ -449,6 +522,40 @@ class KBService {
     if (!response.ok) {
       const error = await response.json();
       throw new Error(error.detail || 'Failed to create knowledge base');
+    }
+
+    return await response.json();
+  }
+
+  // Update KB configuration
+  async updateKnowledgeBase(kbId: string, data: UpdateKBRequest): Promise<KnowledgeBase> {
+    const response = await fetch(`${this.API_URL}/api/v1/knowledge-bases/${kbId}`, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+        ...authService.getAuthHeader(),
+      },
+      body: JSON.stringify(data),
+    });
+
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({}));
+      throw new Error(error.detail || 'Failed to update knowledge base');
+    }
+
+    return await response.json();
+  }
+
+  // List available processing strategies (single source of truth)
+  async listStrategies(): Promise<DocumentStrategyOption[]> {
+    const response = await fetch(`${this.API_URL}/api/v1/knowledge-bases/strategies`, {
+      headers: {
+        ...authService.getAuthHeader(),
+      },
+    });
+
+    if (!response.ok) {
+      throw new Error('Failed to fetch strategies');
     }
 
     return await response.json();
