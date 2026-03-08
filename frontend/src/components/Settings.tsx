@@ -1,6 +1,7 @@
 import { FC, useState } from 'react';
-import { X, Settings2, Puzzle, Users } from 'lucide-react';
+import { X, Settings2, Puzzle, MessageSquare, Users } from 'lucide-react';
 import PluginSettings from './PluginSettings';
+import ChatSettings from './ChatSettings';
 import UserManagement from './UserManagement';
 
 interface SettingsProps {
@@ -8,10 +9,11 @@ interface SettingsProps {
   onClose: () => void;
 }
 
-type SettingsTab = 'general' | 'plugins' | 'users';
+type SettingsTab = 'general' | 'plugins' | 'chat' | 'users';
 
 const tabs: { key: SettingsTab; label: string; icon: typeof Settings2 }[] = [
   { key: 'general', label: 'General', icon: Settings2 },
+  { key: 'chat', label: 'Chat', icon: MessageSquare },
   { key: 'plugins', label: 'Plugins', icon: Puzzle },
   { key: 'users', label: 'Users', icon: Users },
 ];
@@ -73,6 +75,7 @@ const Settings: FC<SettingsProps> = ({ isOpen, onClose }) => {
           {/* Tab Content */}
           <div className="flex-1 overflow-y-auto p-6 custom-scrollbar">
             {activeTab === 'general' && <GeneralSettings />}
+            {activeTab === 'chat' && <ChatSettings />}
             {activeTab === 'plugins' && <PluginSettings />}
             {activeTab === 'users' && <UserManagement />}
           </div>
