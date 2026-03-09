@@ -13,22 +13,20 @@
 | **Team Name** | OpenWebUI Group B |
 | **Project Name** | Adaptive RAG Intelligence System |
 | **Group Letter** | B |
-| **Client Name** | _[Client Name]_ |
-| **Client Contact** | _[Client Email]_ |
+| **Client Name** | Tim J. Baek |
+| **Client Contact** | tim@openwebui.com |
 | **GitHub Repo** | [https://github.com/jaskirat-gill/OpenWebUI-Project](https://github.com/jaskirat-gill/OpenWebUI-Project) |
-| **Backlog / Board** | _[Link to GitHub Projects / Jira board]_ |
+| **Backlog / Board** | https://github.com/jaskirat-gill/OpenWebUI-Project/issues |
 | **Document Version** | 1.0 |
 
 #### Team Members
 
 | Name | Student ID | Role |
 |---|---|---|
-| _[Member 1]_ | _[ID]_ | _[Role]_ |
-| _[Member 2]_ | _[ID]_ | _[Role]_ |
-| _[Member 3]_ | _[ID]_ | _[Role]_ |
-| _[Member 4]_ | _[ID]_ | _[Role]_ |
-| _[Member 5]_ | _[ID]_ | _[Role]_ |
-
+| Jaskirat Gill | [ID] | Backend & Frontend |
+| Shibo Ai | [ID] | Backend |
+| Rui Xia | [ID] | Backend & Frontend |
+| Crystal Zhao | [ID] | Frontend & Tester |
 ---
 
 ## MVP Deliverable
@@ -81,10 +79,14 @@ The following scope was established at Requirements sign-off:
 
 | What Changed | Why | When | Evidence |
 |---|---|---|---|
-| _[Describe any scope change]_ | _[Reason]_ | _[Date]_ | _[Link to ticket/PR/meeting notes]_ |
-
----
-
+| Replaced ML-based strategy selection with a rule-based heuristic approach for MVP | Reduce technical risk and fit the 6-week timeline | Week 2 | Sprint planning / architecture notes |
+| Limited adaptive processing to core chunking strategies only | Prioritized a stable end-to-end pipeline over broader experimentation | Week 2–3 | Backlog refinement / implementation PRs |
+| Moved performance-based learning (US-004) to post-MVP / Could Have | Needed more retrieval history and evaluation infrastructure than MVP allowed | Week 2 | Backlog change / meeting notes |
+| Moved contradiction detection (US-010) to post-MVP / Could Have | High complexity and false-positive risk; prioritized analytics and staleness first | Week 3 | Risk review / backlog update |
+| Deferred duplicate detection (US-014), relationship graphs (US-015), and A/B testing (US-016) | Lower priority than core document analysis, chunking, and health monitoring | Week 3 | MoSCoW updates / issue tracker |
+| Removed email notifications for staleness alerts | Avoided extra integration work; kept dashboard-based alerts only | Week 3 | Design notes / ticket update |
+| Limited storage integration to S3 only | Reduced integration and testing complexity for MVP | Week 2 | Architecture decision / storage PR |
+| Reframed health features as diagnostic only, not automated remediation | Kept MVP focused on visibility and monitoring rather than automated actions | Week 2 | Scope review / dashboard design notes |
 ## Progress vs. Plan
 
 | Scope Item (Name + ID) | MoSCoW | Planned for MVP or Final? | Ticket Owner | Status | Evidence | Notes |
