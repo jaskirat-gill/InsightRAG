@@ -26,7 +26,7 @@
 |---|---|---|
 | Jaskirat Gill | _[ID]_ | Backend & DevOps Lead |
 | Shibo Ai | _[ID]_ | Backend & MCP Integration |
-| Rui Xia | 15156524 | Backend & MCP Integration & Frontend |
+| Rui Xia | 15156524 | Backend & MCP Development & Frontend |
 | Crystal Zhao | _[ID]_ | Frontend & QA |
 
 > **TA Access Note:** The GitHub repository is public. The project board is public at the link above. Teaching team members (TA, Parsa, Fahim) do not require additional permissions to access any linked resources. All links have been verified in incognito mode.
