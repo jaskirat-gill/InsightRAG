@@ -25,7 +25,7 @@
 |---|---|---|
 | Jaskirat Gill | [ID] | Backend & Frontend |
 | Shibo Ai | [ID] | Backend |
-| Rui Xia | [ID] | Backend & Frontend |
+| Rui Xia | 15156524 | Backend & Frontend |
 | Crystal Zhao | [ID] | Frontend & Tester |
 ---
 
@@ -91,29 +91,31 @@ The following scope was established at Requirements sign-off:
 
 | Scope Item (Name + ID) | MoSCoW | Planned for MVP or Final? | Ticket Owner | Status | Evidence | Notes |
 |---|---|---|---|---|---|---|
-| [US-001: Document Structure Analysis](link-to-ticket) | Must | MVP | _[Owner]_ | _[Status]_ | _[PR Link]_ | |
-| [US-002: Strategy Rationale Display](link-to-ticket) | Must | MVP | _[Owner]_ | _[Status]_ | _[PR Link]_ | |
-| [US-005: Document Classification](link-to-ticket) | Must | MVP | _[Owner]_ | _[Status]_ | _[PR Link]_ | |
-| [US-006: Dynamic Chunking Strategy](link-to-ticket) | Must | MVP | _[Owner]_ | _[Status]_ | [PR #35](https://github.com/jaskirat-gill/OpenWebUI-Project/pull/35) | Rule-based selector with 4 strategies |
-| [US-008: Retrieval Frequency Heatmap](link-to-ticket) | Must | MVP | _[Owner]_ | _[Status]_ | [PR #36](https://github.com/jaskirat-gill/OpenWebUI-Project/pull/36) | |
-| [US-009: Staleness Alerts & Health Indicators](link-to-ticket) | Must | MVP | _[Owner]_ | _[Status]_ | _[PR Link]_ | |
-| [US-012: Document Health Scoring](link-to-ticket) | Must | MVP | _[Owner]_ | _[Status]_ | [PR #43](https://github.com/jaskirat-gill/OpenWebUI-Project/pull/43) | Health circle UI fix |
-| [FR-018: Configuration UI](link-to-ticket) | Must | MVP | _[Owner]_ | _[Status]_ | _[PR Link]_ | |
-| [User Management System](link-to-ticket) | Must | MVP | _[Owner]_ | _[Status]_ | [PR #41](https://github.com/jaskirat-gill/OpenWebUI-Project/pull/41) | Role-based access (admin/user) |
-| [S3 Cloud Sync](link-to-ticket) | Must | MVP | _[Owner]_ | _[Status]_ | _[PR Link]_ | Event-driven + daily reconciliation |
-| [MCP Server Integration](link-to-ticket) | Must | MVP | _[Owner]_ | _[Status]_ | [PR #37](https://github.com/jaskirat-gill/OpenWebUI-Project/pull/37), [PR #44](https://github.com/jaskirat-gill/OpenWebUI-Project/pull/44) | MCP threshold improvements |
-| [Knowledge Base CRUD](link-to-ticket) | Must | MVP | _[Owner]_ | _[Status]_ | [PR #39](https://github.com/jaskirat-gill/OpenWebUI-Project/pull/39) | Create KB fix |
-| [Chat Interface with KB](link-to-ticket) | Must | MVP | _[Owner]_ | _[Status]_ | _[PR Link]_ | OpenWebUI integration |
-| [Light/Dark Mode](link-to-ticket) | Should | MVP | _[Owner]_ | _[Status]_ | [PR #42](https://github.com/jaskirat-gill/OpenWebUI-Project/pull/42) | |
-| [Plugin Architecture (S3)](link-to-ticket) | Must | MVP | _[Owner]_ | _[Status]_ | _[PR Link]_ | ABC pattern, auto-discovery |
-| [Document Detail View](link-to-ticket) | Must | MVP | _[Owner]_ | _[Status]_ | [PR #38](https://github.com/jaskirat-gill/OpenWebUI-Project/pull/38) | Tabs: Overview, Strategy, Chunks, Health, Document View |
-| [US-003: Manual Strategy Override](link-to-ticket) | Should | Final | _[Owner]_ | _[Status]_ | _[PR Link / Planned Date]_ | |
-| [US-007: Metadata Extraction](link-to-ticket) | Should | Final | _[Owner]_ | _[Status]_ | _[Planned Date]_ | |
-| [US-011: Failed Query Analysis](link-to-ticket) | Should | Final | _[Owner]_ | _[Status]_ | _[Planned Date]_ | |
-| [US-010: Contradiction Detection](link-to-ticket) | Could | Final | _[Owner]_ | _[Status]_ | _[Planned Date]_ | |
-| [US-014: Duplicate Detection](link-to-ticket) | Could | Final | _[Owner]_ | _[Status]_ | _[Planned Date]_ | |
+| [US-008: Retrieval Frequency Heatmap](https://github.com/jaskirat-gill/OpenWebUI-Project/issues/53) | Must | MVP | Jaskirat | 🟢 Done | [PR #36](https://github.com/jaskirat-gill/OpenWebUI-Project/pull/36) | |
+| [US-009: Staleness Detection & Alerts](https://github.com/jaskirat-gill/OpenWebUI-Project/issues/54) | Must | MVP | Jaskirat, Crystal | 🟢 Done | _[PR Link]_ | Visual health indicators on KB list |
+| [US-012: Document Health Score Display](https://github.com/jaskirat-gill/OpenWebUI-Project/issues/57) | Must | MVP | Crystal, Rui, Jaskirat | 🟢 Done | [PR #43](https://github.com/jaskirat-gill/OpenWebUI-Project/pull/43) | Health circle UI implemented |
+| [FR-018: Auth + RBAC (Admin/Dev/User)](https://github.com/jaskirat-gill/OpenWebUI-Project/issues/62) | Must | MVP | Rui, Crystal | 🟢 Done | [PR #41](https://github.com/jaskirat-gill/OpenWebUI-Project/pull/41) | Role-based access: admin/developer/user |
+| [US-019: Local Chat System (MCP-Integrated)](https://github.com/jaskirat-gill/OpenWebUI-Project/issues/63) | Must | MVP | Shibo | 🟢 Done | [PR #37](https://github.com/jaskirat-gill/OpenWebUI-Project/pull/37), [PR #44](https://github.com/jaskirat-gill/OpenWebUI-Project/pull/44) | Chat + MCP server integrated; works with Claude Desktop |
+| [US-002: Strategy Rationale Logging & Display](https://github.com/jaskirat-gill/OpenWebUI-Project/issues/47) | Must | MVP | Jaskirat | 🟢 Done | [PR #38](https://github.com/jaskirat-gill/OpenWebUI-Project/pull/38) | Strategy tab in Document Detail View |
+| [S3 Cloud Sync (Event-Driven + Daily Reconciliation)](https://github.com/jaskirat-gill/OpenWebUI-Project/issues/64) | Must | MVP | Jaskirat | 🟢 Done | _[PR Link]_ | SQS event-driven + daily reconciliation |
+| [Knowledge Base CRUD](https://github.com/jaskirat-gill/OpenWebUI-Project/issues/65) | Must | MVP | Rui | 🟢 Done | [PR #39](https://github.com/jaskirat-gill/OpenWebUI-Project/pull/39) | Create, list, search, delete KB |
+| [Plugin Architecture (S3 Provider)](https://github.com/jaskirat-gill/OpenWebUI-Project/issues/66) | Must | MVP | Jaskirat | 🟢 Done | _[PR Link]_ | ABC pattern, auto-discovery from /plugins/ |
+| [Document Detail View](https://github.com/jaskirat-gill/OpenWebUI-Project/issues/67) | Must | MVP | Crystal | 🟢 Done | [PR #38](https://github.com/jaskirat-gill/OpenWebUI-Project/pull/38) | Tabs: Overview, Strategy, Chunks, Health, Document View |
+| [Light / Dark Mode UI](https://github.com/jaskirat-gill/OpenWebUI-Project/issues/68) | Should | MVP | Crystal | 🟢 Done | [PR #42](https://github.com/jaskirat-gill/OpenWebUI-Project/pull/42) | |
+| [US-006: Dynamic Chunking Strategy Selection](https://github.com/jaskirat-gill/OpenWebUI-Project/issues/51) | Must | MVP | Rui, Jaskirat | 🟡 Partial | [PR #35](https://github.com/jaskirat-gill/OpenWebUI-Project/pull/35) | Rule-based selector with 4 strategies; learned selection not yet done |
+| [US-001: Auto Document Structure & Content Analysis](https://github.com/jaskirat-gill/OpenWebUI-Project/issues/46) | Must | MVP | Jaskirat, Shibo, Rui | 🟡 Partial | _[PR Link]_ | Basic structure extraction done; full content characteristic detection in progress |
+| [US-003: Manual Strategy Override with Audit Trail](https://github.com/jaskirat-gill/OpenWebUI-Project/issues/48) | Should | MVP | Rui | 🟡 Partial | _[PR Link]_ | Override UI present; full audit trail logging in progress |
+| [US-005: Multi-Label Document Classification](https://github.com/jaskirat-gill/OpenWebUI-Project/issues/50) | Must | MVP | Jaskirat, Rui, Crystal, Shibo | 🟡 Partial | _[PR Link]_ | Single-label classification done; multi-label + confidence score in progress |
+| [US-010: Semantic Contradiction Detection](https://github.com/jaskirat-gill/OpenWebUI-Project/issues/55) | Could | Final | Shibo | 🔴 Not Started | Target: Mar 22, 2026 | Deferred — high complexity, false-positive risk |
+| [US-004: Performance-Based Learning](https://github.com/jaskirat-gill/OpenWebUI-Project/issues/49) | Could | Final | Jaskirat | 🔴 Not Started | Target: Mar 25, 2026 | Deferred — needs retrieval history infrastructure |
+| [US-016: A/B Testing for Processing Strategies](https://github.com/jaskirat-gill/OpenWebUI-Project/issues/61) | Could | Final | Rui | 🔴 Not Started | Target: Mar 28, 2026 | Deferred post-MVP |
+| [US-007: Intelligent Metadata Extraction](https://github.com/jaskirat-gill/OpenWebUI-Project/issues/52) | Should | Final | Crystal | 🔴 Not Started | Target: Mar 18, 2026 | |
+| [US-011: Failed Query Analysis & Knowledge Gap ID](https://github.com/jaskirat-gill/OpenWebUI-Project/issues/56) | Should | Final | Shibo | 🔴 Not Started | Target: Mar 20, 2026 | |
+| [US-013: Document Improvement Recommendations](https://github.com/jaskirat-gill/OpenWebUI-Project/issues/58) | Should | Final | Crystal | 🔴 Not Started | Target: Mar 22, 2026 | |
+| [US-014: Duplicate Document Detection & Archiving](https://github.com/jaskirat-gill/OpenWebUI-Project/issues/59) | Could | Final | Rui | 🔴 Not Started | Target: Mar 25, 2026 | |
+| [US-015: Document Dependency & Relationship Graphs](https://github.com/jaskirat-gill/OpenWebUI-Project/issues/60) | Could | Final | Jaskirat | 🔴 Not Started | Target: Mar 28, 2026 | |
 
-**Status Legend:** Done / Partial / Not Started / Deferred
+**Status Legend:** 🟢 Done &nbsp;|&nbsp; 🟡 Partial &nbsp;|&nbsp; 🔴 Not Started / Deferred
 
 ---
 
@@ -160,9 +162,9 @@ The following scope was established at Requirements sign-off:
 
 | Bug ID | Title | Severity | Owner | Target Fix Date |
 |---|---|---|---|---|
-| _[#ID]_ | _[Bug Title]_ | _[Critical/Major/Minor/Cosmetic]_ | _[Owner]_ | _[Date]_ |
+| [#69](https://github.com/jaskirat-gill/OpenWebUI-Project/issues/69) | Revision history data format is confusing | Minor | Crystal | Mar 15, 2026 |
 
-_Update this table with any known open bugs. At MVP evaluation, there should be zero known critical bugs._
+_There are zero known Critical or Major bugs. The one open issue is a Minor UI/UX polish item that does not block any MVP workflow._
 
 ### Severity Definitions
 
@@ -210,4 +212,11 @@ PR / Push
 
 ## AI Disclosure
 
-_[Include AI disclosure per course AI Policy. List any AI tools used during development and how they were used.]_
+Our team used AI tools during development and documentation and did so responsibly, in accordance with the CPSC 319 AI Policy.
+
+| Tool | How It Was Used |
+|---|---|
+| GitHub Copilot | Code completion and boilerplate generation during backend and frontend development |
+| ChatGPT / Claude | Drafting and refining documentation, summarizing requirements, and generating skeleton code reviewed and modified by team members |
+
+All AI-generated output was reviewed, understood, and verified by the team member responsible for that work. No AI tool was used to replace critical thinking, design decisions, or testing.
