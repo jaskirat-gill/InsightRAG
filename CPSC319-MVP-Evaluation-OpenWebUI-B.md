@@ -149,13 +149,26 @@ The following scope was established at Requirements sign-off:
 2. Log in with the admin credentials provided
 3. Navigate to **Settings > Plugins** to verify S3 plugin connection (pre-configured)
 4. Navigate to **Knowledge Bases** to view existing document collections
-5. Use **Chat Interface** to query the knowledge base (select model and MCP server in top-left corner)
+
+### Querying the Knowledge Base via OpenWebUI
+
+> **Note:** The built-in Chat Interface in our application is not functional. This is expected — the chat interface was included solely for peer testing purposes and is **not** part of our project requirements. Our system is designed to work with external LLM frontends such as OpenWebUI, which connects to our system via MCP server integration.
+
+OpenWebUI has been deployed and configured to work with our system as a connected MCP server. To query the knowledge base:
+
+1. Navigate to [http://cpsc319.jaskiratgill.ca:3000/](http://cpsc319.jaskiratgill.ca:3000/) (note: **http**, not https)
+2. Log in with the following credentials:
+   - **Email:** `tester@gmail.com`
+   - **Password:** `cpsc319test`
+3. Start a new chat
+4. Click **Integrations** → **Tools** and select **mymcp**
+5. You can now ask questions regarding the knowledge base
 
 ### Constraints and Assumptions
 
 - **Browser:** Chrome (latest) or Firefox (latest) recommended
 - **Environment:** The deployed instance is pre-configured with S3 credentials and OpenWebUI connection settings
-- **MCP Integration:** The MCP server is accessible at the deployed endpoint for third-party LLM tools (e.g., Claude Desktop)
+- **MCP Integration:** The MCP server is accessible at the deployed endpoint for third-party LLM tools (e.g., OpenWebUI). OpenWebUI is configured to connect to our system as an MCP server at `http://cpsc319.jaskiratgill.ca:3000/`
 - **Sample Data:** The knowledge base is pre-populated with sample documents for testing
 
 ---
