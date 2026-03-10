@@ -25,7 +25,7 @@
 | Name | Student ID | Role |
 |---|---|---|
 | Jaskirat Gill | _[ID]_ | Backend & DevOps Lead |
-| Shibo Ai | _[ID]_ | Backend & MCP Integration |
+| Shibo Ai | 82902826 | Backend & MCP Integration |
 | Rui Xia | 15156524 | Backend & MCP Development & Frontend |
 | Crystal Zhao | _[ID]_ | Frontend & QA |
 
