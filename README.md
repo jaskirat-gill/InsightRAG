@@ -1,5 +1,7 @@
 # OpenWebUI Project
 
+## PROJECT BOARD
+[Project Board Link](https://github.com/users/Sherry-Rui-Xia/projects/1)
 ## Getting Started
 
 ### Prerequisites
@@ -9,12 +11,17 @@
 
 ### Quick Start
 
-The easiest way to run the entire stack is using Docker Compose:
+The easiest way to run the backend is using Docker Compose:
 
 ```bash
 docker-compose up --build
 ```
+The frontend can be run by:
 
+```bash
+cd frontend
+npm run dev
+```
 Access the services:
 - **Frontend**: [http://localhost:5173](http://localhost:5173)
 - **Cloud Sync Service**: [http://localhost:8000/docs](http://localhost:8000/docs)
