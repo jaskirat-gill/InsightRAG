@@ -43,3 +43,9 @@ ENV/
 
 # Custom
 sync_service.db
+
+# Project / course documents (not part of the product runtime)
+CPSC319-*.md
+projectIdeas.md
+tester-task-list.md
+Bug_Report.md
