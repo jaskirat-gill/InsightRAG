@@ -91,7 +91,9 @@ jobs:
 
       - name: Install sync-service dependencies
         working-directory: backend/sync-service
-        run: pip install -r requirements.txt -r requirements-test.txt
+        run: |
+          pip install -r requirements.txt
+          pip install -r requirements-test.txt
 
       - name: Run sync-service unit tests
         working-directory: backend/sync-service
@@ -99,7 +101,9 @@ jobs:
 
       - name: Install document-processing-engine dependencies
         working-directory: backend/document-processing-engine
-        run: pip install -r requirements.txt -r requirements-test.txt
+        run: |
+          pip install -r requirements.txt
+          pip install -r requirements-test.txt
 
       - name: Run document-processing-engine unit tests
         working-directory: backend/document-processing-engine
