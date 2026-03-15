@@ -4,534 +4,91 @@
 
 @layer base {
   :root {
+    --background: 0 0% 100%;
+    --foreground: 222.2 84% 4.9%;
+    --card: 0 0% 100%;
+    --card-foreground: 222.2 84% 4.9%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 222.2 84% 4.9%;
+    --primary: 222.2 47.4% 11.2%;
+    --primary-foreground: 210 40% 98%;
+    --secondary: 210 40% 96.1%;
+    --secondary-foreground: 222.2 47.4% 11.2%;
+    --muted: 210 40% 96.1%;
+    --muted-foreground: 215.4 16.3% 46.9%;
+    --accent: 210 40% 96.1%;
+    --accent-foreground: 222.2 47.4% 11.2%;
+    --destructive: 0 84.2% 60.2%;
+    --destructive-foreground: 210 40% 98%;
+    --border: 214.3 31.8% 91.4%;
+    --input: 214.3 31.8% 91.4%;
+    --ring: 222.2 84% 4.9%;
+    --radius: 0.5rem;
+
+    --status-success: 142 71% 45%;
+    --status-warning: 38 92% 50%;
+    --status-danger: 0 84% 60%;
+
+    --sidebar-background: 0 0% 98%;
+    --sidebar-foreground: 240 5.3% 26.1%;
+    --sidebar-primary: 240 5.9% 10%;
+    --sidebar-primary-foreground: 0 0% 98%;
+    --sidebar-accent: 240 4.8% 95.9%;
+    --sidebar-accent-foreground: 240 5.9% 10%;
+    --sidebar-border: 220 13% 91%;
+    --sidebar-ring: 217.2 91.2% 59.8%;
+
     font-family: Inter, system-ui, Avenir, Helvetica, Arial, sans-serif;
     line-height: 1.5;
     font-weight: 400;
-
-    --color-primary: 59 130 246;
-    --color-secondary: 100 116 139;
-    --color-accent: 139 92 246;
-    --color-background: 15 23 42;
-    --color-surface: 30 41 59;
-    --color-foreground: 248 250 252;
-    --grid-dot-color: rgba(255, 255, 255, 0.1);
-    --ring-track-stroke: rgba(148, 163, 184, 0.22);
-    --ring-progress-stroke: rgba(34, 197, 94, 0.95);
-    --app-bg-gradient:
-      radial-gradient(900px 600px at 12% 8%, rgba(59, 130, 246, 0.22), transparent 60%),
-      radial-gradient(850px 650px at 88% 92%, rgba(139, 92, 246, 0.2), transparent 62%),
-      linear-gradient(180deg, rgb(15, 23, 42) 0%, rgb(10, 15, 30) 100%);
-
-    color-scheme: dark;
-    color: rgb(var(--color-foreground));
-    background-color: rgb(var(--color-background));
-
     font-synthesis: none;
     text-rendering: optimizeLegibility;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
   }
 
-  :root.light {
-    --color-primary: 30 41 59;
-    --color-secondary: 55 65 81;
-    --color-accent: 51 65 85;
-    --color-background: 255 255 255;
-    --color-surface: 255 255 255;
-    --color-foreground: 15 23 42;
-    --grid-dot-color: rgba(15, 23, 42, 0.06);
-    --ring-track-stroke: rgba(71, 85, 105, 0.24);
-    --ring-progress-stroke: rgba(22, 163, 74, 0.95);
-    --app-bg-gradient:
-      linear-gradient(180deg, rgb(255, 255, 255) 0%, rgb(248, 250, 252) 100%);
-    color-scheme: light;
+  .dark {
+    --background: 240 6% 10%;
+    --foreground: 0 0% 95%;
+    --card: 240 6% 10%;
+    --card-foreground: 0 0% 95%;
+    --popover: 240 6% 10%;
+    --popover-foreground: 0 0% 95%;
+    --primary: 0 0% 98%;
+    --primary-foreground: 240 6% 10%;
+    --secondary: 240 4% 16%;
+    --secondary-foreground: 0 0% 95%;
+    --muted: 240 4% 16%;
+    --muted-foreground: 240 5% 65%;
+    --accent: 240 4% 16%;
+    --accent-foreground: 0 0% 95%;
+    --destructive: 0 63% 31%;
+    --destructive-foreground: 0 0% 95%;
+    --border: 240 4% 16%;
+    --input: 240 4% 16%;
+    --ring: 240 5% 65%;
+
+    --status-success: 142 71% 45%;
+    --status-warning: 38 92% 50%;
+    --status-danger: 0 63% 31%;
+
+    --sidebar-background: 240 6% 10%;
+    --sidebar-foreground: 0 0% 95%;
+    --sidebar-primary: 0 0% 98%;
+    --sidebar-primary-foreground: 240 6% 10%;
+    --sidebar-accent: 240 4% 16%;
+    --sidebar-accent-foreground: 0 0% 95%;
+    --sidebar-border: 240 4% 16%;
+    --sidebar-ring: 240 5% 65%;
+  }
+
+  * {
+    @apply border-border;
   }
 
   body {
-    @apply bg-background min-h-screen subpixel-antialiased overflow-hidden;
-    color: rgb(var(--color-foreground));
+    @apply bg-background text-foreground min-h-screen antialiased;
     margin: 0;
     padding: 0;
   }
-}
-
-@layer utilities {
-  :root.light .text-white {
-    color: rgb(15 23 42 / var(--tw-text-opacity, 1)) !important;
-  }
-
-  :root.light .text-white\/95 {
-    color: rgb(15 23 42 / 0.95) !important;
-  }
-
-  :root.light .text-white\/90 {
-    color: rgb(15 23 42 / 0.9) !important;
-  }
-
-  :root.light .text-white\/80 {
-    color: rgb(15 23 42 / 0.8) !important;
-  }
-
-  :root.light .text-white\/70 {
-    color: rgb(15 23 42 / 0.7) !important;
-  }
-
-  :root.light .text-white\/30 {
-    color: rgb(15 23 42 / 0.3) !important;
-  }
-
-  :root.light .hover\:text-white:hover {
-    color: rgb(15 23 42 / 1) !important;
-  }
-
-  :root.light .text-red-400 {
-    color: rgb(185 28 28 / 1) !important;
-  }
-
-  :root.light .text-red-300 {
-    color: rgb(153 27 27 / 1) !important;
-  }
-
-  :root.light .text-red-200 {
-    color: rgb(127 29 29 / 1) !important;
-  }
-
-  :root.light .hover\:text-red-400:hover {
-    color: rgb(153 27 27 / 1) !important;
-  }
-
-  :root.light .border-white\/15 {
-    border-color: rgb(15 23 42 / 0.15) !important;
-  }
-
-  :root.light .border-white\/10 {
-    border-color: rgb(15 23 42 / 0.1) !important;
-  }
-
-  :root.light .border-white\/5 {
-    border-color: rgb(15 23 42 / 0.08) !important;
-  }
-
-  :root.light .bg-white\/10 {
-    background-color: rgb(15 23 42 / 0.08) !important;
-  }
-
-  :root.light .bg-white\/5 {
-    background-color: rgb(15 23 42 / 0.04) !important;
-  }
-
-  :root.light .bg-white\/2 {
-    background-color: rgb(15 23 42 / 0.02) !important;
-  }
-
-  :root.light .bg-white\/\[0\.06\] {
-    background-color: rgb(15 23 42 / 0.05) !important;
-  }
-
-  :root.light .bg-white\/\[0\.05\] {
-    background-color: rgb(15 23 42 / 0.04) !important;
-  }
-
-  :root.light .bg-white\/\[0\.03\] {
-    background-color: rgb(15 23 42 / 0.025) !important;
-  }
-
-  :root.light .bg-white\/\[0\.02\] {
-    background-color: rgb(15 23 42 / 0.02) !important;
-  }
-
-  :root.light .fill-white {
-    fill: rgb(15 23 42) !important;
-  }
-
-  :root.light .divide-white\/5 > :not([hidden]) ~ :not([hidden]) {
-    border-color: rgb(15 23 42 / 0.08) !important;
-  }
-
-  :root.light .bg-surface\/95 {
-    background-color: rgb(255 255 255 / 0.95) !important;
-  }
-
-  :root.light .bg-surface\/80 {
-    background-color: rgb(255 255 255 / 0.8) !important;
-  }
-
-  :root.light .bg-surface\/60 {
-    background-color: rgb(255 255 255 / 0.74) !important;
-  }
-
-  :root.light .bg-surface\/50 {
-    background-color: rgb(255 255 255 / 0.66) !important;
-  }
-
-  :root.light .bg-surface\/40 {
-    background-color: rgb(255 255 255 / 0.56) !important;
-  }
-
-  :root.light .bg-surface\/30 {
-    background-color: rgb(255 255 255 / 0.42) !important;
-  }
-
-  :root.light .bg-background\/80 {
-    background-color: rgb(241 245 249 / 0.9) !important;
-  }
-
-  :root.light .bg-background\/60 {
-    background-color: rgb(241 245 249 / 0.8) !important;
-  }
-
-  :root.light .bg-background\/50 {
-    background-color: rgb(241 245 249 / 0.74) !important;
-  }
-
-  :root.light .hover\:bg-white\/10:hover {
-    background-color: rgb(15 23 42 / 0.08) !important;
-  }
-
-  :root.light .hover\:bg-white\/5:hover {
-    background-color: rgb(15 23 42 / 0.05) !important;
-  }
-
-  :root.light [class*="bg-[#111]"] {
-    background-color: rgb(255 255 255 / 0.94) !important;
-  }
-
-  :root.light [class*="bg-[#1a1a2e]"] {
-    background-color: rgb(255 255 255 / 0.94) !important;
-  }
-
-  :root.light [class*="bg-[#0B1220]"],
-  :root.light [class*="bg-[#0b1220]"] {
-    background-color: rgb(226 232 240 / 0.95) !important;
-  }
-
-  :root.light .bg-black\/30 {
-    background-color: rgb(15 23 42 / 0.12) !important;
-  }
-
-  :root.light .bg-black\/25 {
-    background-color: rgb(15 23 42 / 0.1) !important;
-  }
-
-  :root.light .bg-black\/20 {
-    background-color: rgb(15 23 42 / 0.08) !important;
-  }
-
-  :root.light .shadow-black\/50 {
-    --tw-shadow-color: rgb(15 23 42 / 0.18) !important;
-    --tw-shadow: var(--tw-shadow-colored) !important;
-  }
-
-  :root.light .shadow-2xl {
-    --tw-shadow-color: rgb(15 23 42 / 0.14) !important;
-    --tw-shadow: 0 20px 40px -16px var(--tw-shadow-color) !important;
-    box-shadow: var(--tw-ring-offset-shadow, 0 0 #0000),
-      var(--tw-ring-shadow, 0 0 #0000),
-      var(--tw-shadow) !important;
-  }
-}
-
-/* Custom scrollbar */
-.custom-scrollbar::-webkit-scrollbar {
-  width: 6px;
-}
-
-.custom-scrollbar::-webkit-scrollbar-track {
-  background: transparent;
-}
-
-.custom-scrollbar::-webkit-scrollbar-thumb {
-  background: rgba(255, 255, 255, 0.1);
-  border-radius: 3px;
-}
-
-.custom-scrollbar::-webkit-scrollbar-thumb:hover {
-  background: rgba(255, 255, 255, 0.2);
-}
-
-:root.light .custom-scrollbar::-webkit-scrollbar-thumb {
-  background: rgba(15, 23, 42, 0.15);
-}
-
-:root.light .custom-scrollbar::-webkit-scrollbar-thumb:hover {
-  background: rgba(15, 23, 42, 0.25);
-}
-
-:root.light .theme-orb {
-  opacity: 0;
-}
-
-.nav-tooltip {
-  color: rgb(248, 250, 252);
-}
-
-:root.light .nav-tooltip {
-  color: rgb(248, 250, 252);
-  background-color: rgba(15, 23, 42, 0.9);
-}
-
-:root[data-theme='light'] {
-  --color-background: 255 255 255;
-  --color-surface: 255 255 255;
-  --color-foreground: 15 23 42;
-  color-scheme: light;
-}
-
-:root[data-theme='light'] body {
-  background-color: #ffffff !important;
-  color: #0f172a !important;
-}
-
-:root[data-theme='light'] .bg-background,
-:root.light .bg-background {
-  background-color: rgb(255 255 255 / 1) !important;
-}
-
-:root[data-theme='light'] .bg-background\/95,
-:root.light .bg-background\/95 {
-  background-color: rgb(255 255 255 / 0.97) !important;
-}
-
-:root[data-theme='light'] .bg-background\/80,
-:root.light .bg-background\/80 {
-  background-color: rgb(248 250 252 / 0.9) !important;
-}
-
-:root[data-theme='light'] .bg-background\/60,
-:root.light .bg-background\/60 {
-  background-color: rgb(248 250 252 / 0.8) !important;
-}
-
-:root[data-theme='light'] .bg-background\/50,
-:root.light .bg-background\/50 {
-  background-color: rgb(248 250 252 / 0.74) !important;
-}
-
-:root[data-theme='light'] .bg-surface,
-:root.light .bg-surface {
-  background-color: rgb(255 255 255 / 1) !important;
-}
-
-:root[data-theme='light'] .bg-surface\/95,
-:root.light .bg-surface\/95 {
-  background-color: rgb(255 255 255 / 0.97) !important;
-}
-
-:root[data-theme='light'] .bg-surface\/80,
-:root.light .bg-surface\/80 {
-  background-color: rgb(255 255 255 / 0.88) !important;
-}
-
-:root[data-theme='light'] .bg-surface\/60,
-:root.light .bg-surface\/60 {
-  background-color: rgb(255 255 255 / 0.78) !important;
-}
-
-:root[data-theme='light'] .bg-surface\/50,
-:root.light .bg-surface\/50 {
-  background-color: rgb(255 255 255 / 0.7) !important;
-}
-
-:root[data-theme='light'] .bg-surface\/40,
-:root.light .bg-surface\/40 {
-  background-color: rgb(255 255 255 / 0.62) !important;
-}
-
-:root[data-theme='light'] .bg-surface\/30,
-:root.light .bg-surface\/30 {
-  background-color: rgb(255 255 255 / 0.52) !important;
-}
-
-:root[data-theme='light'] .settings-panel,
-:root.light .settings-panel {
-  background-color: rgba(255, 255, 255, 0.98) !important;
-}
-
-:root[data-theme='light'] .settings-sidebar,
-:root.light .settings-sidebar {
-  background-color: rgba(248, 250, 252, 0.85) !important;
-}
-
-:root[data-theme='light'] .create-kb-footer,
-:root.light .create-kb-footer {
-  background-color: rgba(255, 255, 255, 0.98) !important;
-}
-
-:root[data-theme='light'] .text-green-400,
-:root.light .text-green-400 {
-  color: rgb(22 101 52 / 1) !important;
-}
-
-:root[data-theme='light'] .text-green-300,
-:root.light .text-green-300 {
-  color: rgb(21 83 45 / 1) !important;
-}
-
-:root[data-theme='light'] .text-green-200,
-:root.light .text-green-200 {
-  color: rgb(20 64 36 / 1) !important;
-}
-
-:root[data-theme='light'] .text-blue-300,
-:root.light .text-blue-300 {
-  color: rgb(30 64 175 / 1) !important;
-}
-
-:root[data-theme='light'] .text-blue-400,
-:root.light .text-blue-400 {
-  color: rgb(29 78 216 / 1) !important;
-}
-
-:root[data-theme='light'] .text-secondary\/80,
-:root.light .text-secondary\/80 {
-  color: rgb(55 65 81 / 0.92) !important;
-}
-
-:root[data-theme='light'] .text-secondary\/70,
-:root.light .text-secondary\/70 {
-  color: rgb(55 65 81 / 0.86) !important;
-}
-
-:root[data-theme='light'] .text-secondary\/60,
-:root.light .text-secondary\/60 {
-  color: rgb(55 65 81 / 0.8) !important;
-}
-
-:root[data-theme='light'] .text-yellow-200\/90,
-:root.light .text-yellow-200\/90 {
-  color: rgb(133 77 14 / 1) !important;
-}
-
-:root[data-theme='light'] .text-yellow-300\/80,
-:root.light .text-yellow-300\/80 {
-  color: rgb(146 64 14 / 1) !important;
-}
-
-:root[data-theme='light'] .text-yellow-300,
-:root.light .text-yellow-300 {
-  color: rgb(146 64 14 / 1) !important;
-}
-
-:root[data-theme='light'] .border-blue-500\/20,
-:root.light .border-blue-500\/20 {
-  border-color: rgb(37 99 235 / 0.35) !important;
-}
-
-:root[data-theme='light'] .bg-blue-500\/10,
-:root.light .bg-blue-500\/10 {
-  background-color: rgb(37 99 235 / 0.14) !important;
-}
-
-/* Keep filled action buttons readable in light mode */
-:root[data-theme='light'] .bg-primary.text-white,
-:root.light .bg-primary.text-white,
-:root[data-theme='light'] .bg-red-500.text-white,
-:root.light .bg-red-500.text-white {
-  color: #ffffff !important;
-}
-
-:root[data-theme='light'] .bg-gradient-to-r.text-white,
-:root.light .bg-gradient-to-r.text-white {
-  color: #ffffff !important;
-}
-
-.theme-toggle-btn:hover {
-  filter: brightness(0.97);
-}
-
-/* Make light-mode form/table "buckets" near-white instead of dark gray */
-:root[data-theme='light'] .bg-white\/10,
-:root.light .bg-white\/10 {
-  background-color: rgb(241 245 249 / 0.95) !important;
-}
-
-:root[data-theme='light'] .bg-white\/5,
-:root.light .bg-white\/5 {
-  background-color: rgb(248 250 252 / 0.95) !important;
-}
-
-:root[data-theme='light'] .bg-white\/2,
-:root.light .bg-white\/2 {
-  background-color: rgb(250 252 255 / 0.96) !important;
-}
-
-:root[data-theme='light'] .bg-white\/\[0\.06\],
-:root.light .bg-white\/\[0\.06\] {
-  background-color: rgb(241 245 249 / 0.95) !important;
-}
-
-:root[data-theme='light'] .bg-white\/\[0\.05\],
-:root.light .bg-white\/\[0\.05\] {
-  background-color: rgb(244 247 251 / 0.95) !important;
-}
-
-:root[data-theme='light'] .bg-white\/\[0\.03\],
-:root.light .bg-white\/\[0\.03\] {
-  background-color: rgb(247 250 253 / 0.95) !important;
-}
-
-:root[data-theme='light'] .bg-white\/\[0\.02\],
-:root.light .bg-white\/\[0\.02\] {
-  background-color: rgb(249 251 254 / 0.95) !important;
-}
-
-:root[data-theme='light'] .hover\:bg-white\/10:hover,
-:root.light .hover\:bg-white\/10:hover {
-  background-color: rgb(226 232 240 / 0.9) !important;
-}
-
-:root[data-theme='light'] .hover\:bg-white\/5:hover,
-:root.light .hover\:bg-white\/5:hover {
-  background-color: rgb(241 245 249 / 0.92) !important;
-}
-
-:root[data-theme='light'] .bg-black\/30,
-:root.light .bg-black\/30 {
-  background-color: rgb(241 245 249 / 0.95) !important;
-}
-
-:root[data-theme='light'] .bg-black\/25,
-:root.light .bg-black\/25 {
-  background-color: rgb(244 247 251 / 0.95) !important;
-}
-
-:root[data-theme='light'] .bg-black\/20,
-:root.light .bg-black\/20 {
-  background-color: rgb(247 250 253 / 0.95) !important;
-}
-
-:root[data-theme='light'] .border-white\/15,
-:root.light .border-white\/15 {
-  border-color: rgb(203 213 225 / 0.9) !important;
-}
-
-:root[data-theme='light'] .border-white\/10,
-:root.light .border-white\/10 {
-  border-color: rgb(203 213 225 / 0.75) !important;
-}
-
-:root[data-theme='light'] .border-white\/5,
-:root.light .border-white\/5 {
-  border-color: rgb(203 213 225 / 0.65) !important;
-}
-
-.app-background-canvas {
-  background-image: var(--app-bg-gradient);
-}
-
-/* Settings panel animation */
-@keyframes slide-in-from-right {
-  from {
-    transform: translateX(100%);
-    opacity: 0;
-  }
-
-  to {
-    transform: translateX(0);
-    opacity: 1;
-  }
-}
-
-.animate-in.slide-in-from-right {
-  animation: slide-in-from-right 0.3s ease-out;
 }

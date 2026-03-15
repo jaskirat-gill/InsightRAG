@@ -1,8 +1,28 @@
 import { FC, useEffect, useMemo, useState } from 'react';
-import { X, Loader2, Database, CheckCircle } from 'lucide-react';
+import { Loader2, Database, CheckCircle } from 'lucide-react';
 import { kbService, CreateKBRequest, DocumentStrategyOption } from '../services/kb';
 import { API_URL } from '../config';
 import { authService } from '../services/auth';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
+import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
+import { Button } from '@/components/ui/button';
+import { Label } from '@/components/ui/label';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import { Alert, AlertDescription } from '@/components/ui/alert';
 
 const FALLBACK_STRATEGIES: DocumentStrategyOption[] = [
   { key: 'semantic', label: 'Semantic (Essay/Policy)', description: 'Paragraph-oriented semantic chunking for narrative documents.' },
@@ -115,8 +135,6 @@ const CreateKBModal: FC<CreateKBModalProps> = ({ isOpen, onClose, onSuccess }) =
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedPluginId]);
 
-  if (!isOpen) return null;
-
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
@@ -153,7 +171,6 @@ const CreateKBModal: FC<CreateKBModalProps> = ({ isOpen, onClose, onSuccess }) =
       });
       onSuccess();
       onClose();
-      // Reset form
       setFormData({
         name: '',
         description: '',
@@ -181,254 +198,230 @@ const CreateKBModal: FC<CreateKBModalProps> = ({ isOpen, onClose, onSuccess }) =
     }));
   };
 
- return (
-  <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
-    {/* Backdrop */}
-    <div
-      className="absolute inset-0 bg-black/60 backdrop-blur-sm"
-      onClick={onClose}
-    />
-
-    {/* Modal - Made smaller with max-h-[70vh] instead of max-h-[90vh] */}
-    <div className="relative w-full max-w-xl bg-surface/95 backdrop-blur-xl border border-white/10 rounded-2xl shadow-2xl max-h-[70vh] overflow-hidden flex flex-col mb-20">
-      {/* Header */}
-      <div className="flex items-center justify-between px-6 py-4 border-b border-white/5">
-        <div className="flex items-center gap-3">
-          <div className="h-10 w-10 bg-primary/20 rounded-xl flex items-center justify-center text-primary">
-            <Database size={20} />
+  return (
+    <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
+      <DialogContent className="max-w-xl max-h-[70vh] flex flex-col p-0 gap-0">
+        <DialogHeader className="px-6 py-4 border-b border-border">
+          <div className="flex items-center gap-3">
+            <div className="h-10 w-10 bg-primary/20 rounded-xl flex items-center justify-center text-primary">
+              <Database size={20} />
+            </div>
+            <div>
+              <DialogTitle className="text-lg font-bold text-foreground">Create Knowledge Base</DialogTitle>
+              <DialogDescription className="text-xs text-muted-foreground">Set up a new document collection</DialogDescription>
+            </div>
           </div>
-          <div>
-            <h2 className="text-lg font-bold text-white">Create Knowledge Base</h2>
-            <p className="text-xs text-secondary">Set up a new document collection</p>
-          </div>
-        </div>
-        <button
-          onClick={onClose}
-          className="p-2 rounded-xl text-secondary hover:text-white hover:bg-white/5 transition-colors"
-        >
-          <X size={18} />
-        </button>
-      </div>
+        </DialogHeader>
 
-      {/* Form - Made more compact */}
-      <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto p-6 space-y-5">
-        {/* Error Message */}
-        {error && (
-          <div className="p-3 bg-red-500/10 border border-red-500/20 rounded-xl text-red-400 text-sm">
-            {error}
-          </div>
-        )}
+        <form onSubmit={handleSubmit} className="flex flex-col flex-1 min-h-0">
+          <div className="flex-1 overflow-y-auto p-6 space-y-5">
+            {error && (
+              <Alert variant="destructive">
+                <AlertDescription>{error}</AlertDescription>
+              </Alert>
+            )}
 
-        {/* Basic Info */}
-        <div className="space-y-3">
-          <h3 className="text-xs font-semibold text-white uppercase tracking-wider">Basic Information</h3>
+            <div className="space-y-3">
+              <h3 className="text-xs font-semibold text-foreground uppercase tracking-wider">Basic Information</h3>
 
-          {/* Name */}
-          <div className="space-y-1.5">
-            <label className="text-xs font-medium text-secondary">
-              Name <span className="text-red-400">*</span>
-            </label>
-            <input
-              type="text"
-              value={formData.name}
-              onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-              required
-              placeholder="e.g., Product Documentation"
-              className="w-full px-3 py-2 bg-background/50 border border-white/5 rounded-xl focus:outline-none focus:border-primary/50 text-white text-sm transition-all"
-            />
-          </div>
+              <div className="space-y-1.5">
+                <Label className="text-xs font-medium text-muted-foreground">
+                  Name <span className="text-destructive">*</span>
+                </Label>
+                <Input
+                  type="text"
+                  value={formData.name}
+                  onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                  required
+                  placeholder="e.g., Product Documentation"
+                  className="text-foreground"
+                />
+              </div>
 
-          {/* Description */}
-          <div className="space-y-1.5">
-            <label className="text-xs font-medium text-secondary">Description</label>
-            <textarea
-              value={formData.description}
-              onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-              rows={2}
-              placeholder="Brief description..."
-              className="w-full px-3 py-2 bg-background/50 border border-white/5 rounded-xl focus:outline-none focus:border-primary/50 text-white text-sm transition-all resize-none"
-            />
-          </div>
-        </div>
+              <div className="space-y-1.5">
+                <Label className="text-xs font-medium text-muted-foreground">Description</Label>
+                <Textarea
+                  value={formData.description}
+                  onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                  rows={2}
+                  placeholder="Brief description..."
+                  className="text-foreground resize-none"
+                />
+              </div>
+            </div>
 
-        {/* Storage Config */}
-        <div className="space-y-3">
-          <h3 className="text-xs font-semibold text-white uppercase tracking-wider">Storage Configuration</h3>
+            <div className="space-y-3">
+              <h3 className="text-xs font-semibold text-foreground uppercase tracking-wider">Storage Configuration</h3>
 
-          {/* Plugin Source */}
-          <div className="space-y-1.5">
-            <label className="text-xs font-medium text-secondary">
-              Plugin Source <span className="text-red-400">*</span>
-            </label>
-            <select
-              value={selectedPluginId ?? ''}
-              onChange={(e) => setSelectedPluginId(Number(e.target.value))}
-              required
-              disabled={pluginsLoading || plugins.length === 0}
-              className="w-full px-3 py-2 bg-background/50 border border-white/5 rounded-xl focus:outline-none focus:border-primary/50 text-white text-sm transition-all"
-            >
-              {plugins.length === 0 ? (
-                <option value="">
-                  {pluginsLoading ? 'Loading plugins...' : 'No plugin available'}
-                </option>
-              ) : (
-                plugins.map((plugin) => (
-                  <option key={plugin.id} value={plugin.id}>
-                    {plugin.class_name.replace(/Plugin$/i, '')} ({plugin.name})
-                  </option>
-                ))
-              )}
-            </select>
-          </div>
-
-          {selectedPlugin?.config_schema?.map((field) => (
-            <div key={field.name} className="space-y-1.5">
-              <label className="text-xs font-medium text-secondary">
-                {field.label} {field.required && <span className="text-red-400">*</span>}
-              </label>
-
-              {field.type === 'select' && Array.isArray(field.options) ? (
-                <select
-                  value={(formData.storage_config as Record<string, any> | undefined)?.[field.name] ?? ''}
-                  onChange={(e) => updateStorageConfig(field.name, e.target.value)}
-                  required={field.required}
-                  className="w-full px-3 py-2 bg-background/50 border border-white/5 rounded-xl focus:outline-none focus:border-primary/50 text-white text-sm transition-all"
+              <div className="space-y-1.5">
+                <Label className="text-xs font-medium text-muted-foreground">
+                  Plugin Source <span className="text-destructive">*</span>
+                </Label>
+                <Select
+                  value={selectedPluginId?.toString() ?? ''}
+                  onValueChange={(v) => setSelectedPluginId(v ? Number(v) : null)}
+                  required
+                  disabled={pluginsLoading || plugins.length === 0}
                 >
-                  <option value="">Select...</option>
-                  {field.options.map((opt) => (
-                    <option key={opt} value={opt}>
-                      {opt}
-                    </option>
-                  ))}
-                </select>
-              ) : (
-                <input
-                  type={field.type === 'number' ? 'number' : field.type === 'password' ? 'password' : 'text'}
-                  value={(formData.storage_config as Record<string, any> | undefined)?.[field.name] ?? ''}
-                  onChange={(e) => updateStorageConfig(field.name, e.target.value)}
-                  required={field.required}
-                  placeholder={field.placeholder}
-                  className="w-full px-3 py-2 bg-background/50 border border-white/5 rounded-xl focus:outline-none focus:border-primary/50 text-white font-mono text-sm transition-all"
-                />
-              )}
-            </div>
-          ))}
+                  <SelectTrigger className="text-foreground">
+                    <SelectValue placeholder={pluginsLoading ? 'Loading plugins...' : plugins.length === 0 ? 'No plugin available' : 'Select plugin'} />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {plugins.map((plugin) => (
+                      <SelectItem key={plugin.id} value={plugin.id.toString()}>
+                        {plugin.class_name.replace(/Plugin$/i, '')} ({plugin.name})
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
 
-          <div className="space-y-1.5">
-            <label className="text-xs font-medium text-secondary">
-              Sync Folders (optional)
-            </label>
-            <textarea
-              value={syncPathsInput}
-              onChange={(e) => setSyncPathsInput(e.target.value)}
-              rows={2}
-              placeholder="test1, test2/subfolder"
-              className="w-full px-3 py-2 bg-background/50 border border-white/5 rounded-xl focus:outline-none focus:border-primary/50 text-white text-sm transition-all resize-none"
-            />
-            <p className="text-xs text-secondary/60">
-              Comma or newline separated folder paths. Files from these paths are routed into this KB.
-            </p>
-          </div>
-        </div>
+              {selectedPlugin?.config_schema?.map((field) => (
+                <div key={field.name} className="space-y-1.5">
+                  <Label className="text-xs font-medium text-muted-foreground">
+                    {field.label} {field.required && <span className="text-destructive">*</span>}
+                  </Label>
 
-        {/* Processing Settings */}
-        <div className="space-y-3">
-          <h3 className="text-xs font-semibold text-white uppercase tracking-wider">Processing Settings</h3>
-
-          {/* Processing Strategy */}
-          <div className="space-y-1.5">
-            <label className="text-xs font-medium text-secondary">Chunking Strategy</label>
-            <select
-              value={formData.processing_strategy}
-              onChange={(e) => setFormData({ ...formData, processing_strategy: e.target.value })}
-              className="w-full px-3 py-2 bg-background/50 border border-white/5 rounded-xl focus:outline-none focus:border-primary/50 text-white text-sm transition-all"
-            >
-              {strategies.map((s) => (
-                <option key={s.key} value={s.key}>
-                  {s.label}
-                </option>
+                  {field.type === 'select' && Array.isArray(field.options) ? (
+                    <Select
+                      value={(formData.storage_config as Record<string, any> | undefined)?.[field.name] ?? ''}
+                      onValueChange={(v) => updateStorageConfig(field.name, v)}
+                      required={field.required}
+                    >
+                      <SelectTrigger className="text-foreground">
+                        <SelectValue placeholder="Select..." />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {field.options.map((opt) => (
+                          <SelectItem key={opt} value={opt}>
+                            {opt}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  ) : (
+                    <Input
+                      type={field.type === 'number' ? 'number' : field.type === 'password' ? 'password' : 'text'}
+                      value={(formData.storage_config as Record<string, any> | undefined)?.[field.name] ?? ''}
+                      onChange={(e) => updateStorageConfig(field.name, e.target.value)}
+                      required={field.required}
+                      placeholder={field.placeholder}
+                      className="text-foreground font-mono"
+                    />
+                  )}
+                </div>
               ))}
-            </select>
-            <p className="text-xs text-secondary/60">
-              {strategies.find((s) => s.key === formData.processing_strategy)?.description
-                ?? 'Select a chunking strategy for documents in this KB'}
-            </p>
-          </div>
 
-          {/* Advanced Settings (Collapsible) */}
-          <details className="group">
-            <summary className="cursor-pointer text-xs font-medium text-secondary hover:text-white transition-colors">
-              Advanced Settings
-            </summary>
-            <div className="mt-3 space-y-3 pl-3 border-l-2 border-white/5">
-              {/* Chunk Size */}
               <div className="space-y-1.5">
-                <label className="text-xs font-medium text-secondary">
-                  Chunk Size (tokens)
-                </label>
-                <input
-                  type="number"
-                  value={formData.chunk_size}
-                  onChange={(e) => setFormData({ ...formData, chunk_size: parseInt(e.target.value) })}
-                  min={256}
-                  max={2048}
-                  step={256}
-                  className="w-full px-3 py-2 bg-background/50 border border-white/5 rounded-xl focus:outline-none focus:border-primary/50 text-white text-sm transition-all"
+                <Label className="text-xs font-medium text-muted-foreground">
+                  Sync Folders (optional)
+                </Label>
+                <Textarea
+                  value={syncPathsInput}
+                  onChange={(e) => setSyncPathsInput(e.target.value)}
+                  rows={2}
+                  placeholder="test1, test2/subfolder"
+                  className="text-foreground resize-none"
                 />
-                <p className="text-xs text-secondary/60">Recommended: 512 tokens</p>
-              </div>
-
-              {/* Chunk Overlap */}
-              <div className="space-y-1.5">
-                <label className="text-xs font-medium text-secondary">
-                  Chunk Overlap (tokens)
-                </label>
-                <input
-                  type="number"
-                  value={formData.chunk_overlap}
-                  onChange={(e) => setFormData({ ...formData, chunk_overlap: parseInt(e.target.value) })}
-                  min={0}
-                  max={200}
-                  step={10}
-                  className="w-full px-3 py-2 bg-background/50 border border-white/5 rounded-xl focus:outline-none focus:border-primary/50 text-white text-sm transition-all"
-                />
-                <p className="text-xs text-secondary/60">Recommended: 50 tokens</p>
+                <p className="text-xs text-muted-foreground/60">
+                  Comma or newline separated folder paths. Files from these paths are routed into this KB.
+                </p>
               </div>
             </div>
-          </details>
-        </div>
-      </form>
 
-      {/* Footer */}
-      <div className="create-kb-footer flex items-center justify-end gap-3 px-6 py-3 border-t border-white/5 bg-background/30">
-        <button
-          type="button"
-          onClick={onClose}
-          disabled={loading}
-          className="px-4 py-2 text-sm font-medium text-secondary hover:text-white transition-colors rounded-xl hover:bg-white/5"
-        >
-          Cancel
-        </button>
-        <button
-          onClick={handleSubmit}
-          disabled={loading}
-          className="flex items-center gap-2 px-4 py-2 bg-primary text-white text-sm font-semibold rounded-xl hover:bg-primary/90 transition-all shadow-lg shadow-primary/25 disabled:opacity-50 disabled:cursor-not-allowed"
-        >
-          {loading ? (
-            <>
-              <Loader2 size={16} className="animate-spin" />
-              Creating...
-            </>
-          ) : (
-            <>
-              <CheckCircle size={16} />
-              Create Knowledge Base
-            </>
-          )}
-        </button>
-      </div>
-    </div>
-  </div>
+            <div className="space-y-3">
+              <h3 className="text-xs font-semibold text-foreground uppercase tracking-wider">Processing Settings</h3>
+
+              <div className="space-y-1.5">
+                <Label className="text-xs font-medium text-muted-foreground">Chunking Strategy</Label>
+                <Select
+                  value={formData.processing_strategy}
+                  onValueChange={(v) => setFormData({ ...formData, processing_strategy: v })}
+                >
+                  <SelectTrigger className="text-foreground">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {strategies.map((s) => (
+                      <SelectItem key={s.key} value={s.key}>
+                        {s.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-muted-foreground/60">
+                  {strategies.find((s) => s.key === formData.processing_strategy)?.description
+                    ?? 'Select a chunking strategy for documents in this KB'}
+                </p>
+              </div>
+
+              <details className="group">
+                <summary className="cursor-pointer text-xs font-medium text-muted-foreground hover:text-foreground transition-colors">
+                  Advanced Settings
+                </summary>
+                <div className="mt-3 space-y-3 pl-3 border-l-2 border-border">
+                  <div className="space-y-1.5">
+                    <Label className="text-xs font-medium text-muted-foreground">
+                      Chunk Size (tokens)
+                    </Label>
+                    <Input
+                      type="number"
+                      value={formData.chunk_size}
+                      onChange={(e) => setFormData({ ...formData, chunk_size: parseInt(e.target.value) })}
+                      min={256}
+                      max={2048}
+                      step={256}
+                      className="text-foreground"
+                    />
+                    <p className="text-xs text-muted-foreground/60">Recommended: 512 tokens</p>
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <Label className="text-xs font-medium text-muted-foreground">
+                      Chunk Overlap (tokens)
+                    </Label>
+                    <Input
+                      type="number"
+                      value={formData.chunk_overlap}
+                      onChange={(e) => setFormData({ ...formData, chunk_overlap: parseInt(e.target.value) })}
+                      min={0}
+                      max={200}
+                      step={10}
+                      className="text-foreground"
+                    />
+                    <p className="text-xs text-muted-foreground/60">Recommended: 50 tokens</p>
+                  </div>
+                </div>
+              </details>
+            </div>
+          </div>
+
+          <DialogFooter className="px-6 py-3 border-t border-border bg-muted/30">
+            <Button
+              type="button"
+              variant="ghost"
+              onClick={onClose}
+              disabled={loading}
+            >
+              Cancel
+            </Button>
+            <Button type="submit" disabled={loading}>
+              {loading ? (
+                <>
+                  <Loader2 size={16} className="animate-spin" />
+                  Creating...
+                </>
+              ) : (
+                <>
+                  <CheckCircle size={16} />
+                  Create Knowledge Base
+                </>
+              )}
+            </Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
   );
 };
 

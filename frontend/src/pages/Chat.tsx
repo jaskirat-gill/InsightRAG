@@ -9,6 +9,21 @@ import {
   McpServerOption,
   ModelOption,
 } from '../services/openwebuiChat';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Textarea } from '@/components/ui/textarea';
+import { ScrollArea } from '@/components/ui/scroll-area';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import { Separator } from '@/components/ui/separator';
+import { Badge } from '@/components/ui/badge';
+import { Label } from '@/components/ui/label';
 
 const escapeHtml = (raw: string): string =>
   raw
@@ -20,7 +35,7 @@ const escapeHtml = (raw: string): string =>
 
 const renderInlineMarkdown = (input: string): string => {
   let text = escapeHtml(input);
-  text = text.replace(/`([^`]+)`/g, '<code class="px-1 py-0.5 rounded bg-white/10 text-cyan-300">$1</code>');
+  text = text.replace(/`([^`]+)`/g, '<code class="px-1 py-0.5 rounded bg-muted text-primary">$1</code>');
   text = text.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
   text = text.replace(/\*([^*]+)\*/g, '<em>$1</em>');
   text = text.replace(
@@ -47,7 +62,7 @@ const renderMarkdownToHtml = (source: string): string => {
         i += 1;
       }
       out.push(
-        `<pre class="overflow-x-auto rounded-xl border border-white/10 bg-[#0b1220] p-3"><code class="text-sm text-cyan-200" data-lang="${escapeHtml(
+        `<pre class="overflow-x-auto rounded-xl border border-border bg-muted p-3"><code class="text-sm text-foreground" data-lang="${escapeHtml(
           lang,
         )}">${escapeHtml(codeLines.join('\n'))}</code></pre>`,
       );
@@ -117,16 +132,16 @@ const ChatMessage: FC<{ role: 'user' | 'assistant' | 'system'; content: string; 
         </div>
       )}
 
-      <div className={`max-w-[80%] rounded-2xl px-4 py-3 border ${isAssistant ? 'bg-surface/50 border-white/10' : 'bg-primary/20 border-primary/30'}`}>
+      <div className={`max-w-[80%] rounded-2xl px-4 py-3 border ${isAssistant ? 'bg-card border-border' : 'bg-primary/20 border-primary/30'}`}>
         <div
-          className="text-sm text-white/95 break-words"
+          className="text-sm text-foreground break-words"
           dangerouslySetInnerHTML={{ __html: renderMarkdownToHtml(content || '') }}
         />
-        <div className="text-[11px] text-secondary mt-2">{formatRelativeTime(timestamp)}</div>
+        <div className="text-[11px] text-muted-foreground mt-2">{formatRelativeTime(timestamp)}</div>
       </div>
 
       {!isAssistant && (
-        <div className="h-8 w-8 shrink-0 rounded-lg bg-white/10 text-white flex items-center justify-center mt-1">
+        <div className="h-8 w-8 shrink-0 rounded-lg bg-muted text-foreground flex items-center justify-center mt-1">
           <User size={16} />
         </div>
       )}
@@ -146,8 +161,6 @@ const Chat: FC = () => {
   const [selectedMcpToolId, setSelectedMcpToolId] = useState<string>('none');
   const [models, setModels] = useState<ModelOption[]>([]);
   const [selectedModelId, setSelectedModelId] = useState<string>('');
-  const [viewportHeight, setViewportHeight] = useState<number>(window.innerHeight);
-  const [taskbarHeight, setTaskbarHeight] = useState<number>(72);
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
 
   const selectedChat = selectedChatId ? chatMap[selectedChatId] : null;
@@ -238,20 +251,6 @@ const Chat: FC = () => {
       setError(e instanceof Error ? e.message : 'Failed to load chat');
     });
   }, [selectedChatId, chatMap]);
-
-
-  useEffect(() => {
-    const measure = () => {
-      const bar = document.getElementById('app-taskbar');
-      const measured = bar ? Math.ceil(bar.getBoundingClientRect().height) : 72;
-      setTaskbarHeight(measured);
-      setViewportHeight(window.innerHeight);
-    };
-
-    measure();
-    window.addEventListener('resize', measure);
-    return () => window.removeEventListener('resize', measure);
-  }, []);
 
   const handleCreateChat = async () => {
     setError(null);
@@ -359,146 +358,144 @@ const Chat: FC = () => {
   }
 
   return (
-    <div
-      style={{ height: `calc(${viewportHeight}px - ${taskbarHeight}px)` }}
-      className="min-h-[420px] grid grid-cols-1 lg:grid-cols-[300px_1fr] gap-4"
-    >
-      <aside className="min-h-0 bg-surface/40 border border-white/10 rounded-2xl p-4 flex flex-col">
-        <div className="flex items-center justify-between mb-3">
-          <div className="min-w-0 flex-1">
-            <h2 className="text-lg font-semibold text-white">Chats</h2>
-            <div className="mt-1 flex items-center gap-2">
-              <label className="text-xs text-secondary" htmlFor="mcp-server-select">MCP</label>
-              <select
-                id="mcp-server-select"
-                value={selectedMcpToolId}
-                onChange={(e) => setSelectedMcpToolId(e.target.value)}
-                className="max-w-[170px] rounded-md border border-white/15 bg-background/60 px-2 py-1 text-xs text-white focus:outline-none focus:border-primary/50"
-              >
-                <option value="none">No MCP server</option>
-                {mcpServers.map((server) => (
-                  <option key={server.id} value={server.id}>
-                    {server.name}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div className="mt-1 flex items-center gap-2">
-              <label className="text-xs text-secondary" htmlFor="chat-model-select">Model</label>
-              <select
-                id="chat-model-select"
-                value={selectedModelId}
-                onChange={(e) => setSelectedModelId(e.target.value)}
-                className="max-w-[170px] rounded-md border border-white/15 bg-background/60 px-2 py-1 text-xs text-white focus:outline-none focus:border-primary/50"
-              >
-                {models.map((model) => (
-                  <option key={model.id} value={model.id}>
-                    {model.name}
-                  </option>
-                ))}
-              </select>
-            </div>
-          </div>
-          <button
-            onClick={handleCreateChat}
-            className="p-2 rounded-lg bg-primary/20 text-primary hover:bg-primary/30 transition-colors"
-            title="New chat"
-          >
-            <Plus size={16} />
-          </button>
-        </div>
-
-        <div className="space-y-2 overflow-y-auto custom-scrollbar pr-1">
-          {chats.map((chat) => (
-            <button
-              key={chat.id}
-              onClick={() => setSelectedChatId(chat.id)}
-              className={`w-full text-left p-3 rounded-xl border transition-colors ${
-                selectedChatId === chat.id
-                  ? 'bg-primary/15 border-primary/40'
-                  : 'bg-white/5 border-white/10 hover:bg-white/10'
-              }`}
-            >
-              <div className="text-sm font-medium text-white truncate">{chat.title || 'Untitled chat'}</div>
-              <div className="text-xs text-secondary mt-1">{formatRelativeTime(chat.updated_at)}</div>
-            </button>
-          ))}
-        </div>
-
-        <button
-          onClick={() => loadChats()}
-          className="mt-3 w-full flex items-center justify-center gap-2 px-3 py-2 rounded-xl border border-white/10 bg-white/5 text-secondary hover:text-white hover:bg-white/10 transition-colors"
-        >
-          <RefreshCw size={14} /> Refresh
-        </button>
-      </aside>
-
-      <section className="min-h-0 bg-surface/40 border border-white/10 rounded-2xl flex flex-col overflow-hidden">
-        <div className="px-5 py-4 border-b border-white/10 flex items-center gap-3">
-          <MessageSquare size={18} className="text-primary" />
-          <div>
-            <div className="text-sm font-semibold text-white">{selectedChat?.title || 'Chat'}</div>
-            <div className="text-xs text-secondary">OpenWebUI streaming + MCP tool routing</div>
-          </div>
-        </div>
-
-        <div className="flex-1 overflow-y-auto p-5 space-y-4 custom-scrollbar">
-          {error && (
-            <div className="flex items-start gap-2 rounded-xl border border-red-500/30 bg-red-500/10 px-3 py-2 text-sm text-red-300">
-              <AlertCircle size={16} className="mt-0.5" />
-              <span>{error}</span>
-            </div>
-          )}
-
-          {orderedMessages.length === 0 && !error && (
-            <div className="h-full min-h-[240px] flex items-center justify-center">
-              <div className="text-center text-secondary">
-                <MessageSquare size={28} className="mx-auto mb-2 opacity-60" />
-                <div>Start a conversation</div>
-                <div className="text-xs mt-1">Markdown is supported in messages and .md files</div>
+    <div className="h-[calc(100vh-5rem)] grid grid-cols-1 lg:grid-cols-[300px_1fr] gap-4 min-h-[420px]">
+      <Card className="min-h-0 flex flex-col">
+        <CardHeader className="pb-3">
+          <div className="flex items-center justify-between">
+            <div className="min-w-0 flex-1 space-y-3">
+              <CardTitle className="text-lg">Chats</CardTitle>
+              <div className="flex items-center gap-2">
+                <Label htmlFor="mcp-server-select" className="text-xs text-muted-foreground">MCP</Label>
+                <Select value={selectedMcpToolId} onValueChange={setSelectedMcpToolId}>
+                  <SelectTrigger id="mcp-server-select" className="max-w-[170px] h-8 text-xs">
+                    <SelectValue placeholder="No MCP server" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">No MCP server</SelectItem>
+                    {mcpServers.map((server) => (
+                      <SelectItem key={server.id} value={server.id}>
+                        {server.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="flex items-center gap-2">
+                <Label htmlFor="chat-model-select" className="text-xs text-muted-foreground">Model</Label>
+                <Select value={selectedModelId || undefined} onValueChange={setSelectedModelId}>
+                  <SelectTrigger id="chat-model-select" className="max-w-[170px] h-8 text-xs">
+                    <SelectValue placeholder="Select model" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {models.map((model) => (
+                      <SelectItem key={model.id} value={model.id}>
+                        {model.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
             </div>
-          )}
-
-          {orderedMessages.map((msg) => (
-            <ChatMessage key={msg.id} role={msg.role} content={msg.content || ''} timestamp={msg.timestamp} />
-          ))}
-          <div ref={messagesEndRef} />
-        </div>
-
-        <div className="border-t border-white/10 p-4 space-y-3">
-          <textarea
-            value={draft}
-            onChange={(e) => setDraft(e.target.value)}
-            placeholder="Ask something..."
-            rows={4}
-            className="w-full resize-none rounded-xl border border-white/10 bg-background/50 px-4 py-3 text-sm text-white focus:outline-none focus:border-primary/50"
-            onKeyDown={(e) => {
-              if (e.key === 'Enter' && !e.shiftKey) {
-                e.preventDefault();
-                handleSend();
-              }
-            }}
-          />
-
-          <div className="flex items-center justify-between">
-            <label className="inline-flex items-center gap-2 text-xs text-secondary cursor-pointer hover:text-white transition-colors">
-              <FileText size={14} />
-              <span>Load .md</span>
-              <input type="file" accept=".md,text/markdown" className="hidden" onChange={handleMarkdownFile} />
-            </label>
-
-            <button
-              onClick={handleSend}
-              disabled={!draft.trim() || isSending}
-              className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-primary text-white hover:bg-primary/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              {isSending ? <Loader2 size={14} className="animate-spin" /> : <Send size={14} />}
-              {isSending ? 'Sending...' : 'Send'}
-            </button>
+            <Button variant="secondary" size="icon" onClick={handleCreateChat} title="New chat">
+              <Plus size={16} />
+            </Button>
           </div>
-        </div>
-      </section>
+        </CardHeader>
+        <CardContent className="flex-1 min-h-0 flex flex-col pt-0">
+          <ScrollArea className="flex-1 pr-2">
+            <div className="space-y-2">
+              {chats.map((chat) => (
+                <Button
+                  key={chat.id}
+                  variant={selectedChatId === chat.id ? 'secondary' : 'ghost'}
+                  className="w-full justify-start h-auto py-3 px-3 font-normal"
+                  onClick={() => setSelectedChatId(chat.id)}
+                >
+                  <div className="w-full text-left min-w-0">
+                    <div className="text-sm font-medium text-foreground truncate">{chat.title || 'Untitled chat'}</div>
+                    <div className="text-xs text-muted-foreground mt-1">{formatRelativeTime(chat.updated_at)}</div>
+                  </div>
+                </Button>
+              ))}
+            </div>
+          </ScrollArea>
+          <Button variant="outline" className="mt-3 w-full" onClick={() => loadChats()}>
+            <RefreshCw size={14} /> Refresh
+          </Button>
+        </CardContent>
+      </Card>
+
+      <Card className="min-h-0 flex flex-col overflow-hidden">
+        <CardHeader className="py-4">
+          <div className="flex items-center gap-3">
+            <MessageSquare size={18} className="text-primary" />
+            <div>
+              <CardTitle className="text-sm font-semibold">{selectedChat?.title || 'Chat'}</CardTitle>
+              <Badge variant="secondary" className="mt-1 text-xs font-normal">
+                OpenWebUI streaming + MCP tool routing
+              </Badge>
+            </div>
+          </div>
+        </CardHeader>
+        <Separator />
+        <CardContent className="flex-1 min-h-0 flex flex-col overflow-hidden p-0">
+          <ScrollArea className="flex-1">
+            <div className="p-5 space-y-4">
+              {error && (
+                <Alert variant="destructive">
+                  <AlertCircle size={16} />
+                  <AlertDescription>{error}</AlertDescription>
+                </Alert>
+              )}
+
+              {orderedMessages.length === 0 && !error && (
+                <div className="h-full min-h-[240px] flex items-center justify-center">
+                  <div className="text-center text-muted-foreground">
+                    <MessageSquare size={28} className="mx-auto mb-2 opacity-60" />
+                    <div>Start a conversation</div>
+                    <div className="text-xs mt-1">Markdown is supported in messages and .md files</div>
+                  </div>
+                </div>
+              )}
+
+              {orderedMessages.map((msg) => (
+                <ChatMessage key={msg.id} role={msg.role} content={msg.content || ''} timestamp={msg.timestamp} />
+              ))}
+              <div ref={messagesEndRef} />
+            </div>
+          </ScrollArea>
+
+          <Separator />
+          <div className="p-4 space-y-3">
+            <Textarea
+              value={draft}
+              onChange={(e) => setDraft(e.target.value)}
+              placeholder="Ask something..."
+              rows={4}
+              className="resize-none"
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && !e.shiftKey) {
+                  e.preventDefault();
+                  handleSend();
+                }
+              }}
+            />
+
+            <div className="flex items-center justify-between">
+              <Label className="inline-flex items-center gap-2 text-xs text-muted-foreground cursor-pointer hover:text-foreground transition-colors">
+                <FileText size={14} />
+                <span>Load .md</span>
+                <input type="file" accept=".md,text/markdown" className="hidden" onChange={handleMarkdownFile} />
+              </Label>
+
+              <Button onClick={handleSend} disabled={!draft.trim() || isSending}>
+                {isSending ? <Loader2 size={14} className="animate-spin" /> : <Send size={14} />}
+                {isSending ? 'Sending...' : 'Send'}
+              </Button>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
     </div>
   );
 };

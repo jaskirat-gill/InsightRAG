@@ -1,8 +1,10 @@
 import { FC, useState, useEffect } from 'react';
 import { Plus, RefreshCw, Puzzle, Loader2 } from 'lucide-react';
 import PluginCard from './PluginCard';
-
 import { API_URL } from '../config';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Alert, AlertDescription } from '@/components/ui/alert';
 
 interface ConfigField {
     name: string;
@@ -117,116 +119,111 @@ const PluginSettings: FC = () => {
         }
     };
 
-    // Loading state
     if (loading) {
         return (
             <div className="flex items-center justify-center py-20">
                 <Loader2 size={24} className="animate-spin text-primary" />
-                <span className="ml-3 text-secondary">Loading plugins...</span>
+                <span className="ml-3 text-muted-foreground">Loading plugins...</span>
             </div>
         );
     }
 
-    // Error state
     if (error) {
         return (
-            <div className="text-center py-16">
-                <div className="inline-flex items-center gap-2 px-4 py-3 rounded-xl bg-red-500/10 border border-red-500/20 text-red-400 text-sm mb-4">
-                    {error}
-                </div>
-                <div>
-                    <button
-                        onClick={fetchPlugins}
-                        className="text-sm text-secondary hover:text-white transition-colors flex items-center gap-1.5 mx-auto"
-                    >
-                        <RefreshCw size={14} /> Retry
-                    </button>
-                </div>
-            </div>
+            <Card>
+                <CardContent className="pt-6">
+                    <div className="text-center py-8">
+                        <Alert variant="destructive" className="mb-4">
+                            <AlertDescription>{error}</AlertDescription>
+                        </Alert>
+                        <Button variant="ghost" size="sm" onClick={fetchPlugins} className="gap-1.5">
+                            <RefreshCw size={14} /> Retry
+                        </Button>
+                    </div>
+                </CardContent>
+            </Card>
         );
     }
 
     return (
         <div className="space-y-5">
-            {/* Header */}
-            <div className="flex items-center justify-between">
-                <div>
-                    <h3 className="text-lg font-semibold text-white">Source Plugins</h3>
-                    <p className="text-xs text-secondary mt-0.5">
-                        Configure cloud storage integrations. Plugins are auto-discovered from the backend.
-                    </p>
-                </div>
-                <div className="flex items-center gap-2">
-                    <button
-                        onClick={fetchPlugins}
-                        className="p-2 rounded-xl text-secondary hover:text-white hover:bg-white/5 transition-all border border-white/10"
-                        title="Refresh"
-                    >
-                        <RefreshCw size={15} />
-                    </button>
-
-                    {/* Add Plugin */}
-                    <div className="relative">
-                        <button
-                            onClick={() => setShowAddMenu(!showAddMenu)}
-                            disabled={creating}
-                            className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-semibold
-                                bg-primary text-white hover:bg-primary/90 transition-all shadow-md shadow-primary/20 whitespace-nowrap"
+            <Card>
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                    <div>
+                        <CardTitle className="text-lg text-foreground">Source Plugins</CardTitle>
+                        <CardDescription className="mt-0.5">
+                            Configure cloud storage integrations. Plugins are auto-discovered from the backend.
+                        </CardDescription>
+                    </div>
+                    <div className="flex items-center gap-2">
+                        <Button
+                            variant="outline"
+                            size="icon"
+                            onClick={fetchPlugins}
+                            title="Refresh"
                         >
-                            {creating ? <Loader2 size={14} className="animate-spin" /> : <Plus size={14} />}
-                            Add Plugin
-                        </button>
-
-                        {/* Dropdown */}
-                        {showAddMenu && (
-                            <div className="absolute right-0 top-full mt-2 w-56 rounded-xl bg-surface border border-white/10 shadow-2xl shadow-black/50 py-1.5 z-50">
-                                {discovered.length === 0 ? (
-                                    <div className="px-4 py-3 text-xs text-secondary">No plugins discovered</div>
-                                ) : (
-                                    discovered.map((disc) => (
-                                        <button
-                                            key={disc.class_name}
-                                            onClick={() => handleAddPlugin(disc)}
-                                            className="w-full text-left px-4 py-2.5 text-sm text-secondary hover:text-white hover:bg-white/5 transition-colors flex items-center gap-2.5"
-                                        >
-                                            <Puzzle size={14} className="text-primary" />
-                                            <div>
-                                                <div className="font-medium text-white text-xs">
-                                                    {disc.class_name.replace(/Plugin$/i, '')}
+                            <RefreshCw size={15} />
+                        </Button>
+                        <div className="relative">
+                            <Button
+                                size="sm"
+                                onClick={() => setShowAddMenu(!showAddMenu)}
+                                disabled={creating}
+                                className="gap-1.5"
+                            >
+                                {creating ? <Loader2 size={14} className="animate-spin" /> : <Plus size={14} />}
+                                Add Plugin
+                            </Button>
+                            {showAddMenu && (
+                                <div className="absolute right-0 top-full mt-2 w-56 rounded-md border bg-popover p-1 shadow-md z-50">
+                                    {discovered.length === 0 ? (
+                                        <div className="px-4 py-3 text-xs text-muted-foreground">No plugins discovered</div>
+                                    ) : (
+                                        discovered.map((disc) => (
+                                            <button
+                                                key={disc.class_name}
+                                                onClick={() => handleAddPlugin(disc)}
+                                                className="w-full text-left px-4 py-2.5 text-sm text-muted-foreground hover:text-foreground hover:bg-accent transition-colors flex items-center gap-2.5 rounded-sm"
+                                            >
+                                                <Puzzle size={14} className="text-primary" />
+                                                <div>
+                                                    <div className="font-medium text-foreground text-xs">
+                                                        {disc.class_name.replace(/Plugin$/i, '')}
+                                                    </div>
                                                 </div>
-                                            </div>
-                                        </button>
-                                    ))
-                                )}
+                                            </button>
+                                        ))
+                                    )}
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                </CardHeader>
+                <CardContent>
+                    {plugins.length === 0 ? (
+                        <div className="text-center py-16">
+                            <div className="h-16 w-16 rounded-2xl bg-muted flex items-center justify-center mx-auto mb-4">
+                                <Puzzle size={28} className="text-muted-foreground" />
                             </div>
-                        )}
-                    </div>
-                </div>
-            </div>
-
-            {/* Plugin Cards */}
-            {plugins.length === 0 ? (
-                <div className="text-center py-16">
-                    <div className="h-16 w-16 rounded-2xl bg-white/5 flex items-center justify-center mx-auto mb-4">
-                        <Puzzle size={28} className="text-secondary" />
-                    </div>
-                    <p className="text-secondary text-sm">No plugins configured yet.</p>
-                    <p className="text-secondary/60 text-xs mt-1">Click "Add Plugin" to get started.</p>
-                </div>
-            ) : (
-                <div className="space-y-4">
-                    {plugins.map((plugin) => (
-                        <PluginCard
-                            key={plugin.id}
-                            plugin={plugin}
-                            onSave={handleSave}
-                            onToggle={handleToggle}
-                            onTest={handleTest}
-                            onDelete={handleDelete}
-                        />
-                    ))}
-                </div>
-            )}
+                            <p className="text-muted-foreground text-sm">No plugins configured yet.</p>
+                            <p className="text-muted-foreground/60 text-xs mt-1">Click "Add Plugin" to get started.</p>
+                        </div>
+                    ) : (
+                        <div className="space-y-4">
+                            {plugins.map((plugin) => (
+                                <PluginCard
+                                    key={plugin.id}
+                                    plugin={plugin}
+                                    onSave={handleSave}
+                                    onToggle={handleToggle}
+                                    onTest={handleTest}
+                                    onDelete={handleDelete}
+                                />
+                            ))}
+                        </div>
+                    )}
+                </CardContent>
+            </Card>
         </div>
     );
 };
