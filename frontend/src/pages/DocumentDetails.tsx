@@ -313,7 +313,7 @@ const DocumentDetails: FC<DocumentDetailsProps> = ({ kb, doc, onBack }) => {
   const [selectedStrategy, setSelectedStrategy] = useState<string>('pdf_auto');
   const [overrideBusy, setOverrideBusy] = useState(false);
   const [pendingReprocess, setPendingReprocess] = useState(false);
-  const [sawProcessingSinceReprocess, setSawProcessingSinceReprocess] = useState(false);
+  const [showCompletedDialog, setShowCompletedDialog] = useState(false);
 
   const [viewLoading, setViewLoading] = useState(false);
   const [viewErr, setViewErr] = useState<string | null>(null);
@@ -457,7 +457,6 @@ const DocumentDetails: FC<DocumentDetailsProps> = ({ kb, doc, onBack }) => {
       const strategy = d.processing_strategy ?? 'pdf_auto';
       const res = await kbService.overrideDocumentStrategy(kb.kb_id, doc.document_id, strategy);
       setPendingReprocess(true);
-      setSawProcessingSinceReprocess(false);
       setDetails((prev) => ({
         ...(prev ?? (doc as any)),
         processing_status: 'processing',
@@ -643,7 +642,6 @@ const DocumentDetails: FC<DocumentDetailsProps> = ({ kb, doc, onBack }) => {
       const res = await kbService.overrideDocumentStrategy(kb.kb_id, doc.document_id, selectedStrategy);
       setOverrideOpen(false);
       setPendingReprocess(true);
-      setSawProcessingSinceReprocess(false);
       setDetails((prev) => ({
         ...(prev ?? (doc as any)),
         processing_status: 'processing',
@@ -694,26 +692,22 @@ const DocumentDetails: FC<DocumentDetailsProps> = ({ kb, doc, onBack }) => {
   }, [activeTab]);
 
   useEffect(() => {
-    if (!isProcessing && !pendingReprocess) return;
+    if (!pendingReprocess) return;
     const interval = window.setInterval(async () => {
       try {
         // Silent poll — never touch loading state to avoid UI glitching
         const liveDoc = await kbService.getDocumentDetails(kb.kb_id, doc.document_id);
         const status = (liveDoc as any)?.processing_status;
 
-        if (status === 'processing') {
-          setSawProcessingSinceReprocess(true);
-        }
-
-        if (pendingReprocess && sawProcessingSinceReprocess && status && status !== 'processing') {
+        if (status && status !== 'processing') {
           // Apply final state silently
           setDetails((prev) => ({ ...(prev ?? (doc as any)), ...(liveDoc as any) }));
           setPendingReprocess(false);
-          setSawProcessingSinceReprocess(false);
-          // Invalidate tab caches so next visit reloads fresh data
+              // Invalidate tab caches so next visit reloads fresh data
           setChunksLoadedOnce(false);
           setStrategyLoadedOnce(false);
-          showToast('ok', 'Document updated — visit Chunks or Strategy tabs to see changes', 8000);
+          // Show completion popup
+          setShowCompletedDialog(true);
         }
       } catch {
         // Swallow poll errors silently — don't disrupt the UI
@@ -721,7 +715,7 @@ const DocumentDetails: FC<DocumentDetailsProps> = ({ kb, doc, onBack }) => {
     }, 2500);
     return () => window.clearInterval(interval);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isProcessing, pendingReprocess, sawProcessingSinceReprocess]);
+  }, [pendingReprocess]);
 
   const loadRetrievalHistory = async () => {
     setHistoryLoading(true);
@@ -1448,6 +1442,25 @@ const DocumentDetails: FC<DocumentDetailsProps> = ({ kb, doc, onBack }) => {
             >
               {actionBusy ? <Loader2 size={16} className="animate-spin" /> : <Trash2 size={16} />}
               Delete Permanently
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={showCompletedDialog} onOpenChange={setShowCompletedDialog}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <CheckCircle2 size={20} className="text-green-500" />
+              Document Updated
+            </DialogTitle>
+            <DialogDescription>
+              Processing is complete. Switch to the Chunks or Strategy tabs to view the updated results.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button onClick={() => setShowCompletedDialog(false)}>
+              OK
             </Button>
           </DialogFooter>
         </DialogContent>

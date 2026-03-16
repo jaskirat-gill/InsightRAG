@@ -49,8 +49,11 @@ def process_document(payload: dict):
     try:
         strategy = select_strategy(local_path)
         parse_profile = explicit_parse_profile or strategy["parse_profile"]
-        chunk_strategy = payload.get("chunk_strategy") or strategy["chunk_strategy"]
-        chunk_params = strategy["chunk_params"]
+        overridden_chunk = payload.get("chunk_strategy")
+        chunk_strategy = overridden_chunk or strategy["chunk_strategy"]
+        # When the user overrides the chunk strategy, don't carry over
+        # the original file-type params (they may be incompatible).
+        chunk_params = {} if overridden_chunk else strategy["chunk_params"]
 
         logger.info(
             "Strategy for %s: parse_profile=%s, chunk_strategy=%s",
