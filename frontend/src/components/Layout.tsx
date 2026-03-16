@@ -20,6 +20,7 @@ const PAGE_TITLES: Record<string, string> = {
   'kb-health': 'Health Dashboard',
   doc: 'Document Details',
   chat: 'Chat',
+  users: 'User Management',
 };
 
 const Layout: FC<LayoutProps> = ({

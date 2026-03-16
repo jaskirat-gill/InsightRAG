@@ -6,6 +6,7 @@ import KnowledgeBases from './pages/KnowledgeBases';
 import KBHealthDashboard from './pages/KBHealthDashboard';
 import Chat from './pages/Chat';
 import DocumentDetails from './pages/DocumentDetails';
+import UserManagement from './components/UserManagement';
 import { authService, UserResponse } from './services/auth';
 import { KnowledgeBase, Document } from './services/kb';
 import { Card, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -22,7 +23,7 @@ import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 
-type Page = 'home' | 'kb' | 'kb-health' | 'doc' | 'chat';
+type Page = 'home' | 'kb' | 'kb-health' | 'doc' | 'chat' | 'users';
 type Theme = 'dark' | 'light';
 
 const THEME_STORAGE_KEY = 'openwebui-theme';
@@ -199,6 +200,8 @@ function App() {
       );
   } else if (currentPage === 'chat') {
     content = <Chat />;
+  } else if (currentPage === 'users') {
+    content = <UserManagement />;
   }
 
   return (
