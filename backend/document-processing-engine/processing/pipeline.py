@@ -1,6 +1,7 @@
 import logging
 import os
 
+from processing.cache import get_parse_cache, set_parse_cache
 from processing.parser import parse_document
 from processing.chunker import (
     chunk_semantic,
@@ -57,7 +58,12 @@ def process_document(payload: dict):
         )
 
         logger.info("Step 1/5: Parsing %s", local_path)
-        elements = parse_document(local_path, parse_profile=parse_profile)
+        etag = payload.get("etag", "")
+        elements = get_parse_cache(etag, parse_profile) if etag else None
+        if elements is None:
+            elements = parse_document(local_path, parse_profile=parse_profile)
+            if etag:
+                set_parse_cache(etag, parse_profile, elements)
         if not elements:
             update_document_status(document_id, "failed", error="No content extracted")
             return

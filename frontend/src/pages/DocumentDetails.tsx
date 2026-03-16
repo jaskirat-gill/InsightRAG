@@ -398,9 +398,9 @@ const DocumentDetails: FC<DocumentDetailsProps> = ({ kb, doc, onBack }) => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [kb.kb_id, doc.document_id]);
 
-  const showToast = (kind: 'ok' | 'err', msg: string) => {
+  const showToast = (kind: 'ok' | 'err', msg: string, duration = 3000) => {
     setToast({ kind, msg });
-    window.setTimeout(() => setToast(null), 3000);
+    window.setTimeout(() => setToast(null), duration);
   };
 
   useEffect(() => {
@@ -464,7 +464,6 @@ const DocumentDetails: FC<DocumentDetailsProps> = ({ kb, doc, onBack }) => {
         processing_strategy: strategy,
       }));
       await loadDetails();
-      if (chunksLoadedOnce) await loadChunks();
       showToast('ok', res.message || 'Reprocess queued');
     } catch (e: any) {
       showToast('err', e?.message || 'Reprocess failed');
@@ -652,7 +651,6 @@ const DocumentDetails: FC<DocumentDetailsProps> = ({ kb, doc, onBack }) => {
       }));
       await loadDetails();
       await loadStrategy();
-      if (chunksLoadedOnce) await loadChunks();
       showToast('ok', res.message || 'Strategy override queued');
     } catch (e: any) {
       showToast('err', e?.message || 'Strategy override failed');
@@ -698,24 +696,32 @@ const DocumentDetails: FC<DocumentDetailsProps> = ({ kb, doc, onBack }) => {
   useEffect(() => {
     if (!isProcessing && !pendingReprocess) return;
     const interval = window.setInterval(async () => {
-      const full = await loadDetails();
-      const status = full?.processing_status;
+      try {
+        // Silent poll — never touch loading state to avoid UI glitching
+        const liveDoc = await kbService.getDocumentDetails(kb.kb_id, doc.document_id);
+        const status = (liveDoc as any)?.processing_status;
 
-      if (status === 'processing') {
-        setSawProcessingSinceReprocess(true);
+        if (status === 'processing') {
+          setSawProcessingSinceReprocess(true);
+        }
+
+        if (pendingReprocess && sawProcessingSinceReprocess && status && status !== 'processing') {
+          // Apply final state silently
+          setDetails((prev) => ({ ...(prev ?? (doc as any)), ...(liveDoc as any) }));
+          setPendingReprocess(false);
+          setSawProcessingSinceReprocess(false);
+          // Invalidate tab caches so next visit reloads fresh data
+          setChunksLoadedOnce(false);
+          setStrategyLoadedOnce(false);
+          showToast('ok', 'Document updated — visit Chunks or Strategy tabs to see changes', 8000);
+        }
+      } catch {
+        // Swallow poll errors silently — don't disrupt the UI
       }
-
-      if (pendingReprocess && sawProcessingSinceReprocess && status && status !== 'processing') {
-        setPendingReprocess(false);
-        setSawProcessingSinceReprocess(false);
-      }
-
-      if (chunksLoadedOnce) void loadChunks();
-      if (strategyLoadedOnce) void loadStrategy();
     }, 2500);
     return () => window.clearInterval(interval);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isProcessing, pendingReprocess, sawProcessingSinceReprocess, chunksLoadedOnce, strategyLoadedOnce]);
+  }, [isProcessing, pendingReprocess, sawProcessingSinceReprocess]);
 
   const loadRetrievalHistory = async () => {
     setHistoryLoading(true);
@@ -1454,7 +1460,16 @@ const DocumentDetails: FC<DocumentDetailsProps> = ({ kb, doc, onBack }) => {
             className={toast.kind === 'ok' ? 'border-status-success/20 bg-status-success/10 text-status-success' : ''}
           >
             {toast.kind === 'ok' ? <CheckCircle2 className="h-4 w-4" /> : <AlertCircle className="h-4 w-4" />}
-            <AlertDescription>{toast.msg}</AlertDescription>
+            <AlertDescription className="flex items-center justify-between gap-4">
+              <span>{toast.msg}</span>
+              <button
+                onClick={() => setToast(null)}
+                className="ml-2 opacity-60 hover:opacity-100 leading-none"
+                aria-label="Dismiss"
+              >
+                ×
+              </button>
+            </AlertDescription>
           </Alert>
         </div>
       )}
