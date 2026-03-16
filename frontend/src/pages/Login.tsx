@@ -1,6 +1,11 @@
 import { FC, useState } from 'react';
 import { Loader2, AlertCircle } from 'lucide-react';
 import { authService } from '../services/auth';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
+import { Button } from '@/components/ui/button';
+import { Label } from '@/components/ui/label';
+import { Alert, AlertDescription } from '@/components/ui/alert';
 
 interface LoginProps {
     onLogin: () => void;
@@ -44,7 +49,6 @@ const Login: FC<LoginProps> = ({ onLogin }) => {
             setRegisterSuccess(true);
             setError(null);
             
-            // Switch to login mode after 2 seconds
             setTimeout(() => {
                 setIsRegisterMode(false);
                 setRegisterSuccess(false);
@@ -58,133 +62,129 @@ const Login: FC<LoginProps> = ({ onLogin }) => {
 
     return (
         <div className="min-h-screen flex items-center justify-center p-4">
-            <div className="w-full max-w-md p-8 bg-surface/50 backdrop-blur-xl rounded-3xl border border-white/10 shadow-2xl">
-                <div className="text-center mb-8">
-                    <h1 className="text-4xl font-bold bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent mb-2">
+            <Card className="w-full max-w-md">
+                <CardHeader className="text-center">
+                    <CardTitle className="text-2xl font-semibold text-foreground">
                         {isRegisterMode ? 'Create Account' : 'Welcome Back'}
-                    </h1>
-                    <p className="text-secondary">
+                    </CardTitle>
+                    <CardDescription>
                         {isRegisterMode 
                             ? 'Sign up to get started' 
                             : 'Sign in to continue to your workspace'}
-                    </p>
-                </div>
+                    </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-6">
+                    {error && (
+                        <Alert variant="destructive" className="flex items-start gap-3">
+                            <AlertCircle size={18} className="mt-0.5 flex-shrink-0" />
+                            <AlertDescription>{error}</AlertDescription>
+                        </Alert>
+                    )}
 
-                {/* Error Message */}
-                {error && (
-                    <div className="mb-6 p-4 bg-red-500/10 border border-red-500/20 rounded-xl flex items-start gap-3">
-                        <AlertCircle size={18} className="text-red-400 mt-0.5 flex-shrink-0" />
-                        <p className="text-sm text-red-400">{error}</p>
-                    </div>
-                )}
+                    {registerSuccess && (
+                        <Alert className="border-status-success/50 bg-status-success/10 text-status-success">
+                            <AlertDescription>
+                                Account created successfully! Redirecting to login...
+                            </AlertDescription>
+                        </Alert>
+                    )}
 
-                {/* Success Message */}
-                {registerSuccess && (
-                    <div className="mb-6 p-4 bg-green-500/10 border border-green-500/20 rounded-xl">
-                        <p className="text-sm text-green-400">
-                            ✓ Account created successfully! Redirecting to login...
-                        </p>
-                    </div>
-                )}
+                    <form onSubmit={isRegisterMode ? handleRegister : handleLogin} className="space-y-6">
+                        {isRegisterMode && (
+                            <div className="space-y-2">
+                                <Label htmlFor="fullName" className="text-muted-foreground">
+                                    Full Name (Optional)
+                                </Label>
+                                <Input
+                                    id="fullName"
+                                    type="text"
+                                    value={fullName}
+                                    onChange={(e) => setFullName(e.target.value)}
+                                    placeholder="John Doe"
+                                />
+                            </div>
+                        )}
 
-                <form onSubmit={isRegisterMode ? handleRegister : handleLogin} className="space-y-6">
-                    {/* Full Name (Register only) */}
-                    {isRegisterMode && (
                         <div className="space-y-2">
-                            <label className="text-sm font-medium text-secondary ml-1">
-                                Full Name (Optional)
-                            </label>
-                            <input
-                                type="text"
-                                value={fullName}
-                                onChange={(e) => setFullName(e.target.value)}
-                                className="w-full px-4 py-3 bg-background/50 border border-white/5 rounded-xl focus:outline-none focus:border-primary/50 text-white transition-all hover:bg-background/80"
-                                placeholder="John Doe"
+                            <Label htmlFor="email" className="text-muted-foreground">Email</Label>
+                            <Input
+                                id="email"
+                                type="email"
+                                value={email}
+                                onChange={(e) => setEmail(e.target.value)}
+                                required
+                                placeholder="name@example.com"
                             />
                         </div>
-                    )}
 
-                    {/* Email */}
-                    <div className="space-y-2">
-                        <label className="text-sm font-medium text-secondary ml-1">Email</label>
-                        <input
-                            type="email"
-                            value={email}
-                            onChange={(e) => setEmail(e.target.value)}
-                            required
-                            className="w-full px-4 py-3 bg-background/50 border border-white/5 rounded-xl focus:outline-none focus:border-primary/50 text-white transition-all hover:bg-background/80"
-                            placeholder="name@example.com"
-                        />
-                    </div>
+                        <div className="space-y-2">
+                            <Label htmlFor="password" className="text-muted-foreground">Password</Label>
+                            <Input
+                                id="password"
+                                type="password"
+                                value={password}
+                                onChange={(e) => setPassword(e.target.value)}
+                                required
+                                minLength={8}
+                                placeholder="••••••••"
+                            />
+                            {isRegisterMode && (
+                                <p className="text-xs text-muted-foreground">
+                                    Minimum 8 characters
+                                </p>
+                            )}
+                        </div>
 
-                    {/* Password */}
-                    <div className="space-y-2">
-                        <label className="text-sm font-medium text-secondary ml-1">Password</label>
-                        <input
-                            type="password"
-                            value={password}
-                            onChange={(e) => setPassword(e.target.value)}
-                            required
-                            minLength={8}
-                            className="w-full px-4 py-3 bg-background/50 border border-white/5 rounded-xl focus:outline-none focus:border-primary/50 text-white transition-all hover:bg-background/80"
-                            placeholder="••••••••"
-                        />
-                        {isRegisterMode && (
-                            <p className="text-xs text-secondary/60 ml-1">
-                                Minimum 8 characters
-                            </p>
-                        )}
-                    </div>
+                        <Button
+                            type="submit"
+                            disabled={loading}
+                            className="w-full h-11"
+                        >
+                            {loading ? (
+                                <>
+                                    <Loader2 size={18} className="animate-spin" />
+                                    {isRegisterMode ? 'Creating Account...' : 'Signing In...'}
+                                </>
+                            ) : (
+                                isRegisterMode ? 'Create Account' : 'Sign In'
+                            )}
+                        </Button>
+                    </form>
 
-                    {/* Submit Button */}
-                    <button
-                        type="submit"
-                        disabled={loading}
-                        className="w-full py-3.5 bg-gradient-to-r from-primary to-accent text-white font-medium rounded-xl hover:opacity-90 transition-opacity shadow-lg shadow-primary/25 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
-                    >
-                        {loading ? (
+                    <div className="text-center text-sm text-muted-foreground">
+                        {isRegisterMode ? (
                             <>
-                                <Loader2 size={18} className="animate-spin" />
-                                {isRegisterMode ? 'Creating Account...' : 'Signing In...'}
+                                Already have an account?{' '}
+                                <Button
+                                    variant="link"
+                                    className="p-0 h-auto font-normal"
+                                    onClick={() => {
+                                        setIsRegisterMode(false);
+                                        setError(null);
+                                        setRegisterSuccess(false);
+                                    }}
+                                >
+                                    Sign in
+                                </Button>
                             </>
                         ) : (
-                            isRegisterMode ? 'Create Account' : 'Sign In'
+                            <>
+                                Don't have an account?{' '}
+                                <Button
+                                    variant="link"
+                                    className="p-0 h-auto font-normal"
+                                    onClick={() => {
+                                        setIsRegisterMode(true);
+                                        setError(null);
+                                    }}
+                                >
+                                    Create one
+                                </Button>
+                            </>
                         )}
-                    </button>
-                </form>
-
-                {/* Toggle Register/Login */}
-                <div className="mt-6 text-center text-sm text-secondary">
-                    {isRegisterMode ? (
-                        <>
-                            Already have an account?{' '}
-                            <button
-                                onClick={() => {
-                                    setIsRegisterMode(false);
-                                    setError(null);
-                                    setRegisterSuccess(false);
-                                }}
-                                className="text-primary hover:underline"
-                            >
-                                Sign in
-                            </button>
-                        </>
-                    ) : (
-                        <>
-                            Don't have an account?{' '}
-                            <button
-                                onClick={() => {
-                                    setIsRegisterMode(true);
-                                    setError(null);
-                                }}
-                                className="text-primary hover:underline"
-                            >
-                                Create one
-                            </button>
-                        </>
-                    )}
-                </div>
-            </div>
+                    </div>
+                </CardContent>
+            </Card>
         </div>
     );
 };
