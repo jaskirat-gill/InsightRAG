@@ -1,5 +1,5 @@
 import os
-from typing import Dict, Any
+from typing import Dict, Any, List
 
 # Maps file extension to (parse_profile, chunk_strategy, chunk_params)
 _EXTENSION_MAP: Dict[str, Dict[str, Any]] = {
@@ -36,6 +36,42 @@ _EXTENSION_MAP: Dict[str, Dict[str, Any]] = {
 }
 
 _DEFAULT = {"parse_profile": None, "chunk_strategy": "semantic", "chunk_params": {"chunk_size": 512, "chunk_overlap": 50}}
+
+# Chunk strategies that work safely on each format.
+# semantic, section-aware, table-preserving are universally safe — Unstructured
+# gracefully degrades when the expected structure isn't present.
+# slide-per-chunk requires page_number metadata so it's limited to pptx/ppt.
+_UNIVERSAL_CHUNK: List[str] = ["semantic", "section-aware", "table-preserving"]
+
+COMPATIBLE_CHUNK_STRATEGIES: Dict[str, List[str]] = {
+    ".csv":  _UNIVERSAL_CHUNK,
+    ".tsv":  _UNIVERSAL_CHUNK,
+    ".xlsx": _UNIVERSAL_CHUNK,
+    ".xls":  _UNIVERSAL_CHUNK,
+    ".pptx": ["slide-per-chunk"] + _UNIVERSAL_CHUNK,
+    ".ppt":  ["slide-per-chunk"] + _UNIVERSAL_CHUNK,
+    ".docx": _UNIVERSAL_CHUNK,
+    ".doc":  _UNIVERSAL_CHUNK,
+    ".md":   _UNIVERSAL_CHUNK,
+    ".html": _UNIVERSAL_CHUNK,
+    ".htm":  _UNIVERSAL_CHUNK,
+    # Images and plain text produce unstructured text after OCR/read — only semantic
+    ".png":  ["semantic"],
+    ".jpeg": ["semantic"],
+    ".jpg":  ["semantic"],
+    ".bmp":  ["semantic"],
+    ".tiff": ["semantic"],
+    ".tif":  ["semantic"],
+    ".heic": ["semantic"],
+    ".txt":  ["semantic"],
+}
+_DEFAULT_COMPATIBLE: List[str] = ["semantic"]
+
+
+def get_compatible_strategies(local_path: str) -> List[str]:
+    """Return the list of valid chunk strategy keys for the given file."""
+    ext = os.path.splitext(local_path)[1].lower()
+    return COMPATIBLE_CHUNK_STRATEGIES.get(ext, _DEFAULT_COMPATIBLE)
 
 
 def select_strategy(local_path: str) -> Dict[str, Any]:

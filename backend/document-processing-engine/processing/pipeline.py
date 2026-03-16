@@ -48,7 +48,7 @@ def process_document(payload: dict):
     try:
         strategy = select_strategy(local_path)
         parse_profile = explicit_parse_profile or strategy["parse_profile"]
-        chunk_strategy = strategy["chunk_strategy"]
+        chunk_strategy = payload.get("chunk_strategy") or strategy["chunk_strategy"]
         chunk_params = strategy["chunk_params"]
 
         logger.info(

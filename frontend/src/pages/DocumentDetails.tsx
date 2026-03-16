@@ -189,6 +189,54 @@ const STRATEGY_CONTENT: Record<string, StrategyProfile> = {
       { key: 'reporting', title: 'Report QA', subtitle: 'Improves retrieval on dashboard-like documents', icon: Code2 },
     ],
   },
+  'table-preserving': {
+    summary:
+      'Keeps each table as a single chunk, splitting only at row boundaries to preserve structure and relationships.',
+    rationale: [
+      'Tabular structure benefits from whole-table retrieval',
+      'Row/column relationships preserved within chunk boundaries',
+      'Non-table elements chunked normally around table blocks',
+      'Optimized for structured data QA and value lookups',
+    ],
+    features: [
+      { key: 'table-infer', title: 'Table Integrity', subtitle: 'Each table is kept as one unit, never split mid-table', icon: Table2 },
+      { key: 'row-col', title: 'Row/Column Fidelity', subtitle: 'Retains table relationships for downstream retrieval', icon: ClipboardList },
+      { key: 'preserve', title: 'Structure Preservation', subtitle: 'Minimizes destructive splits inside tabular blocks', icon: Link2 },
+      { key: 'analytics', title: 'Data Retrieval', subtitle: 'Improves QA on values, totals, and comparisons', icon: Code2 },
+    ],
+  },
+  'slide-per-chunk': {
+    summary:
+      'Groups all content per slide into one chunk, preserving slide number metadata for targeted retrieval.',
+    rationale: [
+      'Slide boundaries represent natural semantic units in presentations',
+      'Slide number metadata retained for targeted retrieval',
+      'Prevents cross-slide context bleed',
+      'Optimized for QA and search over individual slides',
+    ],
+    features: [
+      { key: 'slide-unit', title: 'Slide as Unit', subtitle: 'Each slide becomes one self-contained chunk', icon: ClipboardList },
+      { key: 'metadata', title: 'Slide Metadata', subtitle: 'Slide number preserved in chunk metadata', icon: Code2 },
+      { key: 'boundary', title: 'Clean Boundaries', subtitle: 'No content bleeds across slide boundaries', icon: Link2 },
+      { key: 'retrieval', title: 'Slide-Level Retrieval', subtitle: 'Retrieval targets specific slides rather than fragments', icon: Table2 },
+    ],
+  },
+  'section-aware': {
+    summary:
+      'Splits at heading and title boundaries, never mid-section, for structured document content.',
+    rationale: [
+      'Section headings indicate natural topic boundaries',
+      'Chunks never split across heading-delimited sections',
+      'Improves retrieval relevance for structured documents',
+      'Falls back to semantic splitting within oversized sections',
+    ],
+    features: [
+      { key: 'heading', title: 'Heading Boundaries', subtitle: 'Splits only at Title/Header elements, not mid-section', icon: ClipboardList },
+      { key: 'coherence', title: 'Section Coherence', subtitle: 'Each chunk covers one complete section', icon: Link2 },
+      { key: 'fallback', title: 'Semantic Fallback', subtitle: 'Oversized sections are split semantically within boundaries', icon: Code2 },
+      { key: 'retrieval', title: 'Topic Retrieval', subtitle: 'Optimized for topic-level QA over structured content', icon: Table2 },
+    ],
+  },
 };
 
 function pad3(n: number) {
