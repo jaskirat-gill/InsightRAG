@@ -149,10 +149,41 @@ export interface AdminUserRow {
 class KBService {
   private readonly API_URL = API_URL;
 
+  /**
+   * Authenticated fetch wrapper.
+   * - Injects the Bearer token on every request.
+   * - On 401: attempts a silent token refresh, then retries once.
+   * - If the refresh itself fails (expired refresh token), fires the
+   *   global `session-expired` event so App.tsx can show the re-login dialog.
+   */
+  private async apiFetch(url: string, options: RequestInit = {}): Promise<Response> {
+    const buildHeaders = (): Record<string, string> => ({
+      ...(options.headers as Record<string, string>),
+      ...authService.getAuthHeader(),
+    });
+
+    let res = await fetch(url, { ...options, headers: buildHeaders() });
+
+    if (res.status === 401) {
+      try {
+        await authService.refreshAccessToken();
+        res = await fetch(url, { ...options, headers: buildHeaders() });
+      } catch {
+        authService.triggerSessionExpired();
+        throw new Error('Session expired. Please sign in again.');
+      }
+
+      if (res.status === 401) {
+        authService.triggerSessionExpired();
+        throw new Error('Session expired. Please sign in again.');
+      }
+    }
+
+    return res;
+  }
+
     async adminListUsers(): Promise<AdminUserRow[]> {
-      const response = await fetch(`${this.API_URL}/api/v1/admin/users`, {
-        headers: { ...authService.getAuthHeader() },
-      });
+      const response = await this.apiFetch(`${this.API_URL}/api/v1/admin/users`);
 
       if (!response.ok) {
         const error = await response.json().catch(() => ({}));
@@ -163,12 +194,9 @@ class KBService {
     }
 
     async adminSetUserRole(userId: string, roleName: string): Promise<AdminUserRow> {
-      const response = await fetch(`${this.API_URL}/api/v1/admin/users/${userId}/role`, {
+      const response = await this.apiFetch(`${this.API_URL}/api/v1/admin/users/${userId}/role`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          ...authService.getAuthHeader(),
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ role_name: roleName }),
       });
 
@@ -182,13 +210,8 @@ class KBService {
 
     // Get a presigned S3 URL for a document (View in S3)
     async getDocumentS3Url(kbId: string, docId: string): Promise<{ url: string }> {
-      const response = await fetch(
+      const response = await this.apiFetch(
         `${this.API_URL}/api/v1/knowledge-bases/${kbId}/documents/${docId}/s3-url`,
-        {
-          headers: {
-            ...authService.getAuthHeader(),
-          },
-        },
       );
   
       if (!response.ok) {
@@ -201,14 +224,9 @@ class KBService {
   
     // Delete a single document (S3 + SQL + Qdrant handled by backend)
     async deleteDocument(kbId: string, docId: string): Promise<void> {
-      const response = await fetch(
+      const response = await this.apiFetch(
         `${this.API_URL}/api/v1/knowledge-bases/${kbId}/documents/${docId}`,
-        {
-          method: 'DELETE',
-          headers: {
-            ...authService.getAuthHeader(),
-          },
-        },
+        { method: 'DELETE' },
       );
   
       if (!response.ok) {
@@ -219,11 +237,7 @@ class KBService {
 
   // List all KBs
   async listKnowledgeBases(): Promise<KnowledgeBase[]> {
-    const response = await fetch(`${this.API_URL}/api/v1/knowledge-bases`, {
-      headers: {
-        ...authService.getAuthHeader(),
-      },
-    });
+    const response = await this.apiFetch(`${this.API_URL}/api/v1/knowledge-bases`);
 
     if (!response.ok) {
       throw new Error('Failed to fetch knowledge bases');
@@ -234,11 +248,7 @@ class KBService {
 
   // Get single KB
   async getKnowledgeBase(kbId: string): Promise<KnowledgeBase> {
-    const response = await fetch(`${this.API_URL}/api/v1/knowledge-bases/${kbId}`, {
-      headers: {
-        ...authService.getAuthHeader(),
-      },
-    });
+    const response = await this.apiFetch(`${this.API_URL}/api/v1/knowledge-bases/${kbId}`);
 
     if (!response.ok) {
       throw new Error('Failed to fetch knowledge base');
@@ -249,11 +259,7 @@ class KBService {
 
   // List documents in KB
   async listDocuments(kbId: string): Promise<Document[]> {
-    const response = await fetch(`${this.API_URL}/api/v1/knowledge-bases/${kbId}/documents`, {
-      headers: {
-        ...authService.getAuthHeader(),
-      },
-    });
+    const response = await this.apiFetch(`${this.API_URL}/api/v1/knowledge-bases/${kbId}/documents`);
 
     if (!response.ok) {
       throw new Error('Failed to fetch documents');
@@ -264,13 +270,8 @@ class KBService {
 
   // Get one document details
   async getDocumentDetails(kbId: string, docId: string): Promise<Document> {
-    const response = await fetch(
+    const response = await this.apiFetch(
       `${this.API_URL}/api/v1/knowledge-bases/${kbId}/documents/${docId}`,
-      {
-        headers: {
-          ...authService.getAuthHeader(),
-        },
-      },
     );
 
     if (!response.ok) {
@@ -282,13 +283,8 @@ class KBService {
 
   // List chunks for one document
   async listDocumentChunks(kbId: string, docId: string): Promise<DocumentChunk[]> {
-    const response = await fetch(
+    const response = await this.apiFetch(
       `${this.API_URL}/api/v1/knowledge-bases/${kbId}/documents/${docId}/chunks`,
-      {
-        headers: {
-          ...authService.getAuthHeader(),
-        },
-      },
     );
 
     if (!response.ok) {
@@ -299,13 +295,8 @@ class KBService {
   }
 
   async getDocumentStrategy(kbId: string, docId: string): Promise<DocumentStrategyDetails> {
-    const response = await fetch(
+    const response = await this.apiFetch(
       `${this.API_URL}/api/v1/knowledge-bases/${kbId}/documents/${docId}/strategy`,
-      {
-        headers: {
-          ...authService.getAuthHeader(),
-        },
-      },
     );
 
     if (!response.ok) {
@@ -320,14 +311,11 @@ class KBService {
     docId: string,
     strategy: string,
   ): Promise<{ message: string; strategy: string; status: string }> {
-    const response = await fetch(
+    const response = await this.apiFetch(
       `${this.API_URL}/api/v1/knowledge-bases/${kbId}/documents/${docId}/strategy/override`,
       {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          ...authService.getAuthHeader(),
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ strategy }),
       },
     );
@@ -344,13 +332,8 @@ class KBService {
     kbId: string,
     docId: string,
   ): Promise<{ url: string; page_count?: number | null }> {
-    const response = await fetch(
+    const response = await this.apiFetch(
       `${this.API_URL}/api/v1/knowledge-bases/${kbId}/documents/${docId}/view`,
-      {
-        headers: {
-          ...authService.getAuthHeader(),
-        },
-      },
     );
 
     if (!response.ok) {
@@ -383,13 +366,8 @@ class KBService {
     docId: string,
     days: number = 30,
   ): Promise<DocumentRetrievalHistory> {
-    const response = await fetch(
+    const response = await this.apiFetch(
       `${this.API_URL}/api/v1/knowledge-bases/${kbId}/documents/${docId}/retrieval-history?days=${days}`,
-      {
-        headers: {
-          ...authService.getAuthHeader(),
-        },
-      },
     );
 
     if (!response.ok) {
@@ -401,13 +379,8 @@ class KBService {
 
   // Get per-page retrieval heatmap (normalized per document)
   async getDocumentHeatmap(kbId: string, docId: string): Promise<DocumentHeatmap> {
-    const response = await fetch(
+    const response = await this.apiFetch(
       `${this.API_URL}/api/v1/knowledge-bases/${kbId}/documents/${docId}/heatmap`,
-      {
-        headers: {
-          ...authService.getAuthHeader(),
-        },
-      },
     );
 
     if (!response.ok) {
@@ -419,14 +392,11 @@ class KBService {
 
   // Reassign documents to different KBs
   async reassignDocuments(fromKbId: string, items: ReassignItem[]): Promise<ReassignResult> {
-    const response = await fetch(
+    const response = await this.apiFetch(
       `${this.API_URL}/api/v1/knowledge-bases/${fromKbId}/reassign`,
       {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          ...authService.getAuthHeader(),
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(items),
       },
     );
@@ -441,12 +411,7 @@ class KBService {
 
   // Trigger manual sync for all active plugins
   async triggerSync(): Promise<{ message: string }> {
-    const response = await fetch(`${this.API_URL}/sync`, {
-      method: 'POST',
-      headers: {
-        ...authService.getAuthHeader(),
-      },
-    });
+    const response = await this.apiFetch(`${this.API_URL}/sync`, { method: 'POST' });
 
     if (!response.ok) {
       const error = await response.json().catch(() => ({}));
@@ -458,12 +423,9 @@ class KBService {
 
   // Reset sync state (synced_file cache and optional download cache)
   async resetSyncState(pluginId?: number | null): Promise<{ message: string; deleted_rows: number }> {
-    const response = await fetch(`${this.API_URL}/sync/reset`, {
+    const response = await this.apiFetch(`${this.API_URL}/sync/reset`, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        ...authService.getAuthHeader(),
-      },
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         plugin_id: pluginId ?? null,
         clear_download_cache: true,
@@ -480,11 +442,7 @@ class KBService {
 
   // Get KB health stats (documents + chunk retrieval metrics)
   async getKBHealth(kbId: string): Promise<KBHealthStats> {
-    const response = await fetch(`${this.API_URL}/api/v1/knowledge-bases/${kbId}/health`, {
-      headers: {
-        ...authService.getAuthHeader(),
-      },
-    });
+    const response = await this.apiFetch(`${this.API_URL}/api/v1/knowledge-bases/${kbId}/health`);
 
     if (!response.ok) {
       throw new Error('Failed to fetch KB health');
@@ -495,11 +453,8 @@ class KBService {
 
   // Delete KB (removes from SQL + Qdrant)
   async deleteKnowledgeBase(kbId: string): Promise<void> {
-    const response = await fetch(`${this.API_URL}/api/v1/knowledge-bases/${kbId}`, {
+    const response = await this.apiFetch(`${this.API_URL}/api/v1/knowledge-bases/${kbId}`, {
       method: 'DELETE',
-      headers: {
-        ...authService.getAuthHeader(),
-      },
     });
 
     if (!response.ok) {
@@ -510,12 +465,9 @@ class KBService {
 
   // Create new KB
   async createKnowledgeBase(data: CreateKBRequest): Promise<KnowledgeBase> {
-    const response = await fetch(`${this.API_URL}/api/v1/knowledge-bases`, {
+    const response = await this.apiFetch(`${this.API_URL}/api/v1/knowledge-bases`, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        ...authService.getAuthHeader(),
-      },
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(data),
     });
 
@@ -529,12 +481,9 @@ class KBService {
 
   // Update KB configuration
   async updateKnowledgeBase(kbId: string, data: UpdateKBRequest): Promise<KnowledgeBase> {
-    const response = await fetch(`${this.API_URL}/api/v1/knowledge-bases/${kbId}`, {
+    const response = await this.apiFetch(`${this.API_URL}/api/v1/knowledge-bases/${kbId}`, {
       method: 'PUT',
-      headers: {
-        'Content-Type': 'application/json',
-        ...authService.getAuthHeader(),
-      },
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(data),
     });
 
@@ -548,11 +497,7 @@ class KBService {
 
   // List available processing strategies (single source of truth)
   async listStrategies(): Promise<DocumentStrategyOption[]> {
-    const response = await fetch(`${this.API_URL}/api/v1/knowledge-bases/strategies`, {
-      headers: {
-        ...authService.getAuthHeader(),
-      },
-    });
+    const response = await this.apiFetch(`${this.API_URL}/api/v1/knowledge-bases/strategies`);
 
     if (!response.ok) {
       throw new Error('Failed to fetch strategies');
