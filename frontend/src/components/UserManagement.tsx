@@ -376,6 +376,11 @@ const UserManagement: FC = () => {
     }
   };
 
+  useEffect(() => {
+    if (getAccessToken()) void loadMe();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   const onSubmit = async () => {
     setToast(null);
 
@@ -415,30 +420,17 @@ const UserManagement: FC = () => {
     }
   };
 
-  const isAuthed = !!getAccessToken();
-
   return (
     <div>
       <Card>
-        <CardHeader className="flex flex-row items-center justify-between gap-3 space-y-0">
-          <div>
-            <CardTitle>Create User</CardTitle>
-            <CardDescription>
-              Create users with role-based permissions.
-            </CardDescription>
-          </div>
-          <Button
-            onClick={loadMe}
-            disabled={!isAuthed || loadingMe}
-            variant="outline"
-            size="sm"
-          >
-            {loadingMe ? <Loader2 className="animate-spin" size={16} /> : null}
-            Load my account
-          </Button>
+        <CardHeader>
+          <CardTitle>Create User</CardTitle>
+          <CardDescription>
+            Create users with role-based permissions.
+          </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          {!isAuthed ? (
+          {!getAccessToken() ? (
             <Alert variant="destructive">
               <AlertCircle size={16} />
               <AlertDescription>
@@ -455,12 +447,12 @@ const UserManagement: FC = () => {
               Signed in as <span className="text-foreground">{me.email}</span> • roles:{" "}
               <span className="text-foreground">{me.roles.join(", ")}</span>
             </div>
-          ) : (
-            <div className="rounded-lg border bg-muted/50 px-4 py-3 text-sm text-muted-foreground">
-              Click <span className="text-foreground">Load my account</span> to enable user
-              creation.
+          ) : loadingMe ? (
+            <div className="flex items-center gap-2 py-2 text-sm text-muted-foreground">
+              <Loader2 size={16} className="animate-spin" />
+              Loading account…
             </div>
-          )}
+          ) : null}
 
           <div className="grid gap-4 pt-2">
             <div className="space-y-2">

@@ -168,6 +168,11 @@ class AuthService {
     const token = this.getAccessToken();
     return token ? { Authorization: `Bearer ${token}` } : {};
   }
+
+  // Fire a browser-level event so App.tsx can show the re-login dialog
+  triggerSessionExpired(): void {
+    window.dispatchEvent(new CustomEvent('session-expired'));
+  }
 }
 
 export const authService = new AuthService();

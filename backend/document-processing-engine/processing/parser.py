@@ -6,6 +6,9 @@ logger = logging.getLogger("doc_worker.parser")
 
 BINARY_FORMATS = {".pdf", ".docx", ".doc", ".pptx", ".ppt", ".xlsx", ".xls", ".odt", ".rtf", ".epub"}
 PLAINTEXT_FORMATS = {".txt", ".md", ".csv", ".tsv", ".json", ".xml", ".html", ".htm", ".yaml", ".yml"}
+IMAGE_FORMATS = {".png", ".jpeg", ".jpg", ".bmp", ".tiff", ".tif", ".heic"}
+
+# --- PDF profiles (unchanged) ---
 
 PDF_PROFILE_AUTO = "pdf_auto"
 PDF_PROFILE_SEMANTIC = "semantic"
@@ -19,7 +22,6 @@ PDF_PARSE_PROFILES: Dict[str, Dict[str, Any]] = {
         "include_page_breaks": True,
     },
     PDF_PROFILE_SEMANTIC: {
-        # Keep extraction general-purpose; semantic preservation is handled in chunking step.
         "strategy": "auto",
         "include_page_breaks": True,
     },
@@ -43,6 +45,30 @@ PDF_PARSE_PROFILES: Dict[str, Dict[str, Any]] = {
     },
 }
 
+# --- Non-PDF format profiles ---
+
+NON_PDF_PROFILES: Dict[str, Dict[str, Any]] = {
+    # CSV / TSV / XLSX — let unstructured return Table elements; no extra kwargs needed
+    "tabular": {},
+    # PPTX / PPT — include_page_breaks so each slide gets its own page_number
+    "slide": {
+        "include_page_breaks": True,
+    },
+    # DOCX / DOC — include_page_breaks for page metadata
+    "office_doc": {
+        "include_page_breaks": True,
+    },
+    # Markdown — unstructured handles natively
+    "markdown": {},
+    # HTML / HTM — unstructured handles natively
+    "html": {},
+    # Images — high-resolution OCR
+    "image_ocr": {
+        "strategy": "hi_res",
+        "languages": ["eng"],
+    },
+}
+
 
 def parse_document(local_path: str, parse_profile: Optional[str] = None) -> List[Dict[str, Any]]:
     """
@@ -56,6 +82,9 @@ def parse_document(local_path: str, parse_profile: Optional[str] = None) -> List
         raise FileNotFoundError(f"File not found: {local_path}")
 
     ext = os.path.splitext(local_path)[1].lower()
+
+    if ext in IMAGE_FORMATS:
+        return _parse_with_unstructured(local_path, parse_profile=parse_profile or "image_ocr")
 
     if ext in PLAINTEXT_FORMATS:
         try:
@@ -83,10 +112,14 @@ def _parse_with_unstructured(local_path: str, parse_profile: Optional[str] = Non
 
     ext = os.path.splitext(local_path)[1].lower()
     partition_kwargs: Dict[str, Any] = {}
+
     if ext == ".pdf":
         profile = _resolve_pdf_profile(local_path, parse_profile)
         partition_kwargs = PDF_PARSE_PROFILES.get(profile, PDF_PARSE_PROFILES[PDF_PROFILE_AUTO]).copy()
         logger.info("Using PDF parse profile '%s' for %s", profile, local_path)
+    elif parse_profile and parse_profile in NON_PDF_PROFILES:
+        partition_kwargs = NON_PDF_PROFILES[parse_profile].copy()
+        logger.info("Using parse profile '%s' for %s", parse_profile, local_path)
 
     try:
         elements = partition(filename=local_path, **partition_kwargs)

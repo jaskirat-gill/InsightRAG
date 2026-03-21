@@ -1,5 +1,5 @@
 import { FC } from 'react';
-import { Settings2, Puzzle, MessageSquare, Users } from 'lucide-react';
+import { Settings2, Puzzle, MessageSquare } from 'lucide-react';
 import {
   Sheet,
   SheetContent,
@@ -9,7 +9,6 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import PluginSettings from './PluginSettings';
 import ChatSettings from './ChatSettings';
-import UserManagement from './UserManagement';
 
 interface SettingsProps {
   isOpen: boolean;
@@ -54,13 +53,6 @@ const Settings: FC<SettingsProps> = ({ isOpen, onClose }) => {
                   <Puzzle size={16} />
                   Plugins
                 </TabsTrigger>
-                <TabsTrigger
-                  value="users"
-                  className="w-full justify-start gap-2.5 data-[state=active]:bg-primary/15 data-[state=active]:text-primary"
-                >
-                  <Users size={16} />
-                  Users
-                </TabsTrigger>
               </TabsList>
 
               <div className="flex-1 overflow-y-auto p-6">
@@ -72,9 +64,6 @@ const Settings: FC<SettingsProps> = ({ isOpen, onClose }) => {
                 </TabsContent>
                 <TabsContent value="plugins" className="mt-0">
                   <PluginSettings />
-                </TabsContent>
-                <TabsContent value="users" className="mt-0">
-                  <UserManagement />
                 </TabsContent>
               </div>
             </div>

@@ -7,6 +7,7 @@ import {
   LogOut,
   Moon,
   Sun,
+  Users,
 } from 'lucide-react';
 import {
   Sidebar,
@@ -36,6 +37,7 @@ const navItems = [
   { key: 'home', label: 'Home', icon: Home },
   { key: 'kb', label: 'Knowledge Bases', icon: Database },
   { key: 'chat', label: 'Chat', icon: MessageSquare },
+  { key: 'users', label: 'User Management', icon: Users },
 ];
 
 const AppSidebar: FC<AppSidebarProps> = ({

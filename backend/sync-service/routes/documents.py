@@ -139,6 +139,48 @@ PDF_STRATEGY_OPTIONS: List[DocumentStrategyOption] = [
 ]
 PDF_STRATEGY_KEYS = {o.key for o in PDF_STRATEGY_OPTIONS}
 
+# Chunk strategies available for non-PDF document override.
+CHUNK_STRATEGY_OPTIONS: List[DocumentStrategyOption] = [
+    DocumentStrategyOption(
+        key="semantic",
+        label="Semantic",
+        description="Paragraph-oriented semantic chunking for narrative documents.",
+    ),
+    DocumentStrategyOption(
+        key="section-aware",
+        label="Section-Aware",
+        description="Splits at heading/title boundaries, never mid-section.",
+    ),
+    DocumentStrategyOption(
+        key="table-preserving",
+        label="Table-Preserving",
+        description="Keeps each table intact; splits only at row boundaries.",
+    ),
+    DocumentStrategyOption(
+        key="slide-per-chunk",
+        label="Slide-per-Chunk",
+        description="One chunk per slide, preserves slide number metadata.",
+    ),
+]
+_CHUNK_STRATEGY_KEYS = {o.key for o in CHUNK_STRATEGY_OPTIONS}
+
+# Mirrors processing/strategy_selector.py COMPATIBLE_CHUNK_STRATEGIES.
+# sync-service can't import from document-processing-engine directly.
+_UNIVERSAL_CHUNK = ["semantic", "section-aware", "table-preserving"]
+_COMPATIBLE_CHUNK_STRATEGIES: dict = {
+    ".csv":  _UNIVERSAL_CHUNK,
+    ".tsv":  _UNIVERSAL_CHUNK,
+    ".xlsx": _UNIVERSAL_CHUNK,
+    ".xls":  _UNIVERSAL_CHUNK,
+    ".pptx": ["slide-per-chunk"] + _UNIVERSAL_CHUNK,
+    ".ppt":  ["slide-per-chunk"] + _UNIVERSAL_CHUNK,
+    ".docx": _UNIVERSAL_CHUNK,
+    ".doc":  _UNIVERSAL_CHUNK,
+    ".md":   _UNIVERSAL_CHUNK,
+    ".html": _UNIVERSAL_CHUNK,
+    ".htm":  _UNIVERSAL_CHUNK,
+}
+
 class PageHeatmapBin(BaseModel):
     page_number: int
     raw_retrievals: int
@@ -461,7 +503,7 @@ async def get_document_strategy(
 
     doc = await db.fetch_one(
         """
-        SELECT document_id, document_type, processing_strategy
+        SELECT document_id, document_type, source_path, processing_strategy
         FROM documents
         WHERE document_id = $1 AND kb_id = $2
         """,
@@ -472,14 +514,27 @@ async def get_document_strategy(
     doc_data = dict(doc)
 
     strategy = doc_data.get("processing_strategy")
-    strategy_label = next((o.label for o in PDF_STRATEGY_OPTIONS if o.key == strategy), None)
-    if not strategy_label:
-        strategy_label = "Auto (Default)"
+    doc_type = (doc_data.get("document_type") or "").lower()
+
+    if doc_type == "pdf":
+        strategy_label = next((o.label for o in PDF_STRATEGY_OPTIONS if o.key == strategy), "Auto (Default)")
+        return DocumentStrategyResponse(
+            current_strategy=strategy,
+            current_strategy_label=strategy_label,
+            options=PDF_STRATEGY_OPTIONS,
+        )
+
+    # Non-PDF: return compatible chunk strategies for this file type.
+    source_path = doc_data.get("source_path") or ""
+    ext = os.path.splitext(source_path)[1].lower()
+    compatible_keys = _COMPATIBLE_CHUNK_STRATEGIES.get(ext, ["semantic"])
+    options = [o for o in CHUNK_STRATEGY_OPTIONS if o.key in compatible_keys]
+    strategy_label = next((o.label for o in options if o.key == strategy), strategy or "Auto (Default)")
 
     return DocumentStrategyResponse(
         current_strategy=strategy,
         current_strategy_label=strategy_label,
-        options=PDF_STRATEGY_OPTIONS,
+        options=options,
     )
 
 
@@ -491,9 +546,6 @@ async def override_document_strategy(
     current_user: dict = require_permission("kb.update"),
     db: Database = Depends(get_db),
 ):
-    if body.strategy not in PDF_STRATEGY_KEYS:
-        raise HTTPException(status_code=400, detail="Unknown strategy")
-
     if not CELERY_AVAILABLE:
         raise HTTPException(status_code=503, detail="Document worker queue is unavailable")
 
@@ -519,8 +571,20 @@ async def override_document_strategy(
         raise HTTPException(status_code=404, detail="Document not found")
     doc_data = dict(doc)
 
-    if (doc_data.get("document_type") or "").lower() != "pdf":
-        raise HTTPException(status_code=400, detail="Strategy override currently supports PDF documents only")
+    doc_type = (doc_data.get("document_type") or "").lower()
+    if doc_type == "pdf":
+        if body.strategy not in PDF_STRATEGY_KEYS:
+            raise HTTPException(status_code=400, detail="Unknown PDF strategy")
+    else:
+        source_path = doc_data.get("source_path") or ""
+        ext = os.path.splitext(source_path)[1].lower()
+        compatible_keys = _COMPATIBLE_CHUNK_STRATEGIES.get(ext, ["semantic"])
+        if body.strategy not in compatible_keys:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Strategy '{body.strategy}' is not compatible with {ext or 'this'} files. "
+                       f"Compatible strategies: {', '.join(compatible_keys)}",
+            )
 
     synced = await db.fetch_one(
         """
@@ -579,8 +643,11 @@ async def override_document_strategy(
         "etag": synced_data.get("etag"),
         "kb_id": str(kb_id),
         "document_id": str(doc_id),
-        "parse_profile": body.strategy,
     }
+    if doc_type == "pdf":
+        payload["parse_profile"] = body.strategy
+    else:
+        payload["chunk_strategy"] = body.strategy
     celery_app.send_task("process_document", args=[payload])
 
     return {
