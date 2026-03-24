@@ -1,12 +1,29 @@
 import { FC, useEffect, useMemo, useState } from "react";
 import { AlertCircle, CheckCircle2, Loader2, UserPlus } from "lucide-react";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import { Badge } from "@/components/ui/badge";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 
 type Role = "admin" | "developer" | "end_user";
 
-/**
- * /api/v1/auth/me can vary by implementation.
- * This type is flexible and we normalize into roles[] below.
- */
 type AuthMeRaw = {
   user_id?: string;
   id?: string;
@@ -112,10 +129,6 @@ function allowedRolesForCreator(creatorRoles: Role[]): Role[] {
   return ["end_user"];
 }
 
-/* -----------------------------
-   Admin-only APIs
-------------------------------*/
-
 async function adminListUsers(): Promise<AdminUserRow[]> {
   return apiFetch<AdminUserRow[]>("/api/v1/admin/users");
 }
@@ -198,127 +211,133 @@ const UserGroupPanel: FC<{ me: MeResponse }> = ({ me }) => {
   if (!isAdmin) return null;
 
   return (
-    <div className="mt-6 rounded-2xl border border-white/10 bg-white/5 p-5 shadow-sm">
-      <div className="flex items-start justify-between gap-3">
+    <Card className="mt-6">
+      <CardHeader className="flex flex-row items-start justify-between gap-3 space-y-0">
         <div>
-          <h3 className="text-base font-semibold text-white">User Management</h3>
-          <p className="text-sm text-secondary mt-1">
+          <CardTitle>User Management</CardTitle>
+          <CardDescription>
             Admin-only panel. View all users and change their role.
-          </p>
+          </CardDescription>
         </div>
-
-        <button
-          onClick={load}
-          disabled={loading}
-          className="inline-flex items-center gap-2 px-3 py-2 rounded-xl text-sm font-medium
-                     border border-primary/30 bg-primary/10 hover:bg-primary/15 text-primary
-                     transition-colors shadow-sm disabled:opacity-50"
-        >
+        <Button onClick={load} disabled={loading} variant="outline" size="sm">
           {loading ? <Loader2 className="animate-spin" size={16} /> : null}
           Refresh
-        </button>
-      </div>
-
-      <div className="mt-4 flex items-center gap-3">
-        <input
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-          placeholder="Search by email or name"
-          className="w-full max-w-md rounded-xl bg-black/20 border border-white/10 px-3 py-2 text-sm text-white
-                     placeholder:text-white/30 focus:outline-none focus:ring-2 focus:ring-primary/40"
-        />
-        <div className="text-xs text-secondary">{filtered.length.toLocaleString()} users</div>
-      </div>
-
-      {err ? (
-        <div className="mt-4 flex items-start gap-2 rounded-xl border border-red-500/20 bg-red-500/10 p-3 text-sm text-red-200">
-          <AlertCircle size={16} className="mt-0.5" />
-          <div>{err}</div>
+        </Button>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <div className="flex items-center gap-3">
+          <Input
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder="Search by email or name"
+            className="max-w-md"
+          />
+          <span className="text-xs text-muted-foreground">
+            {filtered.length.toLocaleString()} users
+          </span>
         </div>
-      ) : null}
 
-      {loading ? (
-        <div className="mt-6 flex items-center justify-center py-10">
-          <Loader2 size={22} className="animate-spin text-primary" />
-        </div>
-      ) : (
-        <div className="mt-4 overflow-hidden rounded-2xl border border-white/10">
-          <div className="grid grid-cols-12 bg-black/20 text-xs text-secondary uppercase tracking-wider">
-            <div className="col-span-5 px-4 py-3">User</div>
-            <div className="col-span-3 px-4 py-3">Current Role</div>
-            <div className="col-span-4 px-4 py-3">Set Role</div>
+        {err ? (
+          <Alert variant="destructive">
+            <AlertCircle size={16} />
+            <AlertDescription>{err}</AlertDescription>
+          </Alert>
+        ) : null}
+
+        {loading ? (
+          <div className="flex items-center justify-center py-10">
+            <Loader2 size={22} className="animate-spin text-primary" />
           </div>
+        ) : (
+          <div className="rounded-md border">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead className="w-[40%]">User</TableHead>
+                  <TableHead className="w-[25%]">Current Role</TableHead>
+                  <TableHead className="w-[35%]">Set Role</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {filtered.length ? (
+                  filtered.map((u) => {
+                    const cur = primaryRole(u);
+                    const busy = busyUserId === u.user_id;
+                    const isSelf = u.user_id === me.user_id;
 
-          <div className="divide-y divide-white/5">
-            {filtered.map((u) => {
-              const cur = primaryRole(u);
-              const busy = busyUserId === u.user_id;
-              const isSelf = u.user_id === me.user_id;
-
-              return (
-                <div key={u.user_id} className="grid grid-cols-12 bg-white/[0.02]">
-                  <div className="col-span-5 px-4 py-3">
-                    <div className="text-sm text-white/90">{u.email}</div>
-                    <div className="text-xs text-secondary mt-0.5">{u.full_name ?? "—"}</div>
-                  </div>
-
-                  <div className="col-span-3 px-4 py-3">
-                    <span className="px-2 py-1 rounded-full bg-white/5 border border-white/10 text-xs text-white/80">
-                      {cur}
-                    </span>
-                    {isSelf ? (
-                      <div className="mt-1 text-[11px] text-secondary">This is you</div>
-                    ) : null}
-                  </div>
-
-                  <div className="col-span-4 px-4 py-3">
-                    <div className="flex items-center gap-2">
-                      <select
-                        value={cur}
-                        onChange={(e) => setRole(u.user_id, e.target.value as Role)}
-                        disabled={busy}
-                        className="w-full rounded-xl bg-black/20 border border-white/10 px-3 py-2 text-sm text-white
-                                   focus:outline-none focus:ring-2 focus:ring-primary/40 disabled:opacity-50"
-                      >
-                        {ROLE_OPTIONS.map((r) => (
-                          <option key={r.key} value={r.key}>
-                            {r.label}
-                          </option>
-                        ))}
-                      </select>
-                      {busy ? <Loader2 size={18} className="animate-spin text-primary" /> : null}
-                    </div>
-                  </div>
-                </div>
-              );
-            })}
-
-            {!filtered.length ? (
-              <div className="px-4 py-8 text-sm text-secondary">No users match your search.</div>
-            ) : null}
+                    return (
+                      <TableRow key={u.user_id}>
+                        <TableCell>
+                          <div className="text-sm text-foreground">{u.email}</div>
+                          <div className="text-xs text-muted-foreground mt-0.5">
+                            {u.full_name ?? "—"}
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          <Badge variant="secondary">{cur}</Badge>
+                          {isSelf ? (
+                            <div className="mt-1 text-[11px] text-muted-foreground">
+                              This is you
+                            </div>
+                          ) : null}
+                        </TableCell>
+                        <TableCell>
+                          <div className="flex items-center gap-2">
+                            <Select
+                              value={cur}
+                              onValueChange={(v) => setRole(u.user_id, v as Role)}
+                              disabled={busy}
+                            >
+                              <SelectTrigger>
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {ROLE_OPTIONS.map((r) => (
+                                  <SelectItem key={r.key} value={r.key}>
+                                    {r.label}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                            {busy ? (
+                              <Loader2 size={18} className="animate-spin text-primary" />
+                            ) : null}
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })
+                ) : (
+                  <TableRow>
+                    <TableCell colSpan={3} className="text-center py-8 text-muted-foreground">
+                      No users match your search.
+                    </TableCell>
+                  </TableRow>
+                )}
+              </TableBody>
+            </Table>
           </div>
-        </div>
-      )}
+        )}
 
-      {toast ? (
-        <div className="mt-4">
-          <div
-            className={`flex items-start gap-2 rounded-xl border p-3 text-sm ${
+        {toast ? (
+          <Alert
+            variant={toast.type === "ok" ? "default" : "destructive"}
+            className={
               toast.type === "ok"
-                ? "border-emerald-500/20 bg-emerald-500/10 text-emerald-100"
-                : "border-red-500/20 bg-red-500/10 text-red-200"
-            }`}
+                ? "border-status-success/50 bg-status-success/10 text-status-success"
+                : undefined
+            }
           >
             {toast.type === "ok" ? (
-              <CheckCircle2 size={16} className="mt-0.5" />
+              <CheckCircle2 size={16} />
             ) : (
-              <AlertCircle size={16} className="mt-0.5" />
+              <AlertCircle size={16} />
             )}
-            <div>{toast.msg}</div>
-          </div>
-        </div>
-      ) : null}
-    </div>
+            <AlertDescription>{toast.msg}</AlertDescription>
+          </Alert>
+        ) : null}
+      </CardContent>
+    </Card>
   );
 };
 
@@ -400,136 +419,133 @@ const UserManagement: FC = () => {
 
   return (
     <div>
-      <div className="rounded-2xl border border-white/10 bg-white/5 p-5 shadow-sm">
-        <div className="flex items-center justify-between gap-3">
+      <Card>
+        <CardHeader className="flex flex-row items-center justify-between gap-3 space-y-0">
           <div>
-            <h3 className="text-base font-semibold text-white">Create User</h3>
-            <p className="text-sm text-secondary mt-1">Create users with role-based permissions.</p>
+            <CardTitle>Create User</CardTitle>
+            <CardDescription>
+              Create users with role-based permissions.
+            </CardDescription>
           </div>
-
-          <button
+          <Button
             onClick={loadMe}
             disabled={!isAuthed || loadingMe}
-            className="inline-flex items-center gap-2 px-3 py-2 rounded-xl text-sm font-medium
-                       border border-primary/30 bg-primary/10 hover:bg-primary/15 text-primary
-                       transition-colors shadow-sm disabled:opacity-50"
+            variant="outline"
+            size="sm"
           >
             {loadingMe ? <Loader2 className="animate-spin" size={16} /> : null}
             Load my account
-          </button>
-        </div>
-
-        <div className="mt-4">
+          </Button>
+        </CardHeader>
+        <CardContent className="space-y-4">
           {!isAuthed ? (
-            <div className="flex items-start gap-2 rounded-xl border border-red-500/20 bg-red-500/10 p-3 text-sm text-red-200">
-              <AlertCircle size={16} className="mt-0.5" />
-              <div>You’re not signed in. Please login first (missing access token).</div>
-            </div>
+            <Alert variant="destructive">
+              <AlertCircle size={16} />
+              <AlertDescription>
+                You're not signed in. Please login first (missing access token).
+              </AlertDescription>
+            </Alert>
           ) : meError ? (
-            <div className="flex items-start gap-2 rounded-xl border border-red-500/20 bg-red-500/10 p-3 text-sm text-red-200">
-              <AlertCircle size={16} className="mt-0.5" />
-              <div>{meError}</div>
-            </div>
+            <Alert variant="destructive">
+              <AlertCircle size={16} />
+              <AlertDescription>{meError}</AlertDescription>
+            </Alert>
           ) : me ? (
-            <div className="rounded-xl border border-white/10 bg-black/20 px-4 py-3 text-sm text-secondary">
-              Signed in as <span className="text-white">{me.email}</span> • roles:{" "}
-              <span className="text-white">{me.roles.join(", ")}</span>
+            <div className="rounded-lg border bg-muted/50 px-4 py-3 text-sm text-muted-foreground">
+              Signed in as <span className="text-foreground">{me.email}</span> • roles:{" "}
+              <span className="text-foreground">{me.roles.join(", ")}</span>
             </div>
           ) : (
-            <div className="rounded-xl border border-white/10 bg-black/20 px-4 py-3 text-sm text-secondary">
-              Click <span className="text-white">Load my account</span> to enable user creation.
+            <div className="rounded-lg border bg-muted/50 px-4 py-3 text-sm text-muted-foreground">
+              Click <span className="text-foreground">Load my account</span> to enable user
+              creation.
             </div>
           )}
-        </div>
 
-        <div className="mt-5 grid grid-cols-1 gap-4">
-          <div>
-            <label className="text-xs text-secondary">Email</label>
-            <input
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              placeholder="newuser@example.com"
-              className="mt-1 w-full rounded-xl bg-black/20 border border-white/10 px-3 py-2 text-sm text-white
-                         placeholder:text-white/30 focus:outline-none focus:ring-2 focus:ring-primary/40"
-            />
-          </div>
+          <div className="grid gap-4 pt-2">
+            <div className="space-y-2">
+              <Label htmlFor="email">Email</Label>
+              <Input
+                id="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder="newuser@example.com"
+              />
+            </div>
 
-          <div>
-            <label className="text-xs text-secondary">Full name (optional)</label>
-            <input
-              value={fullName}
-              onChange={(e) => setFullName(e.target.value)}
-              placeholder="Optional"
-              className="mt-1 w-full rounded-xl bg-black/20 border border-white/10 px-3 py-2 text-sm text-white
-                         placeholder:text-white/30 focus:outline-none focus:ring-2 focus:ring-primary/40"
-            />
-          </div>
+            <div className="space-y-2">
+              <Label htmlFor="fullName">Full name (optional)</Label>
+              <Input
+                id="fullName"
+                value={fullName}
+                onChange={(e) => setFullName(e.target.value)}
+                placeholder="Optional"
+              />
+            </div>
 
-          <div>
-            <label className="text-xs text-secondary">Password</label>
-            <input
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              type="password"
-              placeholder="Set a password"
-              className="mt-1 w-full rounded-xl bg-black/20 border border-white/10 px-3 py-2 text-sm text-white
-                         placeholder:text-white/30 focus:outline-none focus:ring-2 focus:ring-primary/40"
-            />
-          </div>
+            <div className="space-y-2">
+              <Label htmlFor="password">Password</Label>
+              <Input
+                id="password"
+                type="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                placeholder="Set a password"
+              />
+            </div>
 
-          <div>
-            <label className="text-xs text-secondary">Role</label>
-            <select
-              value={role}
-              onChange={(e) => setRole(e.target.value as Role)}
-              disabled={!me}
-              className="mt-1 w-full rounded-xl bg-black/20 border border-white/10 px-3 py-2 text-sm text-white
-                         focus:outline-none focus:ring-2 focus:ring-primary/40 disabled:opacity-50"
-            >
-              {allowedRoles.map((r) => (
-                <option key={r} value={r}>
-                  {r}
-                </option>
-              ))}
-            </select>
+            <div className="space-y-2">
+              <Label htmlFor="role">Role</Label>
+              <Select value={role} onValueChange={(v) => setRole(v as Role)} disabled={!me}>
+                <SelectTrigger id="role">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {allowedRoles.map((r) => (
+                    <SelectItem key={r} value={r}>
+                      {ROLE_OPTIONS.find((o) => o.key === r)?.label ?? r}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              {me ? (
+                <p className="text-xs text-muted-foreground">
+                  You can create: <span className="text-foreground">{allowedRoles.join(", ")}</span>
+                </p>
+              ) : null}
+            </div>
 
-            {me ? (
-              <p className="mt-2 text-xs text-secondary">
-                You can create: <span className="text-white">{allowedRoles.join(", ")}</span>
-              </p>
+            <div className="flex items-center justify-end gap-3 pt-2">
+              <Button onClick={onSubmit} disabled={!me || submitting}>
+                {submitting ? (
+                  <Loader2 className="animate-spin" size={16} />
+                ) : (
+                  <UserPlus size={16} />
+                )}
+                Create user
+              </Button>
+            </div>
+
+            {toast ? (
+              <Alert
+                variant={toast.type === "ok" ? "default" : "destructive"}
+                className={
+                  toast.type === "ok"
+                    ? "border-status-success/50 bg-status-success/10 text-status-success"
+                    : undefined
+                }
+              >
+                {toast.type === "ok" ? (
+                  <CheckCircle2 size={16} />
+                ) : (
+                  <AlertCircle size={16} />
+                )}
+                <AlertDescription>{toast.msg}</AlertDescription>
+              </Alert>
             ) : null}
           </div>
-
-          <div className="flex items-center justify-end gap-3 pt-2">
-            <button
-              onClick={onSubmit}
-              disabled={!me || submitting}
-              className="inline-flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium
-                         bg-primary text-white hover:bg-primary/90 transition-colors disabled:opacity-50"
-            >
-              {submitting ? <Loader2 className="animate-spin" size={16} /> : <UserPlus size={16} />}
-              Create user
-            </button>
-          </div>
-
-          {toast ? (
-            <div
-              className={`flex items-start gap-2 rounded-xl border p-3 text-sm ${
-                toast.type === "ok"
-                  ? "border-emerald-500/20 bg-emerald-500/10 text-emerald-100"
-                  : "border-red-500/20 bg-red-500/10 text-red-200"
-              }`}
-            >
-              {toast.type === "ok" ? (
-                <CheckCircle2 size={16} className="mt-0.5" />
-              ) : (
-                <AlertCircle size={16} className="mt-0.5" />
-              )}
-              <div>{toast.msg}</div>
-            </div>
-          ) : null}
-        </div>
-      </div>
+        </CardContent>
+      </Card>
 
       {me ? <UserGroupPanel me={me} /> : null}
     </div>

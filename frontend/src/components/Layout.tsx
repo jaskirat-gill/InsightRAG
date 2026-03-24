@@ -1,70 +1,68 @@
 import { useState, FC, ReactNode } from 'react';
-import { Moon, Sun } from 'lucide-react';
-import Background from './Background';
-import Navigation from './Navigation';
+import { SidebarProvider, SidebarInset, SidebarTrigger } from '@/components/ui/sidebar';
+import { Separator } from '@/components/ui/separator';
+import AppSidebar from './AppSidebar';
 import Settings from './Settings';
 
 interface LayoutProps {
-    children: ReactNode;
-    onLogout: () => void;
-    onNavigate: (page: string) => void;
-    currentPage: string;
-    theme: 'dark' | 'light';
-    onToggleTheme: () => void;
+  children: ReactNode;
+  onLogout: () => void;
+  onNavigate: (page: string) => void;
+  currentPage: string;
+  theme: 'dark' | 'light';
+  onToggleTheme: () => void;
+  pageTitle?: string;
 }
 
+const PAGE_TITLES: Record<string, string> = {
+  home: 'Home',
+  kb: 'Knowledge Bases',
+  'kb-health': 'Health Dashboard',
+  doc: 'Document Details',
+  chat: 'Chat',
+};
+
 const Layout: FC<LayoutProps> = ({
-    children,
-    onLogout,
-    onNavigate,
-    currentPage,
-    theme,
-    onToggleTheme,
+  children,
+  onLogout,
+  onNavigate,
+  currentPage,
+  theme,
+  onToggleTheme,
+  pageTitle,
 }) => {
-    const [isSettingsOpen, setIsSettingsOpen] = useState(false);
-    const pageBackground = theme === 'light' ? '#ffffff' : '#0f172a';
-    const pageText = theme === 'light' ? '#0f172a' : '#f8fafc';
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const title = pageTitle || PAGE_TITLES[currentPage] || 'OpenWebUI';
 
-    return (
-        <div
-            className="relative h-screen overflow-hidden font-sans antialiased selection:bg-primary/30"
-            style={{ backgroundColor: pageBackground, color: pageText }}
-        >
-            <Background theme={theme} />
+  return (
+    <SidebarProvider>
+      <AppSidebar
+        currentPage={currentPage}
+        onNavigate={onNavigate}
+        onSettingsClick={() => setIsSettingsOpen(true)}
+        onLogout={onLogout}
+        theme={theme}
+        onToggleTheme={onToggleTheme}
+      />
+      <SidebarInset>
+        <header className="flex h-14 shrink-0 items-center gap-2 border-b px-4">
+          <SidebarTrigger className="-ml-1" />
+          <Separator orientation="vertical" className="mr-2 !h-4" />
+          <h1 className="text-sm font-medium">{title}</h1>
+        </header>
+        <main className="flex-1 overflow-y-auto p-6">
+          <div className="mx-auto max-w-7xl">
+            {children}
+          </div>
+        </main>
+      </SidebarInset>
 
-            <div className="relative z-10 h-full overflow-y-auto">
-                <button
-                    onClick={onToggleTheme}
-                    className="theme-toggle-btn fixed top-4 left-4 z-50 px-2.5 py-1.5 rounded-lg border text-xs transition-colors flex items-center gap-1.5"
-                    style={{
-                        backgroundColor: theme === 'light' ? 'rgba(241, 245, 249, 0.95)' : 'rgba(51, 65, 85, 0.75)',
-                        color: theme === 'light' ? '#0f172a' : '#f8fafc',
-                        borderColor: theme === 'light' ? 'rgba(148, 163, 184, 0.55)' : 'rgba(148, 163, 184, 0.35)',
-                    }}
-                >
-                    {theme === 'dark' ? <Sun size={14} /> : <Moon size={14} />}
-                    <span>{theme === 'dark' ? 'Light mode' : 'Dark mode'}</span>
-                </button>
-                <main className="p-6 pb-40 max-w-7xl mx-auto">
-                    {children}
-                </main>
-            </div>
-
-            <Navigation
-                onSettingsClick={() => setIsSettingsOpen(true)}
-                onLogout={onLogout}
-                onNavigate={onNavigate}
-                currentPage={currentPage}
-                theme={theme}
-                onToggleTheme={onToggleTheme}
-            />
-
-            <Settings
-                isOpen={isSettingsOpen}
-                onClose={() => setIsSettingsOpen(false)}
-            />
-        </div>
-    );
+      <Settings
+        isOpen={isSettingsOpen}
+        onClose={() => setIsSettingsOpen(false)}
+      />
+    </SidebarProvider>
+  );
 };
 
 export default Layout;
