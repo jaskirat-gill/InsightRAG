@@ -204,7 +204,7 @@ const ChatSettings: FC = () => {
         Default values come from <code>.env</code>/runtime config. If you reset, chat returns to defaults.
       </div>
 
-      <div className="flex items-center justify-end gap-2">
+      <div className="flex flex-wrap items-center justify-end gap-2">
         <Button
           variant="outline"
           size="sm"

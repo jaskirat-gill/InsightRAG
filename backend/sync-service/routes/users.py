@@ -22,14 +22,36 @@ async def get_user_role_names(db: Database, user_id: str) -> Set[str]:
     )
     return {r["role_name"] for r in rows}
 
-def allowed_roles_for_creator(creator_roles: Set[str]) -> Set[str]:
-    # If a user has multiple roles, take the "most powerful" effect:
-    if "admin" in creator_roles:
-        return {"admin", "developer", "end_user"}
-    if "developer" in creator_roles:
-        return {"developer", "end_user"}
-    # default (end_user or anything else)
-    return {"end_user"}
+async def allowed_roles_for_creator(db: Database, creator_roles: Set[str]) -> Set[str]:
+    """Returns the set of role names this creator can assign, based on each role's can_be_created_by."""
+    import json as _json
+    try:
+        rows = await db.fetch_all("SELECT role_name, can_be_created_by FROM roles")
+    except Exception:
+        rows = []
+
+    allowed: Set[str] = set()
+    for row in rows:
+        raw = row["can_be_created_by"]
+        if isinstance(raw, str):
+            try:
+                can_create = _json.loads(raw)
+            except Exception:
+                can_create = []
+        else:
+            can_create = raw or []
+        if any(cr in can_create for cr in creator_roles):
+            allowed.add(row["role_name"])
+
+    if not allowed:
+        # Fallback to hardcoded logic (e.g. migration hasn't run yet)
+        if "admin" in creator_roles:
+            return {"admin", "developer", "end_user"}
+        if "developer" in creator_roles:
+            return {"developer", "end_user"}
+        return {"end_user"}
+
+    return allowed
 
 @router.get("/me")
 async def me(
@@ -151,7 +173,7 @@ async def create_user(
 
     # 1) Figure out creator roles
     creator_roles = await get_user_role_names(db, current_user["user_id"])
-    allowed = allowed_roles_for_creator(creator_roles)
+    allowed = await allowed_roles_for_creator(db, creator_roles)
 
     # 2) Enforce role creation rules
     if request.role not in allowed:
@@ -247,18 +269,44 @@ async def update_user(
 @router.delete("/{user_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_user(
     user_id: UUID,
-    current_user: Dict = require_admin(),
+    current_user: Dict = Depends(get_current_active_user),
     db: Database = Depends(get_db)
 ):
-    """Delete user (admin only)"""
-    
+    """Delete user — allowed for admin or if caller's role is in target role's can_be_modified_by."""
+    import json as _json
+
     # Prevent self-deletion
     if str(user_id) == current_user["user_id"]:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Cannot delete your own account"
         )
-    
+
+    caller_roles = await get_user_role_names(db, current_user["user_id"])
+    caller_permissions = set(current_user.get("permissions", []))
+    is_admin = "admin" in caller_roles
+
+    if not is_admin:
+        if "user.delete" not in caller_permissions:
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Permission denied: user.delete required")
+        # Check can_be_modified_by for the target user's role
+        target_role = await db.fetch_one(
+            """
+            SELECT r.can_be_modified_by FROM user_roles ur
+            JOIN roles r ON ur.role_id = r.role_id
+            WHERE ur.user_id = $1 LIMIT 1
+            """,
+            str(user_id),
+        )
+        if target_role:
+            raw = target_role["can_be_modified_by"]
+            can_be_modified_by = _json.loads(raw) if isinstance(raw, str) else (raw or [])
+            if not any(r in can_be_modified_by for r in caller_roles):
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail="Your role is not permitted to delete users with this role.",
+                )
+
     # Delete user (cascade will handle related records)
     result = await db.execute(
         "DELETE FROM users WHERE user_id = $1",

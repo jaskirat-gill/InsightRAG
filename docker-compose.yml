@@ -1,6 +1,5 @@
 services:
   frontend:
-    image: ghcr.io/jaskirat-gill/openwebui-frontend:latest
     build:
       context: ./frontend
       args:
@@ -17,7 +16,6 @@ services:
       - query-engine
 
   sync-service:
-    image: ghcr.io/jaskirat-gill/openwebui-sync-service:latest
     build: ./backend/sync-service
     ports:
       - "8000:8000"
@@ -48,7 +46,6 @@ services:
         condition: service_healthy
 
   query-engine:
-    image: ghcr.io/jaskirat-gill/openwebui-query-engine:latest
     build: ./backend/query-engine
     ports:
       - "8001:8001"
@@ -64,7 +61,6 @@ services:
         condition: service_started
 
   document-processing-engine:
-    image: ghcr.io/jaskirat-gill/openwebui-document-processing-engine:latest
     build: ./backend/document-processing-engine
     volumes:
       - ./backend/document-processing-engine:/app:z
@@ -120,8 +116,8 @@ services:
       - "6333:6333"
     volumes:
       - qdrant_data:/qdrant/storage
+
   mcp-server:
-    image: ghcr.io/jaskirat-gill/openwebui-mcp-server:latest
     build: ./backend/mcp-server
     ports:
       - "8002:8002"
