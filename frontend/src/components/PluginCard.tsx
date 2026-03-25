@@ -179,7 +179,7 @@ const PluginCard: FC<PluginCardProps> = ({ plugin, onSave, onToggle, onTest, onD
                             ))}
                         </div>
 
-                        <div className="flex items-center justify-between pt-3 border-t">
+                        <div className="flex flex-wrap items-center justify-between gap-2 pt-3 border-t">
                             <div className="flex items-center gap-2">
                                 <Button
                                     variant="outline"

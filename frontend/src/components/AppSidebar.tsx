@@ -22,7 +22,6 @@ import {
   SidebarMenuItem,
   SidebarSeparator,
 } from '@/components/ui/sidebar';
-import { Button } from '@/components/ui/button';
 
 interface AppSidebarProps {
   currentPage: string;
@@ -50,8 +49,8 @@ const AppSidebar: FC<AppSidebarProps> = ({
 }) => {
   return (
     <Sidebar collapsible="icon" variant="sidebar">
-      <SidebarHeader className="p-4">
-        <div className="flex items-center gap-2 overflow-hidden">
+      <SidebarHeader className="p-4 group-data-[collapsible=icon]:p-2">
+        <div className="flex items-center gap-2 overflow-hidden group-data-[collapsible=icon]:justify-center">
           <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-primary text-primary-foreground">
             <Database className="h-4 w-4" />
           </div>
@@ -122,16 +121,14 @@ const AppSidebar: FC<AppSidebarProps> = ({
             </SidebarMenuButton>
           </SidebarMenuItem>
           <SidebarMenuItem>
-            <Button
-              variant="ghost"
-              className="w-full justify-start gap-2 text-destructive hover:text-destructive hover:bg-destructive/10"
+            <SidebarMenuButton
               onClick={onLogout}
+              tooltip="Sign out"
+              className="text-destructive hover:text-destructive hover:bg-destructive/10"
             >
               <LogOut className="h-4 w-4" />
-              <span className="group-data-[collapsible=icon]:hidden">
-                Sign out
-              </span>
-            </Button>
+              <span>Sign out</span>
+            </SidebarMenuButton>
           </SidebarMenuItem>
         </SidebarMenu>
       </SidebarFooter>

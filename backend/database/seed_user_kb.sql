@@ -43,8 +43,12 @@ INSERT INTO permissions (permission_name, resource, action, description) VALUES
     -- API key permissions
     ('apikey.create', 'api_key', 'create', 'Generate API keys'),
     ('apikey.read', 'api_key', 'read', 'View API keys'),
-    ('apikey.revoke', 'api_key', 'delete', 'Revoke API keys')
-ON CONFLICT (resource, action) DO NOTHING;
+    ('apikey.revoke', 'api_key', 'delete', 'Revoke API keys'),
+
+    -- Panel access permissions (grouped under sync)
+    ('user_management.access', 'sync', 'user_management', 'Access the User Management panel to view and change user roles'),
+    ('role_management.access', 'sync', 'role_management', 'Access the Role Management panel to create and configure roles')
+ON CONFLICT (permission_name) DO NOTHING;
 
 -- Assign permissions to roles
 WITH role_perms AS (

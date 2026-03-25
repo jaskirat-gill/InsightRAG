@@ -5,7 +5,6 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
-import { Alert, AlertDescription } from '@/components/ui/alert';
 
 interface LoginProps {
     onLogin: () => void;
@@ -75,10 +74,10 @@ const Login: FC<LoginProps> = ({ onLogin }) => {
                 </CardHeader>
                 <CardContent className="space-y-6">
                     {error && (
-                        <Alert variant="destructive" className="flex items-start gap-3">
-                            <AlertCircle size={18} className="mt-0.5 flex-shrink-0" />
-                            <AlertDescription>{error}</AlertDescription>
-                        </Alert>
+                        <div className="flex items-center gap-2 rounded-lg border border-destructive/50 bg-destructive/10 px-4 py-3 text-sm text-destructive">
+                            <AlertCircle className="h-4 w-4 shrink-0" />
+                            <span>{error}</span>
+                        </div>
                     )}
 
                     {registerSuccess && (
