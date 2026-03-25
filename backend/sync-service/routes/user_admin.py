@@ -21,6 +21,23 @@ class UserRow(BaseModel):
     roles: List[str] = []
 
 
+class KnowledgeBaseSummary(BaseModel):
+    kb_id: UUID
+    owner_id: UUID
+    name: str
+    description: Optional[str] = None
+
+
+class UserKBAccessResponse(BaseModel):
+    user_id: UUID
+    kb_ids: List[UUID]
+    knowledge_bases: List[KnowledgeBaseSummary]
+
+
+class UpdateUserKBAccessRequest(BaseModel):
+    kb_ids: List[UUID] = []
+
+
 class UpdateUserRoleRequest(BaseModel):
     role_name: str
 
@@ -121,6 +138,36 @@ async def _assign_permissions(db: Database, role_id: str, permission_names: List
                 role_id,
                 str(perm["permission_id"]),
             )
+
+
+async def _manageable_kb_rows(db: Database, current_user: dict):
+    if "admin" in current_user.get("roles", []):
+        return await db.fetch_all(
+            "SELECT kb_id, owner_id, name, description FROM knowledge_bases ORDER BY created_at DESC"
+        )
+
+    return await db.fetch_all(
+        """
+        SELECT kb_id, owner_id, name, description
+        FROM knowledge_bases
+        WHERE owner_id = $1
+        ORDER BY created_at DESC
+        """,
+        current_user["user_id"],
+    )
+
+
+async def _load_user_kb_access(db: Database, user_id: str):
+    return await db.fetch_all(
+        """
+        SELECT kb.kb_id, kb.owner_id, kb.name, kb.description
+        FROM user_kb_access uka
+        JOIN knowledge_bases kb ON kb.kb_id = uka.kb_id
+        WHERE uka.user_id = $1
+        ORDER BY kb.name ASC
+        """,
+        user_id,
+    )
 
 
 # ─── User endpoints ───────────────────────────────────────────────────────────
@@ -233,6 +280,97 @@ async def set_user_role(
         raise HTTPException(status_code=404, detail="User not found")
 
     return UserRow(**dict(row))
+
+
+@router.get("/knowledge-bases", response_model=List[KnowledgeBaseSummary])
+async def list_manageable_knowledge_bases(
+    current_user: dict = require_permission("user.read"),
+    db: Database = Depends(get_db),
+):
+    rows = await _manageable_kb_rows(db, current_user)
+    return [KnowledgeBaseSummary(**dict(row)) for row in rows]
+
+
+@router.get("/users/{user_id}/kb-access", response_model=UserKBAccessResponse)
+async def get_user_kb_access(
+    user_id: UUID,
+    current_user: dict = require_permission("user.read"),
+    db: Database = Depends(get_db),
+):
+    user = await db.fetch_one("SELECT user_id FROM users WHERE user_id = $1", str(user_id))
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    rows = await _load_user_kb_access(db, str(user_id))
+    return UserKBAccessResponse(
+        user_id=user_id,
+        kb_ids=[row["kb_id"] for row in rows],
+        knowledge_bases=[KnowledgeBaseSummary(**dict(row)) for row in rows],
+    )
+
+
+@router.put("/users/{user_id}/kb-access", response_model=UserKBAccessResponse)
+async def set_user_kb_access(
+    user_id: UUID,
+    body: UpdateUserKBAccessRequest,
+    current_user: dict = Depends(get_current_active_user),
+    db: Database = Depends(get_db),
+):
+    if "admin" not in current_user.get("roles", []) and "user.update" not in current_user.get("permissions", []):
+        raise HTTPException(status_code=403, detail="Permission denied: user.update required")
+
+    user = await db.fetch_one("SELECT user_id FROM users WHERE user_id = $1", str(user_id))
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    manageable_rows = await _manageable_kb_rows(db, current_user)
+    manageable_ids = {str(row["kb_id"]) for row in manageable_rows}
+    requested_ids = [str(kb_id) for kb_id in body.kb_ids]
+
+    invalid_ids = [kb_id for kb_id in requested_ids if kb_id not in manageable_ids]
+    if invalid_ids:
+        raise HTTPException(
+            status_code=403,
+            detail=f"Not allowed to assign access for KBs: {', '.join(invalid_ids)}",
+        )
+
+    existing_rows = await _load_user_kb_access(db, str(user_id))
+    existing_ids = {str(row["kb_id"]) for row in existing_rows}
+    requested_set = set(requested_ids)
+
+    removable_ids = existing_ids - requested_set
+    disallowed_removals = [kb_id for kb_id in removable_ids if kb_id not in manageable_ids]
+    if disallowed_removals:
+        raise HTTPException(
+            status_code=403,
+            detail=f"Not allowed to modify existing access for KBs: {', '.join(disallowed_removals)}",
+        )
+
+    if removable_ids:
+        await db.execute(
+            "DELETE FROM user_kb_access WHERE user_id = $1 AND kb_id = ANY($2::uuid[])",
+            str(user_id),
+            list(removable_ids),
+        )
+
+    for kb_id in requested_set - existing_ids:
+        await db.execute(
+            """
+            INSERT INTO user_kb_access (user_id, kb_id, granted_by)
+            VALUES ($1, $2, $3)
+            ON CONFLICT (user_id, kb_id) DO NOTHING
+            """,
+            str(user_id),
+            kb_id,
+            current_user["user_id"],
+        )
+
+    rows = await _load_user_kb_access(db, str(user_id))
+    return UserKBAccessResponse(
+        user_id=user_id,
+        kb_ids=[row["kb_id"] for row in rows],
+        knowledge_bases=[KnowledgeBaseSummary(**dict(row)) for row in rows],
+    )
 
 
 # ─── Role endpoints ───────────────────────────────────────────────────────────

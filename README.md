@@ -230,6 +230,8 @@ The MCP server exposes tools including `search_knowledge_base(query, top_k, kb_i
 - HTTP MCP endpoint (compose): `http://localhost:8002/mcp`
 - Stdio helper script (runs a container with stdio transport): `scripts/run_mcp_stdio.sh`
 
+HTTP MCP now expects `Authorization: Bearer <sync-service access token>` on tool calls. The server enforces per-user KB access for authenticated HTTP callers. STDIO remains a trusted local/development path and does not carry per-user HTTP auth headers.
+
 If you’re using OpenWebUI, see `docs/setup-openwebui.md` for how to register the MCP tool.
 
 ## Writing a new sync plugin

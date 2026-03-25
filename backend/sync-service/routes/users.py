@@ -4,6 +4,7 @@ from database import get_db, Database
 from middleware.permissions import require_admin, require_permission
 from middleware.auth import get_current_active_user
 from utils.password import hash_password
+from utils.kb_access import user_can_manage_kb
 from typing import List, Dict
 from uuid import UUID
 from typing import Set
@@ -193,7 +194,16 @@ async def create_user(
             detail="Email already registered"
         )
 
-    # 4) Create user
+    # 4) Validate requested KB grants before creating the user.
+    requested_kb_ids = [str(kb_id) for kb_id in request.kb_ids]
+    for kb_id_str in requested_kb_ids:
+        if not await user_can_manage_kb(db, current_user, kb_id_str):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=f"Not allowed to grant access to KB '{kb_id_str}'",
+            )
+
+    # 5) Create user
     hashed_pwd = hash_password(request.password)
     user = await db.fetch_one("""
         INSERT INTO users (email, hashed_password, full_name)
@@ -201,7 +211,7 @@ async def create_user(
         RETURNING *
     """, request.email, hashed_pwd, request.full_name)
 
-    # 5) Assign role
+    # 6) Assign role
     role = await db.fetch_one(
         "SELECT role_id FROM roles WHERE role_name = $1",
         request.role
@@ -216,6 +226,19 @@ async def create_user(
         INSERT INTO user_roles (user_id, role_id, assigned_by)
         VALUES ($1, $2, $3)
     """, user["user_id"], role["role_id"], current_user["user_id"])
+
+    # 7) Optionally assign KB access grants.
+    for kb_id_str in requested_kb_ids:
+        await db.execute(
+            """
+            INSERT INTO user_kb_access (user_id, kb_id, granted_by)
+            VALUES ($1, $2, $3)
+            ON CONFLICT (user_id, kb_id) DO NOTHING
+            """,
+            user["user_id"],
+            kb_id_str,
+            current_user["user_id"],
+        )
 
     return await get_user(user["user_id"], current_user, db)
 

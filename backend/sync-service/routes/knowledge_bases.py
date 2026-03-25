@@ -12,6 +12,7 @@ from database import get_db, Database
 from middleware.auth import get_current_active_user
 from middleware.permissions import require_permission
 from config import settings
+from utils.kb_access import get_accessible_kb_ids, require_kb_manage_access, require_kb_read_access
 
 logger = logging.getLogger("knowledge_bases")
 
@@ -411,23 +412,28 @@ async def create_knowledge_base(
 
 @router.get("", response_model=List[KBResponse])
 async def list_knowledge_bases(
-    current_user: Dict = require_permission("kb.read"),
+    current_user: Dict = Depends(get_current_active_user),
     db: Database = Depends(get_db)
 ):
-    """
-    Everyone only sees their own KBs.
-    Even admin starts empty unless they create one.
-    """
+    """List KBs the caller can read, including explicit grants."""
 
-    results = await db.fetch_all(
-        """
-        SELECT *
-        FROM knowledge_bases
-        WHERE owner_id = $1
-        ORDER BY created_at DESC
-        """,
-        current_user["user_id"]
-    )
+    if "admin" in current_user.get("roles", []):
+        results = await db.fetch_all(
+            "SELECT * FROM knowledge_bases ORDER BY created_at DESC"
+        )
+    else:
+        accessible_kb_ids = await get_accessible_kb_ids(db, current_user)
+        if not accessible_kb_ids:
+            return []
+        results = await db.fetch_all(
+            """
+            SELECT *
+            FROM knowledge_bases
+            WHERE kb_id = ANY($1::uuid[])
+            ORDER BY created_at DESC
+            """,
+            accessible_kb_ids,
+        )
 
     return [KBResponse(**dict(r)) for r in results]
 
@@ -440,29 +446,11 @@ async def list_strategies():
 @router.get("/{kb_id}", response_model=KBResponse)
 async def get_knowledge_base(
     kb_id: UUID,
-    current_user: Dict = require_permission("kb.read"),
+    current_user: Dict = Depends(get_current_active_user),
     db: Database = Depends(get_db)
 ):
     """Get knowledge base details"""
-    
-    kb = await db.fetch_one(
-        "SELECT * FROM knowledge_bases WHERE kb_id = $1",
-        str(kb_id)
-    )
-    
-    if not kb:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Knowledge base not found"
-        )
-    
-    # Check ownership (unless admin)
-    if "admin" not in current_user["roles"] and str(kb["owner_id"]) != current_user["user_id"]:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Access denied"
-        )
-    
+    kb = await require_kb_read_access(db, current_user, str(kb_id))
     return KBResponse(**dict(kb))
 
 @router.put("/{kb_id}", response_model=KBResponse)
@@ -473,18 +461,7 @@ async def update_knowledge_base(
     db: Database = Depends(get_db)
 ):
     """Update knowledge base configuration"""
-    
-    # Check existence and ownership
-    kb = await db.fetch_one(
-        "SELECT * FROM knowledge_bases WHERE kb_id = $1",
-        str(kb_id)
-    )
-    
-    if not kb:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="KB not found")
-    
-    if "admin" not in current_user["roles"] and str(kb["owner_id"]) != current_user["user_id"]:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Access denied")
+    kb = await require_kb_manage_access(db, current_user, str(kb_id))
     
     # Build update query
     update_fields = []
@@ -590,16 +567,7 @@ async def delete_knowledge_base(
     db: Database = Depends(get_db)
 ):
     """Delete knowledge base and all associated data (SQL + Qdrant vectors)"""
-    kb = await db.fetch_one(
-        "SELECT owner_id FROM knowledge_bases WHERE kb_id = $1",
-        str(kb_id)
-    )
-
-    if not kb:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="KB not found")
-
-    if "admin" not in current_user["roles"] and str(kb["owner_id"]) != current_user["user_id"]:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Access denied")
+    await require_kb_manage_access(db, current_user, str(kb_id))
 
     kb_id_str = str(kb_id)
 
@@ -635,10 +603,12 @@ async def delete_knowledge_base(
 @router.get("/{kb_id}/health")
 async def get_kb_health(
     kb_id: UUID,
-    current_user: Dict = require_permission("kb.read"),
+    current_user: Dict = Depends(get_current_active_user),
     db: Database = Depends(get_db)
 ):
     """Get knowledge base health metrics including retrieval stats"""
+
+    await require_kb_read_access(db, current_user, str(kb_id))
 
     kb_id_str = str(kb_id)
 

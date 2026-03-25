@@ -163,6 +163,14 @@ class AuthService {
     return !!this.getAccessToken();
   }
 
+  getStoredAccessToken(): string | null {
+    return this.getAccessToken();
+  }
+
+  getStoredRefreshToken(): string | null {
+    return this.getRefreshToken();
+  }
+
   // Get auth header for API requests
   getAuthHeader(): { Authorization: string } | {} {
     const token = this.getAccessToken();

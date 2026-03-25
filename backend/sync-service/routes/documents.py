@@ -16,6 +16,7 @@ from qdrant_client.models import Filter, FieldCondition, MatchValue
 from database import get_db, Database
 from middleware.auth import get_current_active_user
 from middleware.permissions import require_permission
+from utils.kb_access import require_kb_manage_access, require_kb_read_access, user_can_manage_kb
 
 logger = logging.getLogger("sync_service.documents")
 
@@ -252,22 +253,11 @@ async def list_documents(
     kb_id: UUID,
     skip: int = 0,
     limit: int = 100,
-    current_user: dict = require_permission("doc.read"),
+    current_user: dict = Depends(get_current_active_user),
     db: Database = Depends(get_db)
 ):
     """List all documents in a knowledge base"""
-    
-    # Verify KB exists and user has access
-    kb = await db.fetch_one(
-        "SELECT owner_id FROM knowledge_bases WHERE kb_id = $1",
-        str(kb_id)
-    )
-    
-    if not kb:
-        raise HTTPException(status_code=404, detail="KB not found")
-    
-    if "admin" not in current_user["roles"] and str(kb["owner_id"]) != current_user["user_id"]:
-        raise HTTPException(status_code=403, detail="Access denied")
+    await require_kb_read_access(db, current_user, str(kb_id))
     
     docs = await db.fetch_all("""
         SELECT
@@ -314,18 +304,7 @@ async def upload_document(
     db: Database = Depends(get_db)
 ):
     """Upload a document to knowledge base (MVP - triggers processing)"""
-    
-    # Verify KB exists and user has access
-    kb = await db.fetch_one(
-        "SELECT owner_id FROM knowledge_bases WHERE kb_id = $1",
-        str(kb_id)
-    )
-    
-    if not kb:
-        raise HTTPException(status_code=404, detail="KB not found")
-    
-    if "admin" not in current_user["roles"] and str(kb["owner_id"]) != current_user["user_id"]:
-        raise HTTPException(status_code=403, detail="Access denied")
+    await require_kb_manage_access(db, current_user, str(kb_id))
     
     # Read file
     content = await file.read()
@@ -371,22 +350,11 @@ async def upload_document(
 async def get_document(
     kb_id: UUID,
     doc_id: UUID,
-    current_user: dict = require_permission("doc.read"),
+    current_user: dict = Depends(get_current_active_user),
     db: Database = Depends(get_db)
 ):
     """Get document details"""
-
-    # Verify KB exists and user has access
-    kb = await db.fetch_one(
-        "SELECT owner_id FROM knowledge_bases WHERE kb_id = $1",
-        str(kb_id)
-    )
-
-    if not kb:
-        raise HTTPException(status_code=404, detail="KB not found")
-
-    if "admin" not in current_user["roles"] and str(kb["owner_id"]) != current_user["user_id"]:
-        raise HTTPException(status_code=403, detail="Access denied")
+    await require_kb_read_access(db, current_user, str(kb_id))
 
     doc = await db.fetch_one(
         """
@@ -443,7 +411,7 @@ async def get_document(
 async def get_document_s3_url(
     kb_id: UUID,
     doc_id: UUID,
-    current_user: dict = require_permission("doc.read"),
+    current_user: dict = Depends(get_current_active_user),
     db: Database = Depends(get_db),
 ):
     """
@@ -451,15 +419,7 @@ async def get_document_s3_url(
     Assumes documents.source_path stores the S3 key (e.g. 'Test/Qdrant Schema.png')
     and S3 bucket is provided via env S3_BUCKET_NAME.
     """
-    # Verify KB exists + access (same pattern as other endpoints)
-    kb = await db.fetch_one(
-        "SELECT owner_id, storage_provider FROM knowledge_bases WHERE kb_id = $1",
-        str(kb_id),
-    )
-    if not kb:
-        raise HTTPException(status_code=404, detail="KB not found")
-    if "admin" not in current_user["roles"] and str(kb["owner_id"]) != current_user["user_id"]:
-        raise HTTPException(status_code=403, detail="Access denied")
+    await require_kb_read_access(db, current_user, str(kb_id))
 
     doc = await db.fetch_one(
         "SELECT source_path FROM documents WHERE document_id = $1 AND kb_id = $2",
@@ -488,18 +448,10 @@ async def get_document_s3_url(
 async def get_document_strategy(
     kb_id: UUID,
     doc_id: UUID,
-    current_user: dict = require_permission("doc.read"),
+    current_user: dict = Depends(get_current_active_user),
     db: Database = Depends(get_db),
 ):
-    kb = await db.fetch_one(
-        "SELECT owner_id FROM knowledge_bases WHERE kb_id = $1",
-        str(kb_id),
-    )
-    if not kb:
-        raise HTTPException(status_code=404, detail="KB not found")
-
-    if "admin" not in current_user["roles"] and str(kb["owner_id"]) != current_user["user_id"]:
-        raise HTTPException(status_code=403, detail="Access denied")
+    await require_kb_read_access(db, current_user, str(kb_id))
 
     doc = await db.fetch_one(
         """
@@ -549,15 +501,7 @@ async def override_document_strategy(
     if not CELERY_AVAILABLE:
         raise HTTPException(status_code=503, detail="Document worker queue is unavailable")
 
-    kb = await db.fetch_one(
-        "SELECT owner_id FROM knowledge_bases WHERE kb_id = $1",
-        str(kb_id),
-    )
-    if not kb:
-        raise HTTPException(status_code=404, detail="KB not found")
-
-    if "admin" not in current_user["roles"] and str(kb["owner_id"]) != current_user["user_id"]:
-        raise HTTPException(status_code=403, detail="Access denied")
+    await require_kb_manage_access(db, current_user, str(kb_id))
 
     doc = await db.fetch_one(
         """
@@ -665,21 +609,11 @@ async def list_document_chunks(
     doc_id: UUID,
     skip: int = 0,
     limit: int = 500,
-    current_user: dict = require_permission("doc.read"),
+    current_user: dict = Depends(get_current_active_user),
     db: Database = Depends(get_db),
 ):
     """List chunk metadata (including retrieval stats) for a document."""
-
-    kb = await db.fetch_one(
-        "SELECT owner_id FROM knowledge_bases WHERE kb_id = $1",
-        str(kb_id)
-    )
-
-    if not kb:
-        raise HTTPException(status_code=404, detail="KB not found")
-
-    if "admin" not in current_user["roles"] and str(kb["owner_id"]) != current_user["user_id"]:
-        raise HTTPException(status_code=403, detail="Access denied")
+    await require_kb_read_access(db, current_user, str(kb_id))
 
     doc_exists = await db.fetch_one(
         "SELECT document_id FROM documents WHERE document_id = $1 AND kb_id = $2",
@@ -722,21 +656,12 @@ async def get_document_retrieval_history(
     kb_id: UUID,
     doc_id: UUID,
     days: int = 30,
-    current_user: dict = require_permission("doc.read"),
+    current_user: dict = Depends(get_current_active_user),
     db: Database = Depends(get_db),
 ):
     """Return per-day retrieval counts and summary metrics for one document."""
     window_days = max(1, min(days, 365))
-
-    kb = await db.fetch_one(
-        "SELECT owner_id FROM knowledge_bases WHERE kb_id = $1",
-        str(kb_id)
-    )
-    if not kb:
-        raise HTTPException(status_code=404, detail="KB not found")
-
-    if "admin" not in current_user["roles"] and str(kb["owner_id"]) != current_user["user_id"]:
-        raise HTTPException(status_code=403, detail="Access denied")
+    await require_kb_read_access(db, current_user, str(kb_id))
 
     doc_exists = await db.fetch_one(
         "SELECT document_id FROM documents WHERE document_id = $1 AND kb_id = $2",
@@ -812,7 +737,7 @@ async def get_document_retrieval_history(
 async def get_document_heatmap(
     kb_id: UUID,
     doc_id: UUID,
-    current_user: dict = require_permission("doc.read"),
+    current_user: dict = Depends(get_current_active_user),
     db: Database = Depends(get_db),
 ):
     """
@@ -823,15 +748,7 @@ async def get_document_heatmap(
     normalized_score = 1.0. Pages with no retrievals have score 0.0.
     """
 
-    kb = await db.fetch_one(
-        "SELECT owner_id FROM knowledge_bases WHERE kb_id = $1",
-        str(kb_id),
-    )
-    if not kb:
-        raise HTTPException(status_code=404, detail="KB not found")
-
-    if "admin" not in current_user["roles"] and str(kb["owner_id"]) != current_user["user_id"]:
-        raise HTTPException(status_code=403, detail="Access denied")
+    await require_kb_read_access(db, current_user, str(kb_id))
 
     doc_exists = await db.fetch_one(
         "SELECT document_id FROM documents WHERE document_id = $1 AND kb_id = $2",
@@ -906,7 +823,7 @@ async def get_document_heatmap(
 async def get_document_view_url(
     kb_id: UUID,
     doc_id: UUID,
-    current_user: dict = require_permission("doc.read"),
+    current_user: dict = Depends(get_current_active_user),
     db: Database = Depends(get_db),
 ):
     """
@@ -918,15 +835,7 @@ async def get_document_view_url(
     Also returns an approximate page_count derived from chunk_metadata.
     """
     logger.info(f"Getting document view URL for document {doc_id} in KB {kb_id}")
-    kb = await db.fetch_one(
-        "SELECT owner_id, storage_provider, storage_config FROM knowledge_bases WHERE kb_id = $1",
-        str(kb_id),
-    )
-    if not kb:
-        raise HTTPException(status_code=404, detail="KB not found")
-
-    if "admin" not in current_user["roles"] and str(kb["owner_id"]) != current_user["user_id"]:
-        raise HTTPException(status_code=403, detail="Access denied")
+    kb = await require_kb_read_access(db, current_user, str(kb_id))
 
     doc = await db.fetch_one(
         """
@@ -1066,15 +975,7 @@ async def delete_document(
     db: Database = Depends(get_db),
 ):
     """Delete a document (SQL + Qdrant + S3)."""
-
-    kb = await db.fetch_one(
-        "SELECT owner_id FROM knowledge_bases WHERE kb_id = $1",
-        str(kb_id),
-    )
-    if not kb:
-        raise HTTPException(status_code=404, detail="KB not found")
-    if "admin" not in current_user["roles"] and str(kb["owner_id"]) != current_user["user_id"]:
-        raise HTTPException(status_code=403, detail="Access denied")
+    await require_kb_manage_access(db, current_user, str(kb_id))
 
     doc = await db.fetch_one(
         "SELECT source_path FROM documents WHERE document_id = $1 AND kb_id = $2",
@@ -1135,15 +1036,7 @@ async def reassign_documents(
     if not items:
         return {"reassigned": 0}
 
-    # Verify source KB exists and caller has access
-    source_kb = await db.fetch_one(
-        "SELECT owner_id FROM knowledge_bases WHERE kb_id = $1",
-        str(from_kb_id),
-    )
-    if not source_kb:
-        raise HTTPException(status_code=404, detail="Source KB not found")
-    if "admin" not in current_user["roles"] and str(source_kb["owner_id"]) != current_user["user_id"]:
-        raise HTTPException(status_code=403, detail="Access denied")
+    await require_kb_manage_access(db, current_user, str(from_kb_id))
 
     qdrant = QdrantClient(url=QDRANT_URL)
     reassigned = 0
@@ -1158,6 +1051,9 @@ async def reassign_documents(
         )
         if not target_exists:
             logger.warning("Skipping reassign — target KB %s not found", to_kb_id)
+            continue
+        if not await user_can_manage_kb(db, current_user, to_kb_id):
+            logger.warning("Skipping reassign — caller cannot manage target KB %s", to_kb_id)
             continue
 
         # 1. Update documents table
@@ -1226,6 +1122,7 @@ async def search_kb(
     db: Database = Depends(get_db)
 ):
     """Search knowledge base (MVP - simple keyword search)"""
+    await require_kb_read_access(db, current_user, str(kb_id))
     
     # Simple keyword search on chunk text
     results = await db.fetch_all("""
