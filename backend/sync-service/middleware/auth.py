@@ -3,45 +3,55 @@ from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from utils.jwt import decode_token
 from database import get_db, Database
 from typing import Dict
+import logging
 
 security = HTTPBearer()
+logger = logging.getLogger("sync_service.auth")
 
 async def get_current_user(
     credentials: HTTPAuthorizationCredentials = Depends(security),
     db: Database = Depends(get_db)
 ) -> Dict:
     """Validate JWT token and return current user"""
-    
+
     token = credentials.credentials
     payload = decode_token(token)
-    
+
     if not payload:
+        logger.warning("Rejecting request due to invalid or expired access token")
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid or expired token",
             headers={"WWW-Authenticate": "Bearer"},
         )
-    
+
     if payload.get("type") != "access":
+        logger.warning(
+            "Rejecting token with invalid type: type=%r sub=%r",
+            payload.get("type"),
+            payload.get("sub"),
+        )
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid token type"
         )
-    
+
     user_id = payload.get("sub")
     if not user_id:
+        logger.warning("Rejecting token with missing sub claim")
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid token payload"
         )
-    
+
     # Fetch user
     user = await db.fetch_one(
         "SELECT * FROM users WHERE user_id = $1 AND is_active = true",
         user_id
     )
-    
+
     if not user:
+        logger.warning("Rejecting token for missing or inactive user: sub=%s", user_id)
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="User not found or inactive"

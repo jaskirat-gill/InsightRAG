@@ -2,7 +2,36 @@ from jose import jwt, JWTError
 from datetime import datetime, timedelta
 from typing import Optional, Dict
 from config import settings
+import hashlib
+import logging
 import uuid
+
+logger = logging.getLogger("sync_service.auth")
+
+
+def _token_fingerprint(token: str) -> str:
+    digest = hashlib.sha256(token.encode("utf-8")).hexdigest()
+    return digest[:12]
+
+
+def _safe_unverified_token_details(token: str) -> Dict:
+    details: Dict[str, object] = {}
+    try:
+        details["header"] = jwt.get_unverified_header(token)
+    except Exception as exc:
+        details["header_error"] = str(exc)
+    try:
+        claims = jwt.get_unverified_claims(token)
+        details["claims"] = {
+            "sub": claims.get("sub"),
+            "type": claims.get("type"),
+            "iss": claims.get("iss"),
+            "aud": claims.get("aud"),
+            "exp": claims.get("exp"),
+        }
+    except Exception as exc:
+        details["claims_error"] = str(exc)
+    return details
 
 def create_access_token(data: dict, expires_delta: Optional[timedelta] = None) -> str:
     """Create JWT access token"""
@@ -40,5 +69,13 @@ def decode_token(token: str) -> Optional[Dict]:
     try:
         payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
         return payload
-    except JWTError:
+    except JWTError as exc:
+        token_details = _safe_unverified_token_details(token)
+        logger.warning(
+            "JWT decode failed: %s (fingerprint=%s, length=%s, details=%s)",
+            exc,
+            _token_fingerprint(token),
+            len(token),
+            token_details,
+        )
         return None

@@ -1,9 +1,12 @@
 import logging
 import sys
+import hashlib
 from fastmcp import FastMCP
+from fastmcp.dependencies import CurrentHeaders
 from typing import List, Dict, Optional
 import os
 from os.path import basename
+from jose import JWTError, jwt
 
 from embeddings import generate_embedding
 from search import search_hybrid
@@ -21,6 +24,277 @@ logger = logging.getLogger("mcp_server")
 mcp = FastMCP("Knowledge Base Search Server")
 
 _daily_table_checked = False
+
+
+class MCPAuthError(Exception):
+    pass
+
+
+def _token_fingerprint(token: str) -> str:
+    digest = hashlib.sha256(token.encode("utf-8")).hexdigest()
+    return digest[:12]
+
+
+def _safe_unverified_token_details(token: str) -> Dict:
+    details: Dict[str, object] = {}
+    try:
+        details["header"] = jwt.get_unverified_header(token)
+    except Exception as exc:
+        details["header_error"] = str(exc)
+    try:
+        claims = jwt.get_unverified_claims(token)
+        details["claims"] = {
+            "sub": claims.get("sub"),
+            "type": claims.get("type"),
+            "iss": claims.get("iss"),
+            "aud": claims.get("aud"),
+            "exp": claims.get("exp"),
+        }
+    except Exception as exc:
+        details["claims_error"] = str(exc)
+    return details
+
+
+def _error_list(message: str) -> List[Dict]:
+    return [{"error": message}]
+
+
+def _normalize_headers(headers: Optional[Dict]) -> Dict[str, str]:
+    if not headers:
+        return {}
+    return {str(key).lower(): str(value) for key, value in dict(headers).items()}
+
+
+def _allow_stdio_without_auth(headers: Dict[str, str]) -> bool:
+    transport = os.getenv("MCP_TRANSPORT", "http").strip().lower()
+    return transport == "stdio" and not headers
+
+
+def _extract_bearer_token(headers: Dict[str, str]) -> str:
+    auth_header = headers.get("authorization", "")
+    scheme, _, token = auth_header.partition(" ")
+    if scheme.lower() != "bearer" or not token.strip():
+        logger.warning(
+            "MCP auth rejected: missing/invalid bearer header (scheme=%r, headers=%s)",
+            scheme,
+            sorted(headers.keys()),
+        )
+        raise MCPAuthError("Missing bearer token")
+    return token.strip()
+
+
+def _load_user_context(user_id: str) -> Dict:
+    if not settings.DATABASE_URL:
+        raise MCPAuthError("DATABASE_URL is not configured for MCP server")
+
+    try:
+        import psycopg2
+        import psycopg2.extras
+    except Exception as exc:
+        raise MCPAuthError(f"psycopg2 unavailable: {exc}") from exc
+
+    try:
+        conn = psycopg2.connect(settings.DATABASE_URL)
+        with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+            cur.execute(
+                "SELECT user_id, email, is_active FROM users WHERE user_id = %s AND is_active = true",
+                (user_id,),
+            )
+            user = cur.fetchone()
+            if not user:
+                raise MCPAuthError("User not found or inactive")
+
+            cur.execute(
+                """
+                SELECT r.role_name
+                FROM user_roles ur
+                JOIN roles r ON ur.role_id = r.role_id
+                WHERE ur.user_id = %s
+                """,
+                (user_id,),
+            )
+            roles = [row["role_name"] for row in cur.fetchall()]
+
+            cur.execute(
+                """
+                SELECT DISTINCT p.permission_name
+                FROM user_roles ur
+                JOIN role_permissions rp ON ur.role_id = rp.role_id
+                JOIN permissions p ON rp.permission_id = p.permission_id
+                WHERE ur.user_id = %s
+                """,
+                (user_id,),
+            )
+            permissions = [row["permission_name"] for row in cur.fetchall()]
+
+            if "admin" in roles:
+                allowed_kb_ids = None
+            else:
+                cur.execute(
+                    """
+                    SELECT kb_id::text AS kb_id
+                    FROM knowledge_bases
+                    WHERE owner_id = %s
+
+                    UNION
+
+                    SELECT uka.kb_id::text AS kb_id
+                    FROM user_kb_access uka
+                    WHERE uka.user_id = %s
+                    """,
+                    (user_id, user_id),
+                )
+                allowed_kb_ids = [row["kb_id"] for row in cur.fetchall()]
+
+        conn.close()
+    except MCPAuthError:
+        raise
+    except Exception as exc:
+        raise MCPAuthError(f"Failed to load user context: {exc}") from exc
+
+    return {
+        "user_id": str(user["user_id"]),
+        "email": user["email"],
+        "roles": roles,
+        "permissions": permissions,
+        "allowed_kb_ids": allowed_kb_ids,
+    }
+
+
+def _get_auth_context(headers: Optional[Dict] = None) -> Dict:
+    normalized_headers = _normalize_headers(headers)
+
+    if _allow_stdio_without_auth(normalized_headers):
+        return {
+            "user_id": None,
+            "email": None,
+            "roles": ["admin"],
+            "permissions": ["kb.read", "query.execute"],
+            "allowed_kb_ids": None,
+        }
+
+    if not settings.MCP_REQUIRE_HTTP_AUTH:
+        return {
+            "user_id": None,
+            "email": None,
+            "roles": ["admin"],
+            "permissions": ["kb.read", "query.execute"],
+            "allowed_kb_ids": None,
+        }
+
+    token = _extract_bearer_token(normalized_headers)
+
+    try:
+        payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
+    except JWTError as exc:
+        token_details = _safe_unverified_token_details(token)
+        logger.warning(
+            "MCP auth rejected: invalid bearer token: %s (fingerprint=%s, length=%s, details=%s)",
+            exc,
+            _token_fingerprint(token),
+            len(token),
+            token_details,
+        )
+        raise MCPAuthError("Invalid or expired bearer token") from exc
+
+    if payload.get("type") != "access":
+        logger.warning(
+            "MCP auth rejected: invalid token type=%r sub=%r",
+            payload.get("type"),
+            payload.get("sub"),
+        )
+        raise MCPAuthError("Invalid token type")
+
+    user_id = payload.get("sub")
+    if not user_id:
+        logger.warning("MCP auth rejected: token payload missing sub claim")
+        raise MCPAuthError("Invalid token payload")
+
+    return _load_user_context(str(user_id))
+
+
+def _require_permission(auth_context: Dict, permission: str) -> None:
+    if "admin" in auth_context.get("roles", []):
+        return
+    if permission not in auth_context.get("permissions", []):
+        raise MCPAuthError(f"Permission denied: {permission} required")
+
+
+def _require_admin(auth_context: Dict) -> None:
+    if "admin" not in auth_context.get("roles", []):
+        raise MCPAuthError("Permission denied: admin access required")
+
+
+def _fetch_kb_inventory(effective_kb_ids: Optional[List[str]]) -> List[Dict]:
+    if not settings.DATABASE_URL:
+        raise MCPAuthError("DATABASE_URL is not configured for MCP server")
+
+    try:
+        import psycopg2
+        import psycopg2.extras
+    except Exception as exc:
+        raise MCPAuthError(f"psycopg2 unavailable: {exc}") from exc
+
+    if effective_kb_ids == []:
+        return []
+
+    try:
+        conn = psycopg2.connect(settings.DATABASE_URL)
+        with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+            if effective_kb_ids is None:
+                cur.execute(
+                    """
+                    SELECT
+                        kb.kb_id,
+                        kb.name AS kb_name,
+                        kb.owner_id,
+                        COUNT(DISTINCT d.document_id) AS document_count,
+                        COUNT(cm.chunk_id) AS chunk_count
+                    FROM knowledge_bases kb
+                    LEFT JOIN documents d ON d.kb_id = kb.kb_id
+                    LEFT JOIN chunk_metadata cm ON cm.document_id = d.document_id
+                    GROUP BY kb.kb_id, kb.name, kb.owner_id
+                    ORDER BY kb.name ASC
+                    """
+                )
+            else:
+                cur.execute(
+                    """
+                    SELECT
+                        kb.kb_id,
+                        kb.name AS kb_name,
+                        kb.owner_id,
+                        COUNT(DISTINCT d.document_id) AS document_count,
+                        COUNT(cm.chunk_id) AS chunk_count
+                    FROM knowledge_bases kb
+                    LEFT JOIN documents d ON d.kb_id = kb.kb_id
+                    LEFT JOIN chunk_metadata cm ON cm.document_id = d.document_id
+                    WHERE kb.kb_id = ANY(%s::uuid[])
+                    GROUP BY kb.kb_id, kb.name, kb.owner_id
+                    ORDER BY kb.name ASC
+                    """,
+                    (effective_kb_ids,),
+                )
+            rows = cur.fetchall()
+        conn.close()
+        return [dict(row) for row in rows]
+    except MCPAuthError:
+        raise
+    except Exception as exc:
+        raise MCPAuthError(f"Failed to load KB inventory: {exc}") from exc
+
+
+def _resolve_effective_kb_ids(auth_context: Dict, requested_kb_id: Optional[str]) -> Optional[List[str]]:
+    allowed_kb_ids = auth_context.get("allowed_kb_ids")
+    if allowed_kb_ids is None:
+        return [requested_kb_id] if requested_kb_id else None
+
+    if requested_kb_id:
+        if requested_kb_id not in allowed_kb_ids:
+            raise MCPAuthError("Access denied for requested knowledge base")
+        return [requested_kb_id]
+
+    return allowed_kb_ids
 
 
 def _ensure_daily_retrieval_table(conn) -> None:
@@ -143,6 +417,7 @@ def _run_search(
     top_k: int,
     kb_id: Optional[str],
     score_threshold: float,
+    auth_context: Dict,
 ) -> List[Dict]:
     """Shared search pipeline for MCP tools."""
     logger.info(
@@ -155,13 +430,22 @@ def _run_search(
 
     # Validate inputs
     if not query or not query.strip():
-        return {"error": "Query cannot be empty"}
+        return _error_list("Query cannot be empty")
 
     if top_k < 1 or top_k > 20:
         top_k = min(max(top_k, 1), 20)
 
     if score_threshold < 0.0 or score_threshold > 1.0:
-        return {"error": "score_threshold must be between 0.0 and 1.0"}
+        return _error_list("score_threshold must be between 0.0 and 1.0")
+
+    try:
+        _require_permission(auth_context, "query.execute")
+        effective_kb_ids = _resolve_effective_kb_ids(auth_context, kb_id)
+    except MCPAuthError as exc:
+        return _error_list(str(exc))
+
+    if effective_kb_ids == []:
+        return []
 
     try:
         # Step 1: Generate embedding for query
@@ -174,7 +458,7 @@ def _run_search(
             query_text=query,
             query_vector=query_embedding,
             top_k=top_k,
-            kb_id=kb_id,
+            kb_ids=effective_kb_ids,
             score_threshold=score_threshold,
         )
 
@@ -204,21 +488,22 @@ def _run_search(
 
     except Exception as e:
         logger.exception("Search failed: %s", e)
-        return {"error": f"Search failed: {str(e)}"}
+        return _error_list(f"Search failed: {str(e)}")
 
 
 @mcp.tool()
 def search_knowledge_base(
-    query: str,
+    query: str = "",
     top_k: int = 5,
     kb_id: Optional[str] = None,
     score_threshold: Optional[float] = None,
+    headers: Dict[str, str] = CurrentHeaders(),
 ) -> List[Dict]:
     """
     Search the knowledge base for relevant information.
 
     Args:
-        query: The search query text
+        query: The search query text. Empty values are rejected at runtime.
         top_k: Number of results to return (default 5, max 20)
         kb_id: Optional knowledge base ID to search within
         score_threshold: Optional similarity threshold (0.0 to 1.0).
@@ -230,55 +515,77 @@ def search_knowledge_base(
     if score_threshold is None:
         score_threshold = settings.DEFAULT_SCORE_THRESHOLD
 
+    try:
+        auth_context = _get_auth_context(headers)
+    except MCPAuthError as exc:
+        return _error_list(str(exc))
+
     return _run_search(
         query=query,
         top_k=top_k,
         kb_id=kb_id,
         score_threshold=score_threshold,
+        auth_context=auth_context,
     )
 
 
 @mcp.tool()
-def get_available_collections() -> Dict:
+def get_available_collections(headers: Dict[str, str] = CurrentHeaders()) -> Dict:
     """
-    Get information about available Qdrant collections.
-    Useful for debugging.
+    List the caller's accessible knowledge bases and aggregate counts.
     
     Returns:
-        Dictionary with collection info
+        Dictionary with accessible KB summaries.
     """
     try:
-        from search import get_qdrant_client, COLLECTION_NAME
-        
-        client = get_qdrant_client()
-        collections = client.get_collections().collections
-        
-        # Get point count for main collection
-        try:
-            collection_info = client.get_collection(COLLECTION_NAME)
-            point_count = collection_info.points_count
-        except:
-            point_count = 0
-        
+        auth_context = _get_auth_context(headers)
+        _require_permission(auth_context, "query.execute")
+        effective_kb_ids = _resolve_effective_kb_ids(auth_context, None)
+    except MCPAuthError as exc:
+        return {"error": str(exc)}
+
+    try:
+        inventory_rows = _fetch_kb_inventory(effective_kb_ids)
+        accessible_kbs = [
+            {
+                "kb_id": str(row["kb_id"]),
+                "kb_name": row["kb_name"],
+                "owner_id": str(row["owner_id"]) if row["owner_id"] else None,
+                "document_count": int(row.get("document_count") or 0),
+                "chunk_count": int(row.get("chunk_count") or 0),
+            }
+            for row in inventory_rows
+        ]
+
         return {
-            "main_collection": COLLECTION_NAME,
-            "total_chunks": point_count,
-            "all_collections": [c.name for c in collections]
+            "accessible_kb_count": len(accessible_kbs),
+            "accessible_kbs": accessible_kbs,
+            "total_documents": sum(item["document_count"] for item in accessible_kbs),
+            "total_chunks": sum(item["chunk_count"] for item in accessible_kbs),
         }
+    except MCPAuthError as exc:
+        return {"error": str(exc)}
     except Exception as e:
         return {"error": str(e)}
 
 
 @mcp.tool()
-def list_kb_resources() -> List[Dict]:
+def list_kb_resources(headers: Dict[str, str] = CurrentHeaders()) -> List[Dict]:
     """
-    List knowledge bases and their documents from PostgreSQL.
+    List accessible knowledge bases and their documents from PostgreSQL.
 
     Returns:
         List of KB objects with nested document metadata.
     """
+    try:
+        auth_context = _get_auth_context(headers)
+        _require_permission(auth_context, "query.execute")
+        effective_kb_ids = _resolve_effective_kb_ids(auth_context, None)
+    except MCPAuthError as exc:
+        return _error_list(str(exc))
+
     if not settings.DATABASE_URL:
-        return {"error": "DATABASE_URL is not configured for MCP server"}
+        return _error_list("DATABASE_URL is not configured for MCP server")
 
     try:
         import psycopg2
@@ -286,21 +593,42 @@ def list_kb_resources() -> List[Dict]:
 
         conn = psycopg2.connect(settings.DATABASE_URL)
         with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
-            cur.execute(
-                """
-                SELECT
-                    kb.kb_id,
-                    kb.name AS kb_name,
-                    kb.owner_id,
-                    d.document_id,
-                    d.title,
-                    d.source_path,
-                    d.processing_status
-                FROM knowledge_bases kb
-                LEFT JOIN documents d ON d.kb_id = kb.kb_id
-                ORDER BY kb.name ASC, d.created_at DESC NULLS LAST
-                """
-            )
+            if effective_kb_ids is None:
+                cur.execute(
+                    """
+                    SELECT
+                        kb.kb_id,
+                        kb.name AS kb_name,
+                        kb.owner_id,
+                        d.document_id,
+                        d.title,
+                        d.source_path,
+                        d.processing_status
+                    FROM knowledge_bases kb
+                    LEFT JOIN documents d ON d.kb_id = kb.kb_id
+                    ORDER BY kb.name ASC, d.created_at DESC NULLS LAST
+                    """
+                )
+            else:
+                if not effective_kb_ids:
+                    return []
+                cur.execute(
+                    """
+                    SELECT
+                        kb.kb_id,
+                        kb.name AS kb_name,
+                        kb.owner_id,
+                        d.document_id,
+                        d.title,
+                        d.source_path,
+                        d.processing_status
+                    FROM knowledge_bases kb
+                    LEFT JOIN documents d ON d.kb_id = kb.kb_id
+                    WHERE kb.kb_id = ANY(%s::uuid[])
+                    ORDER BY kb.name ASC, d.created_at DESC NULLS LAST
+                    """,
+                    (effective_kb_ids,),
+                )
             rows = cur.fetchall()
         conn.close()
 
@@ -333,7 +661,7 @@ def list_kb_resources() -> List[Dict]:
 
     except Exception as e:
         logger.exception("Failed to list KB resources: %s", e)
-        return {"error": f"Failed to list KB resources: {str(e)}"}
+        return _error_list(f"Failed to list KB resources: {str(e)}")
 
 
 if __name__ == "__main__":

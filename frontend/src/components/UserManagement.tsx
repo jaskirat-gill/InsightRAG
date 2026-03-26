@@ -77,6 +77,19 @@ type AdminUserRow = {
   roles: string[];
 };
 
+type KnowledgeBaseSummary = {
+  kb_id: string;
+  owner_id: string;
+  name: string;
+  description: string | null;
+};
+
+type UserKBAccessResponse = {
+  user_id: string;
+  kb_ids: string[];
+  knowledge_bases: KnowledgeBaseSummary[];
+};
+
 type ToastState = { type: "ok" | "err"; msg: string } | null;
 
 // ─── API ─────────────────────────────────────────────────────────────────────
@@ -132,6 +145,18 @@ const adminSetUserRole = (userId: string, roleName: string) =>
     body: JSON.stringify({ role_name: roleName }),
   });
 
+const adminListKnowledgeBases = () =>
+  apiFetch<KnowledgeBaseSummary[]>("/api/v1/admin/knowledge-bases");
+
+const adminGetUserKBAccess = (userId: string) =>
+  apiFetch<UserKBAccessResponse>(`/api/v1/admin/users/${userId}/kb-access`);
+
+const adminSetUserKBAccess = (userId: string, kbIds: string[]) =>
+  apiFetch<UserKBAccessResponse>(`/api/v1/admin/users/${userId}/kb-access`, {
+    method: "PUT",
+    body: JSON.stringify({ kb_ids: kbIds }),
+  });
+
 const adminDeleteUser = (userId: string) =>
   apiFetch<void>(`/api/v1/users/${userId}`, { method: "DELETE" });
 
@@ -169,6 +194,7 @@ const createUser = (payload: {
   password: string;
   full_name?: string;
   role: string;
+  kb_ids?: string[];
 }) =>
   apiFetch("/api/v1/users", { method: "POST", body: JSON.stringify(payload) });
 
@@ -634,9 +660,15 @@ const RoleManagement: FC<{
 
 // ─── UserGroupPanel ───────────────────────────────────────────────────────────
 
-const UserGroupPanel: FC<{ me: MeResponse; allRoles: RoleDetail[]; refreshTrigger?: number }> = ({
+const UserGroupPanel: FC<{
+  me: MeResponse;
+  allRoles: RoleDetail[];
+  availableKBs: KnowledgeBaseSummary[];
+  refreshTrigger?: number;
+}> = ({
   me,
   allRoles,
+  availableKBs,
   refreshTrigger,
 }) => {
   const isAdmin = me.permissions.includes("user_management.access");
@@ -649,6 +681,11 @@ const UserGroupPanel: FC<{ me: MeResponse; allRoles: RoleDetail[]; refreshTrigge
   const [confirmDeleteUserId, setConfirmDeleteUserId] = useState<string | null>(null);
   const [deletePermError, setDeletePermError] = useState<string | null>(null);
   const [query, setQuery] = useState("");
+  const [editDialogUser, setEditDialogUser] = useState<AdminUserRow | null>(null);
+  const [editRoleName, setEditRoleName] = useState<string>("");
+  const [selectedKbIds, setSelectedKbIds] = useState<string[]>([]);
+  const [loadingUserEdit, setLoadingUserEdit] = useState(false);
+  const [savingUserEdit, setSavingUserEdit] = useState(false);
 
   const load = async () => {
     setLoading(true);
@@ -676,17 +713,47 @@ const UserGroupPanel: FC<{ me: MeResponse; allRoles: RoleDetail[]; refreshTrigge
     );
   }, [users, query]);
 
-  const setRole = async (userId: string, roleName: string) => {
-    setBusyUserId(userId);
+  const openUserEditDialog = async (user: AdminUserRow) => {
+    setEditDialogUser(user);
+    setEditRoleName(user.roles?.[0] ?? "end_user");
+    setLoadingUserEdit(true);
     try {
-      const updated = await adminSetUserRole(userId, roleName);
-      setUsers((prev) => prev.map((u) => (u.user_id === userId ? updated : u)));
-      showToast("ok", "Role updated");
+      const result = await adminGetUserKBAccess(user.user_id);
+      setSelectedKbIds(result.kb_ids);
     } catch (e: any) {
-      showToast("err", e?.message || "Failed to update role");
+      setSelectedKbIds([]);
+      showToast("err", e?.message || "Failed to load KB access");
     } finally {
-      setBusyUserId(null);
+      setLoadingUserEdit(false);
     }
+  };
+
+  const saveUserChanges = async () => {
+    if (!editDialogUser) return;
+    setSavingUserEdit(true);
+    try {
+      let updatedUser = editDialogUser;
+      const currentRole = editDialogUser.roles?.[0] ?? "end_user";
+
+      if (editRoleName && editRoleName !== currentRole) {
+        updatedUser = await adminSetUserRole(editDialogUser.user_id, editRoleName);
+      }
+
+      await adminSetUserKBAccess(editDialogUser.user_id, selectedKbIds);
+      setUsers((prev) => prev.map((u) => (u.user_id === editDialogUser.user_id ? updatedUser : u)));
+      showToast("ok", "User updated");
+      setEditDialogUser(null);
+    } catch (e: any) {
+      showToast("err", e?.message || "Failed to update user");
+    } finally {
+      setSavingUserEdit(false);
+    }
+  };
+
+  const toggleKb = (kbId: string) => {
+    setSelectedKbIds((prev) =>
+      prev.includes(kbId) ? prev.filter((id) => id !== kbId) : [...prev, kbId]
+    );
   };
 
   const handleDeleteClick = (u: AdminUserRow) => {
@@ -769,8 +836,8 @@ const UserGroupPanel: FC<{ me: MeResponse; allRoles: RoleDetail[]; refreshTrigge
                 <TableRow>
                   <TableHead className="w-[35%]">User</TableHead>
                   <TableHead className="w-[20%]">Current Role</TableHead>
-                  <TableHead className="w-[30%]">Set Role</TableHead>
-                  <TableHead className="w-[15%]"></TableHead>
+                  <TableHead className="w-[20%]">KB Access</TableHead>
+                  <TableHead className="w-[25%]">Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -796,39 +863,32 @@ const UserGroupPanel: FC<{ me: MeResponse; allRoles: RoleDetail[]; refreshTrigge
                           )}
                         </TableCell>
                         <TableCell>
-                          <div className="flex items-center gap-2">
-                            <Select
-                              value={cur}
-                              onValueChange={(v) => setRole(u.user_id, v)}
-                              disabled={busy}
-                            >
-                              <SelectTrigger>
-                                <SelectValue />
-                              </SelectTrigger>
-                              <SelectContent>
-                                {allRoles.map((r) => (
-                                  <SelectItem key={r.role_name} value={r.role_name}>
-                                    {r.role_name}
-                                  </SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
-                            {busy && (
-                              <Loader2 size={18} className="animate-spin text-primary" />
-                            )}
-                          </div>
+                          <span className="text-sm text-muted-foreground">
+                            Managed in user editor
+                          </span>
                         </TableCell>
                         <TableCell>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            disabled={isSelf || busy}
-                            title={isSelf ? "Cannot delete your own account" : "Delete user"}
-                            className="text-destructive hover:text-destructive hover:bg-destructive/10"
-                            onClick={() => handleDeleteClick(u)}
-                          >
-                            <Trash2 size={14} />
-                          </Button>
+                          <div className="flex items-center gap-2 justify-end">
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => openUserEditDialog(u)}
+                              disabled={busy}
+                            >
+                              <Pencil size={14} className="mr-1" />
+                              Edit
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              disabled={isSelf || busy}
+                              title={isSelf ? "Cannot delete your own account" : "Delete user"}
+                              className="text-destructive hover:text-destructive hover:bg-destructive/10"
+                              onClick={() => handleDeleteClick(u)}
+                            >
+                              <Trash2 size={14} />
+                            </Button>
+                          </div>
                         </TableCell>
                       </TableRow>
                     );
@@ -865,6 +925,80 @@ const UserGroupPanel: FC<{ me: MeResponse; allRoles: RoleDetail[]; refreshTrigge
           </div>
           <DialogFooter>
             <Button onClick={() => setDeletePermError(null)}>OK</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={!!editDialogUser} onOpenChange={(open) => { if (!open) setEditDialogUser(null); }}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>
+              Edit User{editDialogUser ? `: ${editDialogUser.email}` : ""}
+            </DialogTitle>
+          </DialogHeader>
+          {loadingUserEdit ? (
+            <div className="flex items-center justify-center py-10">
+              <Loader2 size={22} className="animate-spin text-primary" />
+            </div>
+          ) : (
+            <div className="space-y-4">
+              <div className="space-y-2">
+                <Label>Role</Label>
+                <Select value={editRoleName} onValueChange={setEditRoleName}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {allRoles.map((r) => (
+                      <SelectItem key={r.role_name} value={r.role_name}>
+                        {r.role_name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <p className="text-sm text-muted-foreground">
+                Select the knowledge bases this user can read and query.
+              </p>
+              {availableKBs.length === 0 ? (
+                <div className="rounded-lg border px-4 py-3 text-sm text-muted-foreground">
+                  No assignable knowledge bases are available.
+                </div>
+              ) : (
+                <div className="max-h-[50vh] overflow-y-auto rounded-lg border p-3 space-y-2">
+                  {availableKBs.map((kb) => (
+                    <div
+                      key={kb.kb_id}
+                      onClick={() => toggleKb(kb.kb_id)}
+                      className="flex items-start gap-3 rounded-lg border p-3 cursor-pointer select-none"
+                    >
+                      <input
+                        type="checkbox"
+                        readOnly
+                        checked={selectedKbIds.includes(kb.kb_id)}
+                        className="h-4 w-4 mt-0.5 accent-primary pointer-events-none"
+                      />
+                      <div className="min-w-0">
+                        <div className="text-sm font-medium text-foreground">{kb.name}</div>
+                        <div className="text-xs text-muted-foreground break-words">
+                          {kb.description || "No description"}
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setEditDialogUser(null)} disabled={savingUserEdit}>
+              Cancel
+            </Button>
+            <Button onClick={saveUserChanges} disabled={loadingUserEdit || savingUserEdit}>
+              {savingUserEdit ? <Loader2 size={16} className="animate-spin mr-1" /> : null}
+              Save Changes
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -917,12 +1051,14 @@ const UserManagement: FC = () => {
   const [meError, setMeError] = useState<string | null>(null);
 
   const [allRoles, setAllRoles] = useState<RoleDetail[]>([]);
+  const [availableKBs, setAvailableKBs] = useState<KnowledgeBaseSummary[]>([]);
   const [userRefreshTrigger, setUserRefreshTrigger] = useState(0);
 
   const [email, setEmail] = useState("");
   const [fullName, setFullName] = useState("");
   const [password, setPassword] = useState("");
   const [role, setRole] = useState("");
+  const [selectedCreateKbIds, setSelectedCreateKbIds] = useState<string[]>([]);
 
   const [submitting, setSubmitting] = useState(false);
   const { toast, showToast } = useToast();
@@ -932,6 +1068,14 @@ const UserManagement: FC = () => {
       setAllRoles(await adminListRoles());
     } catch {
       // non-critical
+    }
+  }, []);
+
+  const loadManageableKBs = useCallback(async () => {
+    try {
+      setAvailableKBs(await adminListKnowledgeBases());
+    } catch {
+      setAvailableKBs([]);
     }
   }, []);
 
@@ -952,6 +1096,7 @@ const UserManagement: FC = () => {
     if (getAccessToken()) {
       void loadMe();
       void loadRoles();
+      void loadManageableKBs();
     }
   }, []);
 
@@ -981,16 +1126,25 @@ const UserManagement: FC = () => {
         password,
         full_name: fullName.trim() || undefined,
         role,
+        kb_ids: selectedCreateKbIds,
       });
       showToast("ok", `Created user ${email} (${role}).`);
       setEmail("");
       setFullName("");
       setPassword("");
+      setSelectedCreateKbIds([]);
+      setUserRefreshTrigger((n) => n + 1);
     } catch (e: any) {
       showToast("err", e?.message || "Failed to create user");
     } finally {
       setSubmitting(false);
     }
+  };
+
+  const toggleCreateKb = (kbId: string) => {
+    setSelectedCreateKbIds((prev) =>
+      prev.includes(kbId) ? prev.filter((id) => id !== kbId) : [...prev, kbId]
+    );
   };
 
   return (
@@ -1094,6 +1248,43 @@ const UserManagement: FC = () => {
               )}
             </div>
 
+            <div className="space-y-2">
+              <Label>Initial KB Access</Label>
+              {availableKBs.length === 0 ? (
+                <div className="rounded-lg border px-4 py-3 text-sm text-muted-foreground">
+                  No knowledge bases available to assign.
+                </div>
+              ) : (
+                <div className="rounded-lg border p-3 grid gap-2 max-h-56 overflow-y-auto">
+                  {availableKBs.map((kb) => (
+                    <div
+                      key={kb.kb_id}
+                      onClick={() => toggleCreateKb(kb.kb_id)}
+                      className="flex items-start gap-2 cursor-pointer select-none rounded-md px-2 py-1.5 hover:bg-muted/60"
+                    >
+                      <input
+                        type="checkbox"
+                        readOnly
+                        checked={selectedCreateKbIds.includes(kb.kb_id)}
+                        className="h-4 w-4 mt-0.5 accent-primary pointer-events-none"
+                      />
+                      <div>
+                        <div className="text-sm text-foreground">{kb.name}</div>
+                        <div className="text-xs text-muted-foreground">
+                          {kb.description || "No description"}
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+              {selectedCreateKbIds.length > 0 && (
+                <p className="text-xs text-muted-foreground">
+                  {selectedCreateKbIds.length} KB{selectedCreateKbIds.length === 1 ? "" : "s"} selected.
+                </p>
+              )}
+            </div>
+
             <div className="flex items-center justify-end gap-3 pt-2">
               <Button onClick={onSubmit} disabled={!me || submitting || !allowedRoles.length}>
                 {submitting ? (
@@ -1111,7 +1302,14 @@ const UserManagement: FC = () => {
       </Card>
 
       {/* User list table */}
-      {me && <UserGroupPanel me={me} allRoles={allRoles} refreshTrigger={userRefreshTrigger} />}
+      {me && (
+        <UserGroupPanel
+          me={me}
+          allRoles={allRoles}
+          availableKBs={availableKBs}
+          refreshTrigger={userRefreshTrigger}
+        />
+      )}
     </div>
   );
 };

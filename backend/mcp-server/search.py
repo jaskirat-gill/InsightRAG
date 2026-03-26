@@ -39,7 +39,7 @@ def get_qdrant_client():
 def search_qdrant(
     query_vector: List[float],
     top_k: int = 5,
-    kb_id: Optional[str] = None,
+    kb_ids: Optional[List[str]] = None,
     score_threshold: float = settings.DEFAULT_SCORE_THRESHOLD
 ) -> List[Dict]:
     """
@@ -48,7 +48,7 @@ def search_qdrant(
     Args:
         query_vector: Embedding of the search query (384-dim)
         top_k: Number of results to return
-        kb_id: Optional KB filter (search specific KB only)
+        kb_ids: Optional KB filters (search within allowed KBs only)
         score_threshold: Minimum similarity score (0.0 to 1.0)
     
     Returns:
@@ -56,17 +56,31 @@ def search_qdrant(
     """
     client = get_qdrant_client()
     
-    # Build filter if kb_id provided
+    if kb_ids is not None and len(kb_ids) == 0:
+        return []
+
+    # Build filter if kb_ids provided
     query_filter = None
-    if kb_id:
-        query_filter = Filter(
-            must=[
-                FieldCondition(
-                    key="kb_id",
-                    match=MatchValue(value=kb_id)
-                )
-            ]
-        )
+    if kb_ids:
+        if len(kb_ids) == 1:
+            query_filter = Filter(
+                must=[
+                    FieldCondition(
+                        key="kb_id",
+                        match=MatchValue(value=kb_ids[0])
+                    )
+                ]
+            )
+        else:
+            query_filter = Filter(
+                should=[
+                    FieldCondition(
+                        key="kb_id",
+                        match=MatchValue(value=kb_id)
+                    )
+                    for kb_id in kb_ids
+                ]
+            )
     
     try:
         # Use query_points method (works with all Qdrant versions)
@@ -116,7 +130,7 @@ def search_qdrant(
 def _keyword_search_postgres(
     query_text: str,
     top_k: int,
-    kb_id: Optional[str] = None,
+    kb_ids: Optional[List[str]] = None,
 ) -> List[Dict]:
     """
     Keyword retrieval from PostgreSQL chunk_metadata.
@@ -124,6 +138,9 @@ def _keyword_search_postgres(
     """
     if not settings.DATABASE_URL:
         logger.debug("DATABASE_URL not set; skipping keyword leg")
+        return []
+
+    if kb_ids is not None and len(kb_ids) == 0:
         return []
 
     try:
@@ -161,7 +178,7 @@ def _keyword_search_postgres(
             chunk_index
         FROM chunk_metadata
         WHERE
-            (%s IS NULL OR kb_id::text = %s)
+            (%s::uuid[] IS NULL OR kb_id = ANY(%s::uuid[]))
             AND (
                 lower(chunk_text) LIKE %s
                 OR lower(chunk_text) LIKE ANY(%s)
@@ -177,8 +194,8 @@ def _keyword_search_postgres(
             cur.execute(
                 sql,
                 (
-                    kb_id,
-                    kb_id,
+                    kb_ids,
+                    kb_ids,
                     phrase_pattern,
                     patterns,
                     phrase_pattern,
@@ -284,7 +301,7 @@ def search_hybrid(
     query_text: str,
     query_vector: List[float],
     top_k: int = 5,
-    kb_id: Optional[str] = None,
+    kb_ids: Optional[List[str]] = None,
     score_threshold: float = settings.DEFAULT_SCORE_THRESHOLD,
 ) -> List[Dict]:
     """
@@ -296,13 +313,13 @@ def search_hybrid(
     vector_results = search_qdrant(
         query_vector=query_vector,
         top_k=vector_top_k,
-        kb_id=kb_id,
+        kb_ids=kb_ids,
         score_threshold=score_threshold,
     )
     keyword_results = _keyword_search_postgres(
         query_text=query_text,
         top_k=keyword_top_k,
-        kb_id=kb_id,
+        kb_ids=kb_ids,
     )
 
     fused = _rrf_fuse(vector_results, keyword_results, top_k=top_k)

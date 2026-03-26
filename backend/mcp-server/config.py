@@ -24,6 +24,13 @@ class Settings(BaseSettings):
     # Format: postgresql://user:password@host:5432/dbname
     DATABASE_URL: Optional[str] = None
 
+    # JWT validation for HTTP MCP auth. Must match sync-service config.
+    SECRET_KEY: str = "your-super-secret-key-change-in-production-12345"
+    ALGORITHM: str = "HS256"
+
+    # HTTP MCP auth is enabled by default. STDIO remains trusted local-only.
+    MCP_REQUIRE_HTTP_AUTH: bool = True
+
     class Config:
         env_file = ".env"
         case_sensitive = True

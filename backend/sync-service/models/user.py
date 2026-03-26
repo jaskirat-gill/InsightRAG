@@ -19,6 +19,7 @@ class UserCreate(BaseModel):
     password: str
     full_name: Optional[str] = None
     role: str = "developer"
+    kb_ids: List[UUID] = []
 
 class UserUpdate(BaseModel):
     full_name: Optional[str] = None

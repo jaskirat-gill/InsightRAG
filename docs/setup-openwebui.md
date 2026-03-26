@@ -12,7 +12,13 @@ Available models are listed at https://ollama.com/search. You can install one wi
 
 ## Set up the MCP server in OpenWebUI
 
-Go to `Settings` -> `Admin Settings` -> `External Tools` -> click the `+` icon -> change type to `MCP` (from the default `OpenAPI`) -> set `Auth` to `None` -> set URL to your MCP server URL: `http://host.docker.internal:8002/mcp` -> set an ID and name (arbitrary) -> check the connection (the sync icon next to the URL should pass) -> save.
+Go to `Settings` -> `Admin Settings` -> `External Tools` -> click the `+` icon -> change type to `MCP` (from the default `OpenAPI`) -> set URL to your MCP server URL: `http://host.docker.internal:8002/mcp` -> configure bearer auth if your OpenWebUI build supports MCP auth headers -> set an ID and name (arbitrary) -> check the connection -> save.
+
+Important:
+
+- The MCP server now requires the same bearer access token issued by the sync-service auth system.
+- True per-user KB scoping only works if the MCP client forwards each user's token.
+- If OpenWebUI only supports a single static bearer token for the MCP tool, all OpenWebUI users will share that token's KB scope.
 
 ## Set up the `.env` file for OpenWebUI API access
 
