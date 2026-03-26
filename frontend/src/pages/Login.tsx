@@ -1,4 +1,4 @@
-import { FC, useState } from 'react';
+import { FC, useMemo, useState } from 'react';
 import { Loader2, AlertCircle } from 'lucide-react';
 import { authService } from '../services/auth';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -20,6 +20,23 @@ const Login: FC<LoginProps> = ({ onLogin }) => {
     const [isRegisterMode, setIsRegisterMode] = useState(false);
     const [fullName, setFullName] = useState('');
     const [registerSuccess, setRegisterSuccess] = useState(false);
+    const [pointer, setPointer] = useState({ x: 72, y: 38, active: false });
+
+    const heroTitle = useMemo(
+        () =>
+            isRegisterMode
+                ? 'Create an account to manage your workspace with less friction.'
+                : 'Search and sync your team knowledge in one calm workspace.',
+        [isRegisterMode],
+    );
+
+    const heroDescription = useMemo(
+        () =>
+            isRegisterMode
+                ? 'Connect storage plugins, monitor ingestion, and start querying knowledge bases from a simpler operational UI.'
+                : 'Monitor ingestion, review document health, and query knowledge bases from a cleaner operational surface.',
+        [isRegisterMode],
+    );
 
     const handleLogin = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -62,55 +79,75 @@ const Login: FC<LoginProps> = ({ onLogin }) => {
     };
 
     return (
-        <div className="relative flex min-h-screen items-center justify-center overflow-hidden bg-[radial-gradient(circle_at_top,_hsl(var(--primary)/0.16),_transparent_35%),linear-gradient(160deg,_hsl(var(--background))_0%,_hsl(var(--muted)/0.45)_100%)] p-4">
+        <div
+            className="relative flex min-h-screen items-center justify-center overflow-hidden bg-[#f7f7f5] p-4 text-slate-950"
+            onMouseMove={(e) => {
+                const rect = e.currentTarget.getBoundingClientRect();
+                const x = ((e.clientX - rect.left) / rect.width) * 100;
+                const y = ((e.clientY - rect.top) / rect.height) * 100;
+                setPointer({ x, y, active: true });
+            }}
+            onMouseLeave={() => setPointer((prev) => ({ ...prev, active: false }))}
+            style={
+                {
+                    backgroundImage: `
+                      radial-gradient(circle at ${pointer.x}% ${pointer.y}%, rgba(148,163,184,${pointer.active ? 0.16 : 0.08}) 0%, rgba(148,163,184,0.05) 18%, rgba(148,163,184,0) 36%),
+                      radial-gradient(circle at 14% 18%, rgba(203,213,225,0.18) 0%, rgba(203,213,225,0) 28%),
+                      radial-gradient(circle at 86% 82%, rgba(226,232,240,0.28) 0%, rgba(226,232,240,0) 24%),
+                      linear-gradient(180deg, #fafaf9 0%, #f3f4f6 100%)
+                    `,
+                } as React.CSSProperties
+            }
+        >
+            <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(rgba(148,163,184,0.08)_1px,transparent_1px),linear-gradient(90deg,rgba(148,163,184,0.08)_1px,transparent_1px)] bg-[size:32px_32px] opacity-40" />
             <div className="pointer-events-none absolute inset-0">
-                <div className="absolute left-[8%] top-[12%] h-48 w-48 rounded-full bg-primary/10 blur-3xl" />
-                <div className="absolute bottom-[10%] right-[12%] h-56 w-56 rounded-full bg-status-success/10 blur-3xl" />
+                <div className="absolute left-[11%] top-[16%] h-40 w-40 rounded-full bg-slate-200/45 blur-3xl" />
+                <div className="absolute bottom-[12%] right-[10%] h-48 w-48 rounded-full bg-zinc-200/55 blur-3xl" />
             </div>
 
-            <div className="relative grid w-full max-w-5xl items-center gap-10 lg:grid-cols-[1.1fr_460px]">
+            <div className="relative grid w-full max-w-6xl items-center gap-14 lg:grid-cols-[minmax(0,1.05fr)_460px]">
                 <Effect slide="right" blur className="hidden lg:block">
-                    <div className="max-w-xl space-y-6">
-                        <div className="inline-flex items-center rounded-full border border-border/60 bg-background/70 px-4 py-1.5 text-sm text-muted-foreground backdrop-blur">
+                    <div className="max-w-2xl space-y-8">
+                        <div className="inline-flex items-center rounded-full border border-slate-200 bg-white/80 px-4 py-1.5 text-sm font-medium text-slate-500 shadow-sm backdrop-blur">
                             InsightRAG Workspace
                         </div>
-                        <div className="space-y-4">
-                            <h1 className="text-5xl font-semibold tracking-tight text-foreground">
-                                Search, sync, and explore your team knowledge with less friction.
+                        <div className="space-y-5">
+                            <h1 className="max-w-[12ch] text-6xl font-semibold tracking-[-0.06em] text-slate-950">
+                                {heroTitle}
                             </h1>
-                            <p className="max-w-lg text-base leading-7 text-muted-foreground">
-                                Connect storage plugins, monitor document health, and query your knowledge bases through a cleaner, faster workspace.
+                            <p className="max-w-xl text-lg leading-8 text-slate-500">
+                                {heroDescription}
                             </p>
                         </div>
-                        <Effects className="grid gap-3 sm:grid-cols-2">
+                        <Effects className="grid gap-4 sm:grid-cols-2">
                             <Effect
                                 slide="up"
-                                whileHover={{ y: -4, scale: 1.01 }}
-                                className="rounded-2xl border border-border/60 bg-background/70 p-4 shadow-lg shadow-black/5 backdrop-blur"
+                                whileHover={{ y: -3 }}
+                                className="rounded-3xl border border-slate-200/55 bg-white/70 p-5 shadow-[0_10px_28px_-24px_rgba(15,23,42,0.14)] backdrop-blur"
                             >
-                                <div className="text-sm font-medium text-foreground">Live sync controls</div>
-                                <div className="mt-1 text-sm text-muted-foreground">Manage ingestion and refresh storage-backed KBs from one place.</div>
+                                <div className="text-sm font-semibold tracking-[-0.02em] text-slate-900">Live sync controls</div>
+                                <div className="mt-2 text-sm leading-7 text-slate-500">Refresh storage-backed knowledge bases from one focused control surface.</div>
                             </Effect>
                             <Effect
                                 slide="up"
                                 delay={0.08}
-                                whileHover={{ y: -4, scale: 1.01 }}
-                                className="rounded-2xl border border-border/60 bg-background/70 p-4 shadow-lg shadow-black/5 backdrop-blur"
+                                whileHover={{ y: -3 }}
+                                className="rounded-3xl border border-slate-200/55 bg-white/70 p-5 shadow-[0_10px_28px_-24px_rgba(15,23,42,0.14)] backdrop-blur"
                             >
-                                <div className="text-sm font-medium text-foreground">Chat with MCP tools</div>
-                                <div className="mt-1 text-sm text-muted-foreground">Route prompts through OpenWebUI with model and MCP selection built in.</div>
+                                <div className="text-sm font-semibold tracking-[-0.02em] text-slate-900">Chat with MCP tools</div>
+                                <div className="mt-2 text-sm leading-7 text-slate-500">Route prompts through OpenWebUI with model and MCP selection built in.</div>
                             </Effect>
                         </Effects>
                     </div>
                 </Effect>
 
                 <Effect slide="up" blur zoom className="w-full">
-                <Card className="w-full max-w-md border-border/70 bg-background/90 shadow-2xl shadow-black/10 ring-1 ring-white/10 backdrop-blur">
-                <CardHeader className="text-center">
-                    <CardTitle className="text-2xl font-semibold text-foreground">
+                <Card className="w-full max-w-md rounded-[2rem] border border-slate-200/80 bg-white shadow-[0_28px_90px_-38px_rgba(30,41,59,0.22)]">
+                <CardHeader className="space-y-2 pb-4 text-center">
+                    <CardTitle className="text-[2rem] font-semibold tracking-[-0.04em] text-slate-950">
                         {isRegisterMode ? 'Create Account' : 'Welcome Back'}
                     </CardTitle>
-                    <CardDescription>
+                    <CardDescription className="text-base leading-7 text-slate-500">
                         {isRegisterMode 
                             ? 'Sign up to get started' 
                             : 'Sign in to continue to your workspace'}
@@ -120,7 +157,7 @@ const Login: FC<LoginProps> = ({ onLogin }) => {
                     <Effects className="space-y-6">
                     {error && (
                         <Effect slide="down">
-                        <div className="flex items-center gap-2 rounded-xl border border-destructive/50 bg-destructive/10 px-4 py-3 text-sm text-destructive">
+                        <div className="flex items-center gap-2 rounded-2xl border border-destructive/30 bg-red-50 px-4 py-3 text-sm text-destructive">
                             <AlertCircle className="h-4 w-4 shrink-0" />
                             <span>{error}</span>
                         </div>
@@ -129,7 +166,7 @@ const Login: FC<LoginProps> = ({ onLogin }) => {
 
                     {registerSuccess && (
                         <Effect slide="down">
-                        <Alert className="border-status-success/50 bg-status-success/10 text-status-success">
+                        <Alert className="rounded-2xl border-status-success/30 bg-emerald-50 text-status-success">
                             <AlertDescription>
                                 Account created successfully! Redirecting to login...
                             </AlertDescription>
@@ -149,6 +186,7 @@ const Login: FC<LoginProps> = ({ onLogin }) => {
                                     value={fullName}
                                     onChange={(e) => setFullName(e.target.value)}
                                     placeholder="John Doe"
+                                    className="h-12 rounded-2xl border-slate-200 bg-slate-50/80 px-4 shadow-none focus-visible:bg-white focus-visible:ring-sky-400/60"
                                 />
                             </Effect>
                         )}
@@ -162,6 +200,7 @@ const Login: FC<LoginProps> = ({ onLogin }) => {
                                 onChange={(e) => setEmail(e.target.value)}
                                 required
                                 placeholder="name@example.com"
+                                className="h-12 rounded-2xl border-slate-200 bg-slate-50/80 px-4 shadow-none focus-visible:bg-white focus-visible:ring-sky-400/60"
                             />
                         </Effect>
 
@@ -175,9 +214,10 @@ const Login: FC<LoginProps> = ({ onLogin }) => {
                                 required
                                 minLength={8}
                                 placeholder="••••••••"
+                                className="h-12 rounded-2xl border-slate-200 bg-slate-50/80 px-4 shadow-none focus-visible:bg-white focus-visible:ring-sky-400/60"
                             />
                             {isRegisterMode && (
-                                <p className="text-xs text-muted-foreground">
+                                <p className="text-xs text-slate-400">
                                     Minimum 8 characters
                                 </p>
                             )}
@@ -187,7 +227,7 @@ const Login: FC<LoginProps> = ({ onLogin }) => {
                         <Button
                             type="submit"
                             disabled={loading}
-                            className="h-11 w-full shadow-lg shadow-primary/20"
+                            className="h-12 w-full rounded-2xl bg-slate-950 text-white shadow-[0_18px_36px_-22px_rgba(15,23,42,0.6)] transition-colors hover:bg-sky-700"
                         >
                             {loading ? (
                                 <>
@@ -201,13 +241,13 @@ const Login: FC<LoginProps> = ({ onLogin }) => {
                         </Effect>
                     </form>
 
-                    <Effect slide="up" delay={0.16} className="text-center text-sm text-muted-foreground">
+                    <Effect slide="up" delay={0.16} className="text-center text-sm text-slate-500">
                         {isRegisterMode ? (
                             <>
                                 Already have an account?{' '}
                                 <Button
                                     variant="link"
-                                    className="p-0 h-auto font-normal"
+                                    className="h-auto p-0 font-medium text-slate-900 hover:text-sky-700"
                                     onClick={() => {
                                         setIsRegisterMode(false);
                                         setError(null);
@@ -222,7 +262,7 @@ const Login: FC<LoginProps> = ({ onLogin }) => {
                                 Don't have an account?{' '}
                                 <Button
                                     variant="link"
-                                    className="p-0 h-auto font-normal"
+                                    className="h-auto p-0 font-medium text-slate-900 hover:text-sky-700"
                                     onClick={() => {
                                         setIsRegisterMode(true);
                                         setError(null);
