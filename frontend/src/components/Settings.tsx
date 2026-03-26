@@ -11,6 +11,7 @@ import PluginSettings from './PluginSettings';
 import ChatSettings from './ChatSettings';
 import { Button } from '@/components/ui/button';
 import { authService } from '../services/auth';
+import { Effect, Effects } from '@/components/ui/animate';
 
 interface SettingsProps {
   isOpen: boolean;
@@ -22,9 +23,9 @@ const Settings: FC<SettingsProps> = ({ isOpen, onClose }) => {
     <Sheet open={isOpen} onOpenChange={(open) => !open && onClose()}>
       <SheetContent
         side="right"
-        className="w-full max-w-2xl sm:max-w-2xl p-0 flex flex-col"
+        className="flex w-full max-w-2xl flex-col overflow-hidden p-0 sm:max-w-2xl"
       >
-        <SheetHeader className="px-6 py-5 border-b shrink-0">
+        <SheetHeader className="shrink-0 border-b bg-muted/30 px-6 py-5 backdrop-blur">
           <SheetTitle className="text-xl font-bold text-foreground">
             Settings
           </SheetTitle>
@@ -36,21 +37,21 @@ const Settings: FC<SettingsProps> = ({ isOpen, onClose }) => {
               <TabsList className="w-48 flex-col h-auto rounded-none border-r bg-transparent p-3 gap-1 shrink-0 justify-start">
                 <TabsTrigger
                   value="general"
-                  className="w-full justify-start gap-2.5 data-[state=active]:bg-primary/15 data-[state=active]:text-primary"
+                  className="w-full justify-start gap-2.5 rounded-xl transition-all duration-200 data-[state=active]:bg-primary/15 data-[state=active]:text-primary data-[state=active]:shadow-sm"
                 >
                   <Settings2 size={16} />
                   General
                 </TabsTrigger>
                 <TabsTrigger
                   value="chat"
-                  className="w-full justify-start gap-2.5 data-[state=active]:bg-primary/15 data-[state=active]:text-primary"
+                  className="w-full justify-start gap-2.5 rounded-xl transition-all duration-200 data-[state=active]:bg-primary/15 data-[state=active]:text-primary data-[state=active]:shadow-sm"
                 >
                   <MessageSquare size={16} />
                   Chat
                 </TabsTrigger>
                 <TabsTrigger
                   value="plugins"
-                  className="w-full justify-start gap-2.5 data-[state=active]:bg-primary/15 data-[state=active]:text-primary"
+                  className="w-full justify-start gap-2.5 rounded-xl transition-all duration-200 data-[state=active]:bg-primary/15 data-[state=active]:text-primary data-[state=active]:shadow-sm"
                 >
                   <Puzzle size={16} />
                   Plugins
@@ -59,13 +60,19 @@ const Settings: FC<SettingsProps> = ({ isOpen, onClose }) => {
 
               <div className="flex-1 overflow-y-auto p-6">
                 <TabsContent value="general" className="mt-0">
-                  <GeneralSettings />
+                  <Effect slide="left" blur>
+                    <GeneralSettings />
+                  </Effect>
                 </TabsContent>
                 <TabsContent value="chat" className="mt-0">
-                  <ChatSettings />
+                  <Effect slide="left" blur>
+                    <ChatSettings />
+                  </Effect>
                 </TabsContent>
                 <TabsContent value="plugins" className="mt-0">
-                  <PluginSettings />
+                  <Effect slide="left" blur>
+                    <PluginSettings />
+                  </Effect>
                 </TabsContent>
               </div>
             </div>
@@ -97,21 +104,23 @@ const GeneralSettings: FC = () => {
   };
 
   return (
-    <div className="space-y-6">
-      <div>
+    <Effects className="space-y-6">
+      <Effect slide="up" className="space-y-1">
         <h3 className="text-base font-semibold text-foreground">Session Tokens</h3>
         <p className="mt-1 text-sm text-muted-foreground">
           Use your current access token to authenticate external MCP clients such as OpenWebUI.
         </p>
-      </div>
+      </Effect>
 
       {!accessToken ? (
-        <div className="rounded-lg border px-4 py-3 text-sm text-muted-foreground">
+        <Effect slide="up">
+        <div className="rounded-xl border border-border/70 bg-muted/30 px-4 py-3 text-sm text-muted-foreground">
           No active session token found. Log in first to see your current token.
         </div>
+        </Effect>
       ) : (
-        <div className="space-y-4">
-          <div className="rounded-lg border p-4 space-y-3">
+        <Effects className="space-y-4">
+          <Effect slide="up" className="space-y-3 rounded-2xl border border-border/70 bg-background/80 p-4 shadow-lg shadow-black/5">
             <div className="flex items-center justify-between gap-3">
               <div className="flex items-center gap-2">
                 <KeyRound size={16} className="text-primary" />
@@ -134,10 +143,10 @@ const GeneralSettings: FC = () => {
             <p className="text-xs text-muted-foreground">
               Send this as <span className="font-mono">Authorization: Bearer &lt;access_token&gt;</span> when calling the MCP server.
             </p>
-          </div>
+          </Effect>
 
           {refreshToken && (
-            <div className="rounded-lg border p-4 space-y-3">
+            <Effect slide="up" delay={0.06} className="space-y-3 rounded-2xl border border-border/70 bg-background/80 p-4 shadow-lg shadow-black/5">
               <div className="flex items-center justify-between gap-3">
                 <span className="text-sm font-medium text-foreground">Refresh Token</span>
                 <Button
@@ -157,11 +166,11 @@ const GeneralSettings: FC = () => {
               <p className="text-xs text-muted-foreground">
                 Keep this private. It can mint new access tokens until it expires or is revoked.
               </p>
-            </div>
+            </Effect>
           )}
-        </div>
+        </Effects>
       )}
-    </div>
+    </Effects>
   );
 };
 
