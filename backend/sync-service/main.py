@@ -27,7 +27,7 @@ logger = logging.getLogger("sync_service")
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(name)s] %(levelname)s: %(message)s")
 
 # Sync interval (seconds). 0 = disabled.
-SYNC_INTERVAL_SECONDS = int(os.environ.get("SYNC_INTERVAL_SECONDS", "300"))
+SYNC_INTERVAL_SECONDS = int(os.environ.get("SYNC_INTERVAL_SECONDS") or "300")
 
 # Global Plugin Manager
 plugin_manager = PluginManager()
