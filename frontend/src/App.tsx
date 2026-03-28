@@ -22,6 +22,7 @@ import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Effect, Effects } from '@/components/ui/animate';
 
 type Page = 'home' | 'kb' | 'kb-health' | 'doc' | 'chat' | 'users';
 type Theme = 'dark' | 'light';
@@ -289,8 +290,8 @@ const HomePage = ({
   onNavigate?: (page: string) => void;
 }) => {
   return (
-    <div className="space-y-8">
-      <div>
+    <Effects className="space-y-8">
+      <Effect slide="up" blur>
         <h1 className="text-3xl font-bold tracking-tight">
           Welcome back, {user?.full_name || user?.email || 'User'}
         </h1>
@@ -306,9 +307,15 @@ const HomePage = ({
             ))}
           </div>
         )}
-      </div>
+      </Effect>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+        <Effect
+          slide="up"
+          delay={0.05}
+          whileHover={{ y: -4, scale: 1.01 }}
+          whileTap={{ scale: 0.99 }}
+        >
         <Card
           className="cursor-pointer transition-colors hover:border-primary/50"
           onClick={() => onNavigate?.('kb')}
@@ -327,7 +334,14 @@ const HomePage = ({
             </div>
           </CardHeader>
         </Card>
+        </Effect>
 
+        <Effect
+          slide="up"
+          delay={0.12}
+          whileHover={{ y: -4, scale: 1.01 }}
+          whileTap={{ scale: 0.99 }}
+        >
         <Card
           className="cursor-pointer transition-colors hover:border-primary/50"
           onClick={() => onNavigate?.('chat')}
@@ -346,8 +360,9 @@ const HomePage = ({
             </div>
           </CardHeader>
         </Card>
+        </Effect>
       </div>
-    </div>
+    </Effects>
   );
 };
 

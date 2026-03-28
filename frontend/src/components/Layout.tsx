@@ -1,6 +1,7 @@
 import { useState, FC, ReactNode } from 'react';
 import { SidebarProvider, SidebarInset, SidebarTrigger } from '@/components/ui/sidebar';
 import { Separator } from '@/components/ui/separator';
+import { AnimatedPage } from '@/components/ui/animate';
 import AppSidebar from './AppSidebar';
 import Settings from './Settings';
 
@@ -53,7 +54,9 @@ const Layout: FC<LayoutProps> = ({
         </header>
         <main className="flex-1 overflow-y-auto p-6">
           <div className="mx-auto max-w-7xl">
-            {children}
+            <AnimatedPage pageKey={currentPage}>
+              {children}
+            </AnimatedPage>
           </div>
         </main>
       </SidebarInset>

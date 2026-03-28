@@ -22,6 +22,7 @@ import {
   SidebarMenuItem,
   SidebarSeparator,
 } from '@/components/ui/sidebar';
+import { Effect, Effects } from '@/components/ui/animate';
 
 interface AppSidebarProps {
   currentPage: string;
@@ -50,14 +51,17 @@ const AppSidebar: FC<AppSidebarProps> = ({
   return (
     <Sidebar collapsible="icon" variant="sidebar">
       <SidebarHeader className="p-4 group-data-[collapsible=icon]:p-2">
-        <div className="flex items-center gap-2 overflow-hidden group-data-[collapsible=icon]:justify-center">
-          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-primary text-primary-foreground">
+        <Effect
+          slide="right"
+          className="flex items-center gap-2 overflow-hidden group-data-[collapsible=icon]:justify-center"
+        >
+          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-primary text-primary-foreground shadow-lg shadow-primary/20">
             <Database className="h-4 w-4" />
           </div>
           <span className="text-sm font-semibold truncate group-data-[collapsible=icon]:hidden">
             InsightRAG
           </span>
-        </div>
+        </Effect>
       </SidebarHeader>
 
       <SidebarSeparator />
@@ -66,6 +70,7 @@ const AppSidebar: FC<AppSidebarProps> = ({
         <SidebarGroup>
           <SidebarGroupLabel>Navigation</SidebarGroupLabel>
           <SidebarGroupContent>
+            <Effects className="space-y-1">
             <SidebarMenu>
               {navItems.map((item) => {
                 const Icon = item.icon;
@@ -74,19 +79,28 @@ const AppSidebar: FC<AppSidebarProps> = ({
                   (item.key === 'kb' &&
                     (currentPage === 'kb-health' || currentPage === 'doc'));
                 return (
-                  <SidebarMenuItem key={item.key}>
+                  <Effect
+                    key={item.key}
+                    slide="right"
+                    delay={isActive ? 0 : 0.04}
+                    whileHover={{ x: 4 }}
+                  >
+                  <SidebarMenuItem>
                     <SidebarMenuButton
                       onClick={() => onNavigate(item.key)}
                       isActive={isActive}
                       tooltip={item.label}
+                      className="transition-all duration-200 data-[active=true]:shadow-sm"
                     >
                       <Icon className="h-4 w-4" />
                       <span>{item.label}</span>
                     </SidebarMenuButton>
                   </SidebarMenuItem>
+                  </Effect>
                 );
               })}
             </SidebarMenu>
+            </Effects>
           </SidebarGroupContent>
         </SidebarGroup>
 
@@ -109,6 +123,7 @@ const AppSidebar: FC<AppSidebarProps> = ({
       </SidebarContent>
 
       <SidebarFooter className="p-2">
+        <Effects className="space-y-1">
         <SidebarMenu>
           <SidebarMenuItem>
             <SidebarMenuButton onClick={onToggleTheme} tooltip={theme === 'dark' ? 'Light mode' : 'Dark mode'}>
@@ -131,6 +146,7 @@ const AppSidebar: FC<AppSidebarProps> = ({
             </SidebarMenuButton>
           </SidebarMenuItem>
         </SidebarMenu>
+        </Effects>
       </SidebarFooter>
     </Sidebar>
   );

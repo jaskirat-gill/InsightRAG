@@ -1,4 +1,5 @@
 import React, { FC, useEffect, useMemo, useState } from 'react';
+import { m } from 'motion/react';
 import {
   ArrowLeft,
   ExternalLink,
@@ -33,6 +34,7 @@ import {
 } from '@/components/ui/dialog';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Label } from '@/components/ui/label';
+import { Effect } from '@/components/ui/animate';
 
 type TabKey = 'overview' | 'strategy' | 'chunks' | 'health' | 'document-view';
 
@@ -246,6 +248,28 @@ function safeNumber(n: any, fallback = 0) {
   const x = Number(n);
   return Number.isFinite(x) ? x : fallback;
 }
+
+const iconTransition = { duration: 0.18, ease: 'easeOut' as const };
+
+const AnimatedIcon = ({
+  children,
+  className,
+  spin = false,
+}: {
+  children: React.ReactNode;
+  className?: string;
+  spin?: boolean;
+}) => (
+  <m.span
+    className={className ?? 'inline-flex items-center justify-center'}
+    whileHover={spin ? undefined : { y: -1, scale: 1.08 }}
+    whileTap={spin ? undefined : { scale: 0.94 }}
+    animate={spin ? { rotate: 360 } : undefined}
+    transition={spin ? { duration: 1, ease: 'linear', repeat: Infinity } : iconTransition}
+  >
+    {children}
+  </m.span>
+);
 
 function normalizeChunkRow(raw: any, idx: number): ChunkRow {
   const chunkId =
@@ -497,7 +521,18 @@ const DocumentDetails: FC<DocumentDetailsProps> = ({ kb, doc, onBack }) => {
   );
 
   const Chip = ({ text }: { text: string }) => (
-    <Badge variant="outline" className="text-xs">{text}</Badge>
+    <Effect
+      whileHover={{ y: -1, scale: 1.04 }}
+      whileTap={{ scale: 0.98 }}
+      transition={{ duration: 0.18 }}
+    >
+      <Badge
+        variant="outline"
+        className="rounded-full border-border/70 bg-background/80 px-3 py-1 text-xs shadow-sm backdrop-blur"
+      >
+        {text}
+      </Badge>
+    </Effect>
   );
 
   const MetricCard = ({ label, value }: { label: string; value: React.ReactNode }) => (
@@ -851,12 +886,12 @@ const DocumentDetails: FC<DocumentDetailsProps> = ({ kb, doc, onBack }) => {
     return (
       <div className="space-y-4">
         <Button variant="outline" size="sm" onClick={onBack}>
-          <ArrowLeft size={16} />
+          <AnimatedIcon><ArrowLeft size={16} /></AnimatedIcon>
           Back
         </Button>
 
         <Alert variant="destructive">
-          <AlertCircle className="h-4 w-4" />
+          <AnimatedIcon><AlertCircle className="h-4 w-4" /></AnimatedIcon>
           <AlertDescription>{err}</AlertDescription>
         </Alert>
       </div>
@@ -865,13 +900,25 @@ const DocumentDetails: FC<DocumentDetailsProps> = ({ kb, doc, onBack }) => {
 
   return (
     <div className="space-y-6">
-      <Card>
+      <Card className="overflow-hidden border-border/70 bg-card/95 shadow-lg shadow-black/5">
         <CardContent className="pt-6">
           <div className="flex items-start justify-between gap-4">
             <div className="flex items-start gap-3 min-w-0">
-              <Button variant="ghost" size="icon" onClick={onBack} className="shrink-0">
-                <ArrowLeft size={18} />
-              </Button>
+              <Effect
+                whileHover={{ x: -2 }}
+                whileTap={{ scale: 0.97 }}
+                transition={{ duration: 0.18 }}
+                className="shrink-0"
+              >
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={onBack}
+                  className="rounded-full border border-transparent transition-colors hover:bg-muted/50"
+                >
+                  <AnimatedIcon><ArrowLeft size={18} /></AnimatedIcon>
+                </Button>
+              </Effect>
 
               <div className="min-w-0">
                 <div className="flex items-center gap-2 flex-wrap">
@@ -887,22 +934,26 @@ const DocumentDetails: FC<DocumentDetailsProps> = ({ kb, doc, onBack }) => {
 
             <div className="flex items-center gap-2 shrink-0">
               <Button variant="outline" size="sm" onClick={handleViewInSource} disabled={actionBusy}>
-                <ExternalLink size={14} />
+                <AnimatedIcon><ExternalLink size={14} /></AnimatedIcon>
                 Source
               </Button>
 
               <Button size="sm" onClick={handleReprocess} disabled={actionBusy || isProcessing}>
-                {actionBusy || isProcessing ? <Loader2 size={14} className="animate-spin" /> : <RefreshCw size={14} />}
+                {actionBusy || isProcessing ? (
+                  <AnimatedIcon spin><Loader2 size={14} /></AnimatedIcon>
+                ) : (
+                  <AnimatedIcon><RefreshCw size={14} /></AnimatedIcon>
+                )}
                 {isProcessing ? 'Processing...' : 'Reprocess'}
               </Button>
 
               <Button variant="outline" size="sm" onClick={handleOverrideStrategy} disabled={actionBusy}>
-                <Settings2 size={14} />
+                <AnimatedIcon><Settings2 size={14} /></AnimatedIcon>
                 Strategy
               </Button>
 
               <Button variant="ghost" size="sm" className="text-muted-foreground hover:text-destructive" onClick={handleDelete} disabled={actionBusy}>
-                <Trash2 size={14} />
+                <AnimatedIcon><Trash2 size={14} /></AnimatedIcon>
               </Button>
             </div>
           </div>
@@ -920,30 +971,34 @@ const DocumentDetails: FC<DocumentDetailsProps> = ({ kb, doc, onBack }) => {
           </div>
         </CardContent>
 
-        <div className="px-6 border-t">
+        <div className="border-t border-border/70 px-6">
           <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as TabKey)} className="w-full">
             <div className="flex items-center">
-              <TabsList className="bg-transparent h-auto p-0 gap-2">
-                <TabsTrigger value="overview" className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:shadow-none py-3">
+              <TabsList className="h-auto gap-2 rounded-none bg-transparent p-0">
+                <TabsTrigger value="overview" className="rounded-none border-b-2 border-transparent px-4 py-4 text-[15px] font-medium text-muted-foreground transition-[color,border-color] duration-200 hover:text-foreground data-[state=active]:border-foreground data-[state=active]:text-foreground data-[state=active]:shadow-none">
                   Overview
                 </TabsTrigger>
-                <TabsTrigger value="strategy" className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:shadow-none py-3">
+                <TabsTrigger value="strategy" className="rounded-none border-b-2 border-transparent px-4 py-4 text-[15px] font-medium text-muted-foreground transition-[color,border-color] duration-200 hover:text-foreground data-[state=active]:border-foreground data-[state=active]:text-foreground data-[state=active]:shadow-none">
                   Strategy
                 </TabsTrigger>
-                <TabsTrigger value="chunks" className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:shadow-none py-3">
+                <TabsTrigger value="chunks" className="rounded-none border-b-2 border-transparent px-4 py-4 text-[15px] font-medium text-muted-foreground transition-[color,border-color] duration-200 hover:text-foreground data-[state=active]:border-foreground data-[state=active]:text-foreground data-[state=active]:shadow-none">
                   Chunks
                 </TabsTrigger>
-                <TabsTrigger value="health" className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:shadow-none py-3">
+                <TabsTrigger value="health" className="rounded-none border-b-2 border-transparent px-4 py-4 text-[15px] font-medium text-muted-foreground transition-[color,border-color] duration-200 hover:text-foreground data-[state=active]:border-foreground data-[state=active]:text-foreground data-[state=active]:shadow-none">
                   Health
                 </TabsTrigger>
-                <TabsTrigger value="document-view" className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:shadow-none py-3">
+                <TabsTrigger value="document-view" className="rounded-none border-b-2 border-transparent px-4 py-4 text-[15px] font-medium text-muted-foreground transition-[color,border-color] duration-200 hover:text-foreground data-[state=active]:border-foreground data-[state=active]:text-foreground data-[state=active]:shadow-none">
                   Document View
                 </TabsTrigger>
               </TabsList>
 
               <div className="ml-auto py-2">
                 <Button variant="outline" size="sm" onClick={handleRefresh} disabled={actionBusy} title="Refresh document data">
-                  <RefreshCw size={14} className={actionBusy ? 'animate-spin' : ''} />
+                  {actionBusy ? (
+                    <AnimatedIcon spin><RefreshCw size={14} /></AnimatedIcon>
+                  ) : (
+                    <AnimatedIcon><RefreshCw size={14} /></AnimatedIcon>
+                  )}
                   Refresh
                 </Button>
               </div>
@@ -985,14 +1040,14 @@ const DocumentDetails: FC<DocumentDetailsProps> = ({ kb, doc, onBack }) => {
         <div className="space-y-6">
           {strategyErr && (
             <Alert variant="destructive">
-              <AlertCircle className="h-4 w-4" />
+              <AnimatedIcon><AlertCircle className="h-4 w-4" /></AnimatedIcon>
               <AlertDescription>{strategyErr}</AlertDescription>
             </Alert>
           )}
 
           {strategyLoading && (
             <div className="flex items-center justify-center py-16">
-              <Loader2 size={28} className="animate-spin text-primary" />
+              <AnimatedIcon spin><Loader2 size={28} className="text-primary" /></AnimatedIcon>
             </div>
           )}
 
@@ -1039,7 +1094,7 @@ const DocumentDetails: FC<DocumentDetailsProps> = ({ kb, doc, onBack }) => {
                             className="bg-muted rounded-lg p-4 flex items-center gap-3"
                           >
                             <div className="h-9 w-9 rounded-xl bg-background border flex items-center justify-center text-muted-foreground">
-                              <ClipboardList size={16} />
+                              <AnimatedIcon><ClipboardList size={16} /></AnimatedIcon>
                             </div>
                             <div className="min-w-0">
                               <div className="text-sm text-foreground/90">{f.title}</div>
@@ -1057,7 +1112,7 @@ const DocumentDetails: FC<DocumentDetailsProps> = ({ kb, doc, onBack }) => {
                             className="bg-muted rounded-lg p-4 flex items-center gap-3"
                           >
                             <div className="h-9 w-9 rounded-xl bg-background border flex items-center justify-center text-muted-foreground">
-                              <Icon size={16} />
+                              <AnimatedIcon><Icon size={16} /></AnimatedIcon>
                             </div>
                             <div className="min-w-0">
                               <div className="text-sm text-foreground/90">{f.title}</div>
@@ -1090,14 +1145,14 @@ const DocumentDetails: FC<DocumentDetailsProps> = ({ kb, doc, onBack }) => {
 
           {chunksErr && (
             <Alert variant="destructive">
-              <AlertCircle className="h-4 w-4" />
+              <AnimatedIcon><AlertCircle className="h-4 w-4" /></AnimatedIcon>
               <AlertDescription>{chunksErr}</AlertDescription>
             </Alert>
           )}
 
           {chunksLoading && (
             <div className="flex items-center justify-center py-16">
-              <Loader2 size={28} className="animate-spin text-primary" />
+              <AnimatedIcon spin><Loader2 size={28} className="text-primary" /></AnimatedIcon>
             </div>
           )}
 
@@ -1128,14 +1183,14 @@ const DocumentDetails: FC<DocumentDetailsProps> = ({ kb, doc, onBack }) => {
             <CardContent>
               {historyErr && (
                 <Alert variant="destructive" className="mb-4">
-                  <AlertCircle className="h-4 w-4" />
+                  <AnimatedIcon><AlertCircle className="h-4 w-4" /></AnimatedIcon>
                   <AlertDescription>{historyErr}</AlertDescription>
                 </Alert>
               )}
 
               {historyLoading && (
                 <div className="flex items-center justify-center py-8">
-                  <Loader2 size={24} className="animate-spin text-primary" />
+                  <AnimatedIcon spin><Loader2 size={24} className="text-primary" /></AnimatedIcon>
                 </div>
               )}
 
@@ -1216,14 +1271,14 @@ const DocumentDetails: FC<DocumentDetailsProps> = ({ kb, doc, onBack }) => {
         <div className="space-y-6">
           {heatmapErr && (
             <Alert>
-              <AlertCircle className="h-4 w-4" />
+              <AnimatedIcon><AlertCircle className="h-4 w-4" /></AnimatedIcon>
               <AlertDescription>{heatmapErr}</AlertDescription>
             </Alert>
           )}
 
           {viewErr && (
             <Alert variant="destructive">
-              <AlertCircle className="h-4 w-4" />
+              <AnimatedIcon><AlertCircle className="h-4 w-4" /></AnimatedIcon>
               <AlertDescription>{viewErr}</AlertDescription>
             </Alert>
           )}
@@ -1257,7 +1312,7 @@ const DocumentDetails: FC<DocumentDetailsProps> = ({ kb, doc, onBack }) => {
                       disabled={page <= 1}
                       title="Previous page"
                     >
-                      <ChevronLeft size={16} />
+                      <AnimatedIcon><ChevronLeft size={16} /></AnimatedIcon>
                     </Button>
                     <Button
                       variant="outline"
@@ -1267,7 +1322,7 @@ const DocumentDetails: FC<DocumentDetailsProps> = ({ kb, doc, onBack }) => {
                       disabled={page >= pageCount}
                       title="Next page"
                     >
-                      <ChevronRight size={16} />
+                      <AnimatedIcon><ChevronRight size={16} /></AnimatedIcon>
                     </Button>
                   </div>
                 </div>
@@ -1296,7 +1351,7 @@ const DocumentDetails: FC<DocumentDetailsProps> = ({ kb, doc, onBack }) => {
               <div className="bg-muted rounded-lg p-4">
                 {viewLoading && (
                   <div className="flex items-center justify-center py-20">
-                    <Loader2 size={28} className="animate-spin text-primary" />
+                    <AnimatedIcon spin><Loader2 size={28} className="text-primary" /></AnimatedIcon>
                   </div>
                 )}
 
@@ -1388,7 +1443,11 @@ const DocumentDetails: FC<DocumentDetailsProps> = ({ kb, doc, onBack }) => {
               Cancel
             </Button>
             <Button onClick={handleApplyOverrideStrategy} disabled={overrideBusy}>
-              {overrideBusy ? <Loader2 size={14} className="animate-spin" /> : <Settings2 size={14} />}
+              {overrideBusy ? (
+                <AnimatedIcon spin><Loader2 size={14} /></AnimatedIcon>
+              ) : (
+                <AnimatedIcon><Settings2 size={14} /></AnimatedIcon>
+              )}
               Apply and Reprocess
             </Button>
           </DialogFooter>
@@ -1399,7 +1458,7 @@ const DocumentDetails: FC<DocumentDetailsProps> = ({ kb, doc, onBack }) => {
         <DialogContent className="max-w-md">
           <DialogHeader className="items-center">
             <div className="mx-auto h-12 w-12 rounded-full bg-destructive/15 border border-destructive/25 flex items-center justify-center text-destructive">
-              <AlertCircle size={20} />
+              <AnimatedIcon><AlertCircle size={20} /></AnimatedIcon>
             </div>
             <DialogTitle className="text-xl text-center">Delete Document?</DialogTitle>
             <DialogDescription className="text-center">
@@ -1440,7 +1499,11 @@ const DocumentDetails: FC<DocumentDetailsProps> = ({ kb, doc, onBack }) => {
               onClick={confirmDelete}
               disabled={actionBusy}
             >
-              {actionBusy ? <Loader2 size={16} className="animate-spin" /> : <Trash2 size={16} />}
+              {actionBusy ? (
+                <AnimatedIcon spin><Loader2 size={16} /></AnimatedIcon>
+              ) : (
+                <AnimatedIcon><Trash2 size={16} /></AnimatedIcon>
+              )}
               Delete Permanently
             </Button>
           </DialogFooter>
@@ -1451,7 +1514,7 @@ const DocumentDetails: FC<DocumentDetailsProps> = ({ kb, doc, onBack }) => {
         <DialogContent className="max-w-sm">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
-              <CheckCircle2 size={20} className="text-green-500" />
+              <AnimatedIcon><CheckCircle2 size={20} className="text-green-500" /></AnimatedIcon>
               Document Updated
             </DialogTitle>
             <DialogDescription>
@@ -1472,7 +1535,11 @@ const DocumentDetails: FC<DocumentDetailsProps> = ({ kb, doc, onBack }) => {
             variant={toast.kind === 'err' ? 'destructive' : 'default'}
             className={toast.kind === 'ok' ? 'border-status-success/20 bg-status-success/10 text-status-success' : ''}
           >
-            {toast.kind === 'ok' ? <CheckCircle2 className="h-4 w-4" /> : <AlertCircle className="h-4 w-4" />}
+            {toast.kind === 'ok' ? (
+              <AnimatedIcon><CheckCircle2 className="h-4 w-4" /></AnimatedIcon>
+            ) : (
+              <AnimatedIcon><AlertCircle className="h-4 w-4" /></AnimatedIcon>
+            )}
             <AlertDescription className="flex items-center justify-between gap-4">
               <span>{toast.msg}</span>
               <button

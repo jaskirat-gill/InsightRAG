@@ -24,6 +24,7 @@ import {
 import { Separator } from '@/components/ui/separator';
 import { Badge } from '@/components/ui/badge';
 import { Label } from '@/components/ui/label';
+import { Effect, Effects } from '@/components/ui/animate';
 
 const escapeHtml = (raw: string): string =>
   raw
@@ -127,21 +128,25 @@ const ChatMessage: FC<{ role: 'user' | 'assistant' | 'system'; content: string; 
   return (
     <div className={`flex gap-3 ${isAssistant ? '' : 'justify-end'}`}>
       {isAssistant && (
-        <div className="h-8 w-8 shrink-0 rounded-lg bg-primary/20 text-primary flex items-center justify-center mt-1">
+        <div className="mt-1 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-primary/20 text-primary">
           <Bot size={16} />
         </div>
       )}
 
-      <div className={`max-w-[80%] rounded-2xl px-4 py-3 border ${isAssistant ? 'bg-card border-border' : 'bg-primary/20 border-primary/30'}`}>
+      <Effect
+        slide={isAssistant ? 'right' : 'left'}
+        zoom
+        className={`max-w-[80%] rounded-2xl border px-4 py-3 ${isAssistant ? 'border-border bg-card' : 'border-primary/30 bg-primary/20'}`}
+      >
         <div
           className="text-sm text-foreground break-words"
           dangerouslySetInnerHTML={{ __html: renderMarkdownToHtml(content || '') }}
         />
         <div className="text-[11px] text-muted-foreground mt-2">{formatRelativeTime(timestamp)}</div>
-      </div>
+      </Effect>
 
       {!isAssistant && (
-        <div className="h-8 w-8 shrink-0 rounded-lg bg-muted text-foreground flex items-center justify-center mt-1">
+        <div className="mt-1 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-muted text-foreground">
           <User size={16} />
         </div>
       )}
@@ -359,6 +364,7 @@ const Chat: FC = () => {
 
   return (
     <div className="h-[calc(100vh-5rem)] grid grid-cols-1 lg:grid-cols-[300px_1fr] gap-4 min-h-[420px]">
+      <Effect slide="right" blur className="min-h-0">
       <Card className="min-h-0 flex flex-col">
         <CardHeader className="pb-3">
           <div className="flex items-center justify-between">
@@ -424,7 +430,9 @@ const Chat: FC = () => {
           </Button>
         </CardContent>
       </Card>
+      </Effect>
 
+      <Effect slide="up" blur delay={0.05} className="min-h-0">
       <Card className="min-h-0 flex flex-col overflow-hidden">
         <CardHeader className="py-4">
           <div className="flex items-center gap-3">
@@ -440,7 +448,7 @@ const Chat: FC = () => {
         <Separator />
         <CardContent className="flex-1 min-h-0 flex flex-col overflow-hidden p-0">
           <ScrollArea className="flex-1">
-            <div className="p-5 space-y-4">
+            <Effects className="space-y-4 p-5">
               {error && (
                 <Alert variant="destructive">
                   <AlertCircle size={16} />
@@ -462,7 +470,7 @@ const Chat: FC = () => {
                 <ChatMessage key={msg.id} role={msg.role} content={msg.content || ''} timestamp={msg.timestamp} />
               ))}
               <div ref={messagesEndRef} />
-            </div>
+            </Effects>
           </ScrollArea>
 
           <Separator />
@@ -496,6 +504,7 @@ const Chat: FC = () => {
           </div>
         </CardContent>
       </Card>
+      </Effect>
     </div>
   );
 };

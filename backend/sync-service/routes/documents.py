@@ -32,16 +32,22 @@ except ImportError:
     CELERY_AVAILABLE = False
 
 S3_BUCKET_NAME = os.getenv("S3_BUCKET_NAME") or os.getenv("AWS_S3_BUCKET")  # support either name
-AWS_REGION = os.getenv("AWS_REGION", "us-east-1")
+AWS_REGION = os.getenv("AWS_REGION") or "us-east-1"
 
 router = APIRouter(prefix="/knowledge-bases", tags=["Documents"])
 
-_s3 = boto3.client(
-    "s3",
-    region_name=AWS_REGION,
-    aws_access_key_id=os.getenv("AWS_ACCESS_KEY_ID"),
-    aws_secret_access_key=os.getenv("AWS_SECRET_ACCESS_KEY"),
-)
+_s3 = None
+
+def get_s3_client():
+    global _s3
+    if _s3 is None:
+        _s3 = boto3.client(
+            "s3",
+            region_name=AWS_REGION,
+            aws_access_key_id=os.getenv("AWS_ACCESS_KEY_ID"),
+            aws_secret_access_key=os.getenv("AWS_SECRET_ACCESS_KEY"),
+        )
+    return _s3
 
 class DocumentResponse(BaseModel):
     document_id: UUID
@@ -434,7 +440,7 @@ async def get_document_s3_url(
     # treat source_path as key
     s3_key = str(doc["source_path"]).lstrip("/")
     try:
-        url = _s3.generate_presigned_url(
+        url = get_s3_client().generate_presigned_url(
             ClientMethod="get_object",
             Params={"Bucket": S3_BUCKET_NAME, "Key": s3_key},
             ExpiresIn=300,
@@ -1001,7 +1007,7 @@ async def delete_document(
     if S3_BUCKET_NAME:
         try:
             s3_key = str(doc["source_path"]).lstrip("/")
-            _s3.delete_object(Bucket=S3_BUCKET_NAME, Key=s3_key)
+            get_s3_client().delete_object(Bucket=S3_BUCKET_NAME, Key=s3_key)
         except Exception as e:
             logger.warning("S3 delete failed for doc %s: %s", doc_id, e)
 

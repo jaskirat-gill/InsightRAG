@@ -19,6 +19,7 @@ import {
   TableHeader, TableRow,
 } from '@/components/ui/table';
 import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Effect, Effects } from '@/components/ui/animate';
 
 interface ViewModalProps {
   kb: KnowledgeBase;
@@ -507,9 +508,14 @@ const KBCard: FC<KBCardProps> = ({ kb, onConfigure, onDeleteClick, onHealthClick
   };
 
   return (
+    <Effect
+      slide="up"
+      whileHover={{ y: -6, scale: 1.015 }}
+      whileTap={{ scale: 0.995 }}
+    >
     <Card
       onClick={onHealthClick}
-      className="cursor-pointer hover:bg-muted/50 transition-colors group"
+      className="group cursor-pointer border-border/70 bg-card/90 transition-all duration-300 hover:border-primary/25 hover:bg-muted/40 hover:shadow-xl hover:shadow-primary/5"
     >
       <CardContent className="pt-5 pb-4 space-y-3">
         <div className="flex items-start justify-between gap-2">
@@ -556,6 +562,7 @@ const KBCard: FC<KBCardProps> = ({ kb, onConfigure, onDeleteClick, onHealthClick
         </div>
       </CardContent>
     </Card>
+    </Effect>
   );
 };
 
@@ -674,8 +681,8 @@ const KnowledgeBases: FC<KnowledgeBasesProps> = ({ onSelectKB }) => {
   }
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
+    <Effects className="space-y-6">
+      <Effect slide="up" blur className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-semibold text-foreground">Knowledge Bases</h1>
           <p className="text-muted-foreground text-sm mt-1">
@@ -684,7 +691,7 @@ const KnowledgeBases: FC<KnowledgeBasesProps> = ({ onSelectKB }) => {
         </div>
         <div className="flex items-center gap-2">
           {syncMessage && (
-            <Badge variant="outline" className="text-xs">
+            <Badge variant="outline" className="text-xs shadow-sm">
               {syncMessage}
             </Badge>
           )}
@@ -713,9 +720,9 @@ const KnowledgeBases: FC<KnowledgeBasesProps> = ({ onSelectKB }) => {
             New
           </Button>
         </div>
-      </div>
+      </Effect>
 
-      <div className="relative">
+      <Effect slide="up" delay={0.06} className="relative">
         <Search size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
         <Input
           value={searchQuery}
@@ -723,11 +730,11 @@ const KnowledgeBases: FC<KnowledgeBasesProps> = ({ onSelectKB }) => {
           placeholder="Search knowledge bases..."
           className="pl-10"
         />
-      </div>
+      </Effect>
 
       {filteredKBs.length === 0 ? (
-        <div className="text-center py-16">
-          <div className="h-16 w-16 rounded-2xl bg-muted flex items-center justify-center mx-auto mb-4">
+        <Effect slide="up" delay={0.1} className="py-16 text-center">
+          <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-[1.5rem] bg-muted shadow-inner">
             <Database size={28} className="text-muted-foreground" />
           </div>
           <p className="text-muted-foreground text-sm">
@@ -736,9 +743,9 @@ const KnowledgeBases: FC<KnowledgeBasesProps> = ({ onSelectKB }) => {
           {!searchQuery && (
             <p className="text-muted-foreground/60 text-xs mt-1">Click "Create New" to get started</p>
           )}
-        </div>
+        </Effect>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        <Effects className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3" stagger={0.06}>
           {filteredKBs.map((kb) => (
             <KBCard
               key={kb.kb_id}
@@ -750,7 +757,7 @@ const KnowledgeBases: FC<KnowledgeBasesProps> = ({ onSelectKB }) => {
               onHealthClick={() => onSelectKB?.(kb)}
             />
           ))}
-        </div>
+        </Effects>
       )}
 
       <CreateKBModal
@@ -780,7 +787,7 @@ const KnowledgeBases: FC<KnowledgeBasesProps> = ({ onSelectKB }) => {
         onClose={() => setKbToDelete(null)}
         onConfirm={handleDeleteConfirm}
       />
-    </div>
+    </Effects>
   );
 };
 
