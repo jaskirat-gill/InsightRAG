@@ -218,7 +218,7 @@ jobs:
           command_timeout: 30m
           script: |
             set -e
-            APP_PATH="${DO_APP_PATH:-/home/deploy/OpenWebUI-Project}"
+            APP_PATH="${DO_APP_PATH:-/home/deploy/InsightRag}"
             cd "$APP_PATH"
 
             git fetch origin
