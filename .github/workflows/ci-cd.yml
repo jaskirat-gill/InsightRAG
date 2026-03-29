@@ -226,5 +226,5 @@ jobs:
             git pull origin main
 
             docker compose -f docker-compose.yml -f docker-compose.droplet.yml pull || true
-            docker compose -f docker-compose.yml -f docker-compose.droplet.yml up -d --no-build
+            docker compose -f docker-compose.yml -f docker-compose.droplet.yml up -d --build
             docker system prune -f
