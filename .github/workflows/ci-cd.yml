@@ -202,6 +202,7 @@ jobs:
 
     env:
       DO_APP_PATH: ${{ secrets.DO_APP_PATH }}
+      GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
     steps:
       - name: Checkout repository
@@ -216,6 +217,7 @@ jobs:
           port: 22
           timeout: 30m
           command_timeout: 30m
+          envs: GHCR_TOKEN
           script: |
             set -e
             APP_PATH="${DO_APP_PATH:-/home/deploy/InsightRag}"
@@ -225,6 +227,8 @@ jobs:
             git checkout main
             git pull origin main
 
-            docker compose -f docker-compose.yml -f docker-compose.droplet.yml pull || true
-            docker compose -f docker-compose.yml -f docker-compose.droplet.yml up -d --build
+            echo "$GHCR_TOKEN" | docker login ghcr.io -u jaskirat-gill --password-stdin
+
+            docker compose -f docker-compose.yml -f docker-compose.droplet.yml pull
+            docker compose -f docker-compose.yml -f docker-compose.droplet.yml up -d --no-build
             docker system prune -f
