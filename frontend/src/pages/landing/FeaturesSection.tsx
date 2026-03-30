@@ -32,22 +32,22 @@ export default function FeaturesSection() {
   return (
     <section
       id="features"
-      className="relative bg-white py-24 dark:bg-[hsl(240,6%,10%)] lg:py-32"
+      className="relative bg-[#0d1f3c] py-24 lg:py-32"
     >
       <div className="mx-auto max-w-6xl px-6">
         <Effects className="space-y-4 text-center">
           <Effect slide="up" blur>
-            <div className="mx-auto inline-flex items-center rounded-full border border-slate-200 bg-slate-50 px-4 py-1.5 text-sm font-medium text-slate-500 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-400">
+            <div className="mx-auto inline-flex items-center rounded-full border border-sky-400/20 bg-sky-400/5 px-4 py-1.5 text-sm font-medium text-sky-300">
               Features
             </div>
           </Effect>
           <Effect slide="up" blur delay={0.05}>
-            <h2 className="text-4xl font-semibold tracking-[-0.04em] text-slate-950 sm:text-5xl dark:text-white">
+            <h2 className="text-4xl font-semibold tracking-[-0.04em] text-white sm:text-5xl">
               Everything you need
             </h2>
           </Effect>
           <Effect slide="up" blur delay={0.1}>
-            <p className="mx-auto max-w-2xl text-lg leading-8 text-slate-500 dark:text-slate-400">
+            <p className="mx-auto max-w-2xl text-lg leading-8 text-slate-400">
               A complete toolkit for managing, monitoring, and querying your organization's
               knowledge.
             </p>
@@ -62,15 +62,15 @@ export default function FeaturesSection() {
               delay={0.1 + i * 0.08}
               whileHover={{ y: -6, scale: 1.02 }}
               whileTap={{ scale: 0.98 }}
-              className="group rounded-3xl border border-slate-200/60 bg-white/70 p-6 shadow-[0_10px_28px_-24px_rgba(15,23,42,0.14)] backdrop-blur transition-colors hover:border-sky-200 dark:border-slate-700/50 dark:bg-slate-900/70 dark:shadow-none dark:hover:border-sky-800"
+              className="group rounded-3xl border border-white/[0.06] bg-white/[0.03] p-6 backdrop-blur transition-colors hover:border-sky-400/30 hover:bg-sky-400/5"
             >
-              <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-sky-50 text-sky-600 transition-colors group-hover:bg-sky-100 dark:bg-sky-950 dark:text-sky-400 dark:group-hover:bg-sky-900">
+              <div className="flex h-12 w-12 items-center justify-center rounded-2xl border border-sky-400/20 bg-sky-400/10 text-sky-400 transition-colors group-hover:bg-sky-400/20">
                 <feature.icon className="h-6 w-6" />
               </div>
-              <h3 className="mt-4 text-lg font-semibold tracking-tight text-slate-900 dark:text-white">
+              <h3 className="mt-4 text-lg font-semibold tracking-tight text-white">
                 {feature.title}
               </h3>
-              <p className="mt-2 text-sm leading-6 text-slate-500 dark:text-slate-400">
+              <p className="mt-2 text-sm leading-6 text-slate-400">
                 {feature.description}
               </p>
             </Effect>

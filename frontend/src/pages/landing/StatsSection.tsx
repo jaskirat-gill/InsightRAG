@@ -24,7 +24,6 @@ function AnimatedCounter({
 
   useEffect(() => {
     if (!inView) return
-    let start = 0
     const end = value
     const duration = 1500
     const startTime = performance.now()
@@ -34,7 +33,7 @@ function AnimatedCounter({
       const elapsed = now - startTime
       const progress = Math.min(elapsed / duration, 1)
       const eased = 1 - Math.pow(1 - progress, 3)
-      const current = start + (end - start) * eased
+      const current = end * eased
       setDisplay(isFloat ? parseFloat(current.toFixed(1)) : Math.round(current))
       if (progress < 1) requestAnimationFrame(tick)
     }
@@ -58,14 +57,14 @@ export default function StatsSection() {
     <section
       ref={ref}
       id="stats"
-      className="sticky top-0 z-10 bg-gradient-to-br from-sky-50 via-white to-sky-50 py-24 dark:from-slate-900 dark:via-[hsl(240,6%,10%)] dark:to-slate-900"
+      className="sticky top-0 z-10 bg-gradient-to-b from-[#0a1628] to-[#0d1f3c] py-24"
     >
       <div className="mx-auto max-w-5xl px-6">
         <Effect slide="up" blur className="mb-16 text-center">
-          <h2 className="text-4xl font-semibold tracking-[-0.04em] text-slate-950 sm:text-5xl dark:text-white">
+          <h2 className="text-4xl font-semibold tracking-[-0.04em] text-white sm:text-5xl">
             Built for scale
           </h2>
-          <p className="mt-4 text-lg text-slate-500 dark:text-slate-400">
+          <p className="mt-4 text-lg text-slate-400">
             Trusted by teams to manage knowledge at any scale.
           </p>
         </Effect>
@@ -74,7 +73,7 @@ export default function StatsSection() {
           {stats.map((stat, i) => (
             <Effect key={stat.label} slide="up" delay={0.1 + i * 0.1}>
               <div className="text-center">
-                <div className="text-4xl font-bold tracking-tight text-slate-950 sm:text-5xl dark:text-white">
+                <div className="text-4xl font-bold tracking-tight text-white sm:text-5xl">
                   <AnimatedCounter
                     value={stat.value}
                     suffix={stat.suffix}
@@ -82,7 +81,7 @@ export default function StatsSection() {
                     inView={inView}
                   />
                 </div>
-                <div className="mt-2 text-sm font-medium text-slate-500 dark:text-slate-400">
+                <div className="mt-2 text-sm font-medium text-sky-300/60">
                   {stat.label}
                 </div>
               </div>
