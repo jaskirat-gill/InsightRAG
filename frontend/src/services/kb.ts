@@ -149,6 +149,24 @@ export interface AdminUserRow {
 class KBService {
   private readonly API_URL = API_URL;
 
+  private resolveDocumentViewUrl(url: string): string {
+    if (!url) return url;
+    if (
+      url.startsWith('blob:') ||
+      url.startsWith('data:') ||
+      url.startsWith('http://') ||
+      url.startsWith('https://')
+    ) {
+      return url;
+    }
+
+    try {
+      return new URL(url, `${this.API_URL.replace(/\/+$/, '')}/`).toString();
+    } catch {
+      return url;
+    }
+  }
+
   /**
    * Authenticated fetch wrapper.
    * - Injects the Bearer token on every request.
@@ -343,7 +361,11 @@ class KBService {
 
     const contentType = response.headers.get('content-type') || '';
     if (contentType.includes('application/json')) {
-      return await response.json();
+      const payload = await response.json();
+      return {
+        ...payload,
+        url: payload?.url ? this.resolveDocumentViewUrl(payload.url) : payload?.url,
+      };
     }
     if (contentType.includes('application/pdf')) {
       const blob = await response.blob();
@@ -351,7 +373,11 @@ class KBService {
     }
 
     try {
-      return await response.json();
+      const payload = await response.json();
+      return {
+        ...payload,
+        url: payload?.url ? this.resolveDocumentViewUrl(payload.url) : payload?.url,
+      };
     } catch {
       const body = await response.text().catch(() => '');
       throw new Error(
