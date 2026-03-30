@@ -41,6 +41,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { API_URL } from "@/config";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -101,7 +102,7 @@ function getAccessToken() {
 async function apiFetch<T>(url: string, init?: RequestInit): Promise<T> {
   const token = getAccessToken();
   if (!token) throw new Error("Not authenticated.");
-  const res = await fetch(url, {
+  const res = await fetch(`${API_URL}${url}`, {
     ...init,
     headers: {
       "Content-Type": "application/json",
