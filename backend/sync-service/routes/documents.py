@@ -1,4 +1,5 @@
-from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, status
+from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Response, status
+from fastapi.responses import FileResponse
 from pydantic import BaseModel
 from typing import List, Optional
 from uuid import UUID
@@ -8,6 +9,7 @@ import logging
 import os
 import json
 from botocore.exceptions import ClientError
+import httpx
 
 import boto3
 from qdrant_client import QdrantClient
@@ -37,6 +39,27 @@ AWS_REGION = os.getenv("AWS_REGION") or "us-east-1"
 router = APIRouter(prefix="/knowledge-bases", tags=["Documents"])
 
 _s3 = None
+
+INLINE_CONTENT_TYPES = {
+    "pdf": "application/pdf",
+    "png": "image/png",
+    "jpg": "image/jpeg",
+    "jpeg": "image/jpeg",
+    "gif": "image/gif",
+    "bmp": "image/bmp",
+    "webp": "image/webp",
+    "svg": "image/svg+xml",
+    "txt": "text/plain; charset=utf-8",
+    "md": "text/plain; charset=utf-8",
+    "csv": "text/plain; charset=utf-8",
+    "tsv": "text/plain; charset=utf-8",
+    "json": "application/json; charset=utf-8",
+    "xml": "application/xml; charset=utf-8",
+    "yaml": "text/plain; charset=utf-8",
+    "yml": "text/plain; charset=utf-8",
+    "html": "text/plain; charset=utf-8",
+    "htm": "text/plain; charset=utf-8",
+}
 
 def get_s3_client():
     global _s3
@@ -856,6 +879,8 @@ async def get_document_view_url(
         raise HTTPException(status_code=404, detail="Document not found")
 
     source_path: str = doc["source_path"]
+    document_type = (doc["document_type"] or "").lower()
+    inline_media_type = INLINE_CONTENT_TYPES.get(document_type)
     storage_provider = kb.get("storage_provider", "s3")
 
     raw_cfg = kb.get("storage_config")
@@ -969,6 +994,29 @@ async def get_document_view_url(
             page_count = 1
     except (TypeError, ValueError):
         page_count = 1
+
+    if inline_media_type:
+        filename = os.path.basename(source_path) or f"{doc_id}.{document_type or 'bin'}"
+        inline_headers = {"Content-Disposition": f'inline; filename="{filename}"'}
+
+        local_path = await _resolve_document_local_path(db=db, source_path=source_path)
+        if local_path:
+            return FileResponse(
+                local_path,
+                media_type=inline_media_type,
+                filename=filename,
+                headers=inline_headers,
+            )
+
+        if url:
+            try:
+                async with httpx.AsyncClient(follow_redirects=True, timeout=60.0) as client:
+                    remote = await client.get(url)
+                    remote.raise_for_status()
+                media_type = inline_media_type
+                return Response(content=remote.content, media_type=media_type, headers=inline_headers)
+            except httpx.HTTPError as exc:
+                logger.warning("Failed to proxy document view for %s: %s", doc_id, exc)
 
     return DocumentViewResponse(url=url, page_count=page_count)
 

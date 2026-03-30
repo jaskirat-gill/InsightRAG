@@ -367,7 +367,8 @@ class KBService {
         url: payload?.url ? this.resolveDocumentViewUrl(payload.url) : payload?.url,
       };
     }
-    if (contentType.includes('application/pdf')) {
+
+    if (contentType && !contentType.includes('application/json')) {
       const blob = await response.blob();
       return { url: URL.createObjectURL(blob), page_count: null };
     }
