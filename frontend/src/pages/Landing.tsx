@@ -47,9 +47,7 @@ export default function Landing() {
           <div className="mx-auto flex h-16 max-w-6xl items-center justify-between px-6">
             {/* Logo */}
             <a href="/landing" className="flex items-center gap-3">
-              <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-slate-950 dark:bg-white">
-                <span className="text-sm font-bold text-white dark:text-slate-950">IR</span>
-              </div>
+              <img src="/logo-icon.png" alt="InsightRAG" className="h-8 w-8 rounded-lg object-cover" />
               <span className="text-lg font-semibold tracking-tight text-slate-950 dark:text-white">
                 InsightRAG
               </span>

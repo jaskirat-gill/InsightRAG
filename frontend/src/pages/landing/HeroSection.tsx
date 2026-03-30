@@ -34,15 +34,22 @@ export default function HeroSection() {
         style={{ y, opacity }}
         className="relative z-10 mx-auto max-w-5xl px-6 text-center"
       >
-        <Effects className="space-y-8">
+        <Effects className="space-y-6">
           <Effect slide="up" blur delay={0.1}>
-            <div className="mx-auto inline-flex items-center rounded-full border border-slate-200 bg-white/80 px-4 py-1.5 text-sm font-medium text-slate-500 shadow-sm backdrop-blur dark:border-slate-700 dark:bg-slate-800/80 dark:text-slate-400">
-              InsightRAG Workspace
+            <div className="mx-auto inline-flex items-center gap-4 rounded-full border border-slate-200/80 bg-white/80 py-2.5 pl-2.5 pr-6 shadow-[0_8px_30px_-12px_rgba(15,23,42,0.12)] backdrop-blur-lg dark:border-slate-700/80 dark:bg-slate-800/80 dark:shadow-[0_8px_30px_-12px_rgba(0,0,0,0.4)]">
+              <img
+                src="/logo-icon.png"
+                alt="InsightRAG"
+                className="h-14 w-14 rounded-full object-cover"
+              />
+              <span className="text-base font-semibold tracking-wide text-slate-700 dark:text-slate-300">
+                InsightRAG Workspace
+              </span>
             </div>
           </Effect>
 
           <Effect slide="up" blur delay={0.2}>
-            <h1 className="mx-auto max-w-4xl text-5xl font-semibold tracking-[-0.06em] text-slate-950 sm:text-6xl lg:text-7xl dark:text-white">
+            <h1 className="mx-auto max-w-4xl text-5xl font-semibold tracking-[-0.04em] text-slate-950 sm:text-6xl lg:text-7xl dark:text-white">
               Your team knowledge,{' '}
               <span className="bg-gradient-to-r from-sky-500 to-sky-700 bg-clip-text text-transparent dark:from-sky-400 dark:to-sky-600">
                 unified and searchable
