@@ -1,7 +1,6 @@
 import { useRef, useEffect, useState } from 'react'
 import { m, useScroll, useTransform } from 'motion/react'
 import { ArrowRight, ArrowUpRight, ChevronDown, Database, Search, MessageSquare, Cloud } from 'lucide-react'
-import { Effect, Effects } from '@/components/ui/animate'
 import { Button } from '@/components/ui/button'
 
 /* ── shooting stars ── */

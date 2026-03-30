@@ -1,4 +1,5 @@
 import { Database, Cloud, Activity, MessageSquare } from 'lucide-react'
+import { m, useReducedMotion } from 'motion/react'
 import { Effect, Effects } from '@/components/ui/animate'
 
 const features = [
@@ -29,11 +30,20 @@ const features = [
 ]
 
 export default function FeaturesSection() {
+  const reduceMotion = useReducedMotion()
+
   return (
     <section
       id="features"
-      className="relative bg-[#0d1f3c] py-24 lg:py-32"
+      className="relative overflow-hidden bg-[#060d1b] py-24 lg:py-32"
     >
+      <div className="pointer-events-none absolute inset-0">
+        <div className="absolute left-1/2 top-[-18%] h-[560px] w-[760px] -translate-x-1/2 rounded-full bg-gradient-to-br from-sky-500/18 via-blue-600/10 to-transparent blur-[120px]" />
+        <div className="absolute right-[-8%] top-[18%] h-[360px] w-[360px] rounded-full bg-gradient-to-l from-cyan-400/12 via-teal-500/6 to-transparent blur-[100px]" />
+        <div className="absolute bottom-[-12%] left-[-8%] h-[420px] w-[520px] rounded-full bg-gradient-to-tr from-blue-700/12 via-indigo-500/6 to-transparent blur-[110px]" />
+      </div>
+      <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(rgba(148,163,184,0.03)_1px,transparent_1px),linear-gradient(90deg,rgba(148,163,184,0.03)_1px,transparent_1px)] bg-[size:48px_48px]" />
+
       <div className="mx-auto max-w-6xl px-6">
         <Effects className="space-y-4 text-center">
           <Effect slide="up" blur>
@@ -41,25 +51,71 @@ export default function FeaturesSection() {
               Features
             </div>
           </Effect>
-          <Effect slide="up" blur delay={0.05}>
+          <m.div
+            initial={reduceMotion ? false : { opacity: 0, x: 120, filter: 'blur(12px)' }}
+            whileInView={reduceMotion ? { opacity: 1 } : { opacity: 1, x: 0, filter: 'blur(0px)' }}
+            viewport={{ once: true, amount: 0.7 }}
+            transition={{ duration: 0.8, delay: 0.05, ease: [0.22, 1, 0.36, 1] }}
+          >
             <h2 className="text-4xl font-semibold tracking-[-0.04em] text-white sm:text-5xl">
               Everything you need
             </h2>
-          </Effect>
-          <Effect slide="up" blur delay={0.1}>
+          </m.div>
+          <m.div
+            initial={reduceMotion ? false : { opacity: 0, x: 80, filter: 'blur(10px)' }}
+            whileInView={reduceMotion ? { opacity: 1 } : { opacity: 1, x: 0, filter: 'blur(0px)' }}
+            viewport={{ once: true, amount: 0.7 }}
+            transition={{ duration: 0.75, delay: 0.16, ease: [0.22, 1, 0.36, 1] }}
+          >
             <p className="mx-auto max-w-2xl text-lg leading-8 text-slate-400">
               A complete toolkit for managing, monitoring, and querying your organization's
               knowledge.
             </p>
-          </Effect>
+          </m.div>
         </Effects>
 
         <div className="mt-16 grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
           {features.map((feature, i) => (
-            <Effect
+            <m.div
               key={feature.title}
-              slide="up"
-              delay={0.1 + i * 0.08}
+              initial={
+                reduceMotion
+                  ? false
+                  : {
+                      opacity: 0,
+                      x: 140 + i * 20,
+                      y: -180 - i * 18,
+                      rotate: 8 + i * 2,
+                      scale: 0.88,
+                    }
+              }
+              whileInView={
+                reduceMotion
+                  ? { opacity: 1 }
+                  : {
+                      opacity: 1,
+                      x: 0,
+                      y: 0,
+                      rotate: [8 + i * 2, -5, 2, 0],
+                      scale: 1,
+                    }
+              }
+              viewport={{ once: true, amount: 0.25 }}
+              transition={
+                reduceMotion
+                  ? { duration: 0.2, delay: 0.04 * i }
+                  : {
+                      delay: 0.2 + i * 0.1,
+                      duration: 1,
+                      ease: [0.16, 1, 0.3, 1],
+                      rotate: {
+                        delay: 0.2 + i * 0.1,
+                        duration: 1.15,
+                        times: [0, 0.58, 0.8, 1],
+                        ease: ['easeOut', 'easeOut', 'easeOut'],
+                      },
+                    }
+              }
               whileHover={{ y: -6, scale: 1.02 }}
               whileTap={{ scale: 0.98 }}
               className="group rounded-3xl border border-white/[0.06] bg-white/[0.03] p-6 backdrop-blur transition-colors hover:border-sky-400/30 hover:bg-sky-400/5"
@@ -73,7 +129,7 @@ export default function FeaturesSection() {
               <p className="mt-2 text-sm leading-6 text-slate-400">
                 {feature.description}
               </p>
-            </Effect>
+            </m.div>
           ))}
         </div>
       </div>
