@@ -118,7 +118,7 @@ Most defaults are in `docker-compose.yml`. Common env vars you may want:
 - `REDIS_URL`: Redis DSN (default in compose)
 - `SYNC_INTERVAL_SECONDS`: background sync interval (default 300; set `0` to disable)
 
-### S3 plugin (optional)
+### S3 plugin
 
 If you use the built-in `S3Plugin`, set:
 
@@ -136,184 +136,82 @@ See `backend/sync-service/AWS_SETUP.md` for step-by-step AWS + SQS setup.
 - `DATABASE_URL`
 - `DEFAULT_SCORE_THRESHOLD` (default `0.5`)
 
-## Using the system (high-level flow)
+## Using the system
 
-### 1) Create/activate a source plugin instance
+The current system is centered on direct MCP requests such as `get` and `set`. A typical user flow is:
 
-The Sync Service exposes a small plugin management API:
+### 1) Start from the document source
 
-- Discover available plugin classes: `GET /plugins/discovered`
-- Create a plugin instance (DB row): `POST /plugins`
-- Test a plugin’s connection: `POST /plugins/{plugin_id}/test`
-- Activate/deactivate: `PUT /plugins/{plugin_id}` with `is_active: true|false`
+Open the S3 bucket that contains the files you want to make available in the system.
 
-The OpenAPI docs are at `http://localhost:8000/docs`.
+If the source connection has not been configured yet, the UI has a plugin manager under
+**Settings** -> **Plugins** where an admin can add a plugin instance and save its credentials.
+Detailed setup is in `docs/plugin-setup.md`.
 
-Tip: The repo includes an `S3Plugin` implementation (`app.plugins.s3.S3Plugin`) and
-an example seeder script (`backend/sync-service/init_db.py`) you can adapt.
+### 2) Open the Knowledge Bases page
 
-#### Example: create + activate an S3 plugin instance (API)
+In the left sidebar, click **Knowledge Bases**.
 
-This assumes the Sync Service container has AWS env vars configured (see `docker-compose.yml`)
-or you pass credentials directly in the JSON config.
+This page is the main operational screen for syncing and managing indexed content. At the top
+right you will see:
 
-```bash
-# 1) See what plugin classes are available
-curl -sS http://localhost:8000/plugins/discovered | jq .
+- **Sync**: trigger a sync for all active plugins
+- **Reset**: clear sync cache so the next sync re-processes files
+- **New**: create a new knowledge base
 
-# 2) Create a plugin instance (this creates a row in source_plugin_config)
-curl -sS -X POST http://localhost:8000/plugins \
-  -H 'Content-Type: application/json' \
-  -d '{
-    "name": "s3-main",
-    "module_name": "app.plugins.s3",
-    "class_name": "S3Plugin",
-    "is_active": true,
-    "config": {
-      "bucket_name": "my-bucket",
-      "region_name": "us-east-1"
-    }
-  }' | jq .
+If you are creating a knowledge base for the first time:
 
-# 3) List plugin instances and grab the numeric plugin_id ("id")
-curl -sS http://localhost:8000/plugins | jq .
+1. Click **New**
+2. Enter a KB name and optional description
+3. Choose the plugin source from **Storage Configuration**
+4. Optionally fill in **Sync Folders** to route only specific S3 paths into that KB
+5. Leave the default chunking settings unless you need different processing behavior
+6. Click **Create Knowledge Base**
 
-# 4) Test connection (replace {plugin_id})
-curl -sS -X POST http://localhost:8000/plugins/{plugin_id}/test | jq .
+If the KB already exists, use the per-KB configuration controls to adjust sync folders later.
 
-# 5) Trigger a sync cycle for all active plugins
-curl -sS -X POST http://localhost:8000/sync | jq .
+### 3) Sync the knowledge base
+
+From the **Knowledge Bases** page, click **Sync** in the top action bar.
+
+The button changes to `Syncing…` while the request is in progress, and the page shows a short
+status badge when the sync call finishes. This step pulls data from active source plugins,
+detects changed files, and queues them for document processing.
+
+### 4) Get your Bearer token
+
+The MCP server is authenticated so it can enforce per-user knowledge base access.
+
+To get the token in the UI:
+
+1. Click **Settings** in the left sidebar
+2. Stay on the **General** tab
+3. In **Session Tokens**, find **Access Token**
+4. Click **Copy**
+
+Use that value as:
+
+```text
+Authorization: Bearer <access_token>
 ```
 
-### 2) Create a knowledge base and route documents into it
+### 5) Ask questions through MCP
 
-Create KBs via the Sync Service API under `/api/v1/knowledge-bases`.
-
-If you want KB routing from a plugin instance, set the KB’s `storage_config` like:
-
-```json
-{
-  "plugin_id": 1,
-  "sync_paths": ["team-a/policies", "team-a/handbook"]
-}
-```
-
-#### Example: create a KB routed from a plugin instance (API)
-
-```bash
-curl -sS -X POST http://localhost:8000/api/v1/knowledge-bases \
-  -H 'Content-Type: application/json' \
-  -H 'Authorization: Bearer YOUR_SYNC_SERVICE_API_KEY_OR_TOKEN' \
-  -d '{
-    "name": "Team A Policies",
-    "description": "Policies + handbook content",
-    "storage_provider": "plugin",
-    "storage_config": { "plugin_id": 1, "sync_paths": ["team-a/policies", "team-a/handbook"] },
-    "processing_strategy": "semantic",
-    "chunk_size": 512,
-    "chunk_overlap": 50
-  }' | jq .
-```
-
-Auth note: the Sync Service has its own auth system and permissions. Use the `/api/v1/auth/*`
-and `/api/v1/api-keys/*` endpoints (see the Swagger docs) to create an API key/token for requests.
-
-### 3) Run a sync
-
-- Manually: `POST /sync`
-- Or automatically: the background scheduler runs every `SYNC_INTERVAL_SECONDS`
-
-### 4) Query via MCP
-
-The MCP server exposes tools including `search_knowledge_base(query, top_k, kb_id, score_threshold)`.
+Once the KB has been synced and you have the Bearer token, connect your MCP client to:
 
 - HTTP MCP endpoint (compose): `http://localhost:8002/mcp`
-- Stdio helper script (runs a container with stdio transport): `scripts/run_mcp_stdio.sh`
+- Stdio helper script: `scripts/run_mcp_stdio.sh`
 
-HTTP MCP now expects `Authorization: Bearer <sync-service access token>` on tool calls. The server enforces per-user KB access for authenticated HTTP callers. STDIO remains a trusted local/development path and does not carry per-user HTTP auth headers.
+You can then send direct requests to the system and ask questions about the indexed database content.
 
-If you’re using OpenWebUI, see `docs/setup-openwebui.md` for how to register the MCP tool.
+If you’re using OpenWebUI, see `docs/setup-openwebui.md` for the MCP registration flow.
 
-## Writing a new sync plugin
+## Plugin docs
 
-The plugin system is intentionally lightweight: **a plugin is a Python class** that
-inherits `SourcePlugin` and implements 4 methods.
+The README only covers the operational flow.
 
-### 1) Implement the interface
-
-Create a new file under:
-
-- `backend/sync-service/app/plugins/my_source.py`
-
-Implement `SourcePlugin` from `backend/sync-service/app/plugins/interface.py`.
-
-Minimal template:
-
-```python
-from typing import Any, Dict, Generator
-from app.plugins.interface import SourcePlugin, FileEvent
-
-
-class MySourcePlugin(SourcePlugin):
-    @classmethod
-    def config_schema(cls) -> list:
-        # Used by the frontend (and API clients) to render config forms.
-        return [
-            {
-                "name": "api_key",
-                "label": "API Key",
-                "type": "password",
-                "required": True,
-                "placeholder": "..."
-            },
-        ]
-
-    def initialize(self, config: Dict[str, Any]) -> None:
-        self.config = config
-        self.validate_config(config)
-        # create client(s) here
-
-    def validate_config(self, config: Dict[str, Any]) -> None:
-        if not config.get("api_key"):
-            raise ValueError("Missing api_key")
-
-    def test_connection(self) -> bool:
-        # Return True when credentials + connectivity look good
-        return True
-
-    def sync(self) -> Generator[FileEvent, None, None]:
-        # Yield FileEvent(source_type=..., event_type=..., file_path=..., metadata=...)
-        yield FileEvent(source_type="my_source", event_type="present", file_path="docs/a.pdf")
-
-    def download_file(self, file_path: str, local_destination: str) -> None:
-        # Download remote file_path into local_destination
-        raise NotImplementedError
-```
-
-Notes:
-
-- `sync()` should yield `FileEvent`s with:
-  - `event_type`: usually `"present"` for discovered files, or `"deleted"` when removed
-  - `metadata`: include a stable fingerprint like an `etag` when possible (used for delta detection)
-- The Sync Service will mark anything not “seen” during a sync cycle as deleted (reconciliation)
-
-### 2) Run & verify discovery
-
-Plugin discovery scans the `app.plugins` package. If the service is running,
-your class should appear in:
-
-- `GET /plugins/discovered`
-
-### 3) Register a plugin instance (DB row) and activate it
-
-Use the Sync Service API:
-
-1. `POST /plugins` with `module_name`, `class_name`, `config`
-2. `POST /plugins/{plugin_id}/test`
-3. `PUT /plugins/{plugin_id}` with `is_active: true`
-4. `POST /sync`
-
-Reference docs: `backend/sync-service/PLUGINS.md`
+- Plugin manager and source setup: `docs/plugin-setup.md`
+- Writing a new sync plugin: `docs/plugin-development.md`
 
 ## Project structure
 
@@ -330,4 +228,3 @@ Reference docs: `backend/sync-service/PLUGINS.md`
 - **Plugin exists but won’t initialize**: check `POST /plugins/{id}/test` output and ensure `is_active=true`.
 - **Sync runs but no docs appear**: ensure your KB’s `storage_config.plugin_id` matches the plugin instance `id` and `sync_paths` prefixes match the file paths emitted by `sync()`.
 - **MCP stdio transport is noisy/broken**: use `scripts/run_mcp_stdio.sh` (it avoids Docker lifecycle chatter on stdout).
-
