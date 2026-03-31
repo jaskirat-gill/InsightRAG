@@ -189,18 +189,14 @@ To get the token in the UI:
 3. In **Session Tokens**, find **Access Token**
 4. Click **Copy**
 
-Use that value as:
-
-```text
-Authorization: Bearer <access_token>
-```
-
 ### 5) Ask questions through MCP
 
 Once the KB has been synced and you have the Bearer token, connect your MCP client to:
 
 - HTTP MCP endpoint (compose): `http://localhost:8002/mcp`
 - Stdio helper script: `scripts/run_mcp_stdio.sh`
+
+When configuring MCP, use Bearer authentication with the token you copied in step 4.
 
 You can then send direct requests to the system and ask questions about the indexed database content.
 
