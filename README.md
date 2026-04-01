@@ -170,7 +170,19 @@ If you are creating a knowledge base for the first time:
 
 If the KB already exists, use the per-KB configuration controls to adjust sync folders later.
 
-### 3) Sync the knowledge base
+### 3) Configure the Sync plugin
+
+The system currently supports only S3 as a sync source.
+
+To configure it in the UI:
+
+1. Click **Settings** in the left sidebar
+2. Open **Plugins**
+3. Add or edit the **Sync** plugin
+4. Configure it with your AWS S3 credentials
+5. Save the plugin configuration
+
+### 4) Sync the knowledge base
 
 From the **Knowledge Bases** page, click **Sync** in the top action bar.
 
@@ -178,7 +190,7 @@ The button changes to `Syncing…` while the request is in progress, and the pag
 status badge when the sync call finishes. This step pulls data from active source plugins,
 detects changed files, and queues them for document processing.
 
-### 4) Get your Bearer token
+### 5) Get your Bearer token
 
 The MCP server is authenticated so it can enforce per-user knowledge base access.
 
@@ -189,14 +201,14 @@ To get the token in the UI:
 3. In **Session Tokens**, find **Access Token**
 4. Click **Copy**
 
-### 5) Ask questions through MCP
+### 6) Ask questions through MCP
 
 Once the KB has been synced and you have the Bearer token, connect your MCP client to:
 
 - HTTP MCP endpoint (compose): `http://localhost:8002/mcp`
 - Stdio helper script: `scripts/run_mcp_stdio.sh`
 
-When configuring MCP, use Bearer authentication with the token you copied in step 4.
+When configuring MCP, use Bearer authentication with the token you copied in step 5.
 
 You can then send direct requests to the system and ask questions about the indexed database content.
 
