@@ -11,6 +11,17 @@ This repo is a prototype “knowledge base control plane” for RAG systems:
 
 - **Project board**: `https://github.com/users/Sherry-Rui-Xia/projects/1`
 
+### Language / runtime versions
+
+- **Node.js 22** is the frontend build/runtime assumption.
+  The Docker build uses `node:22-alpine`.
+- **npm** is the active frontend package manager assumption.
+  The frontend Docker build runs `npm ci`, and the repo includes `frontend/package-lock.json`.
+- **Python 3.11** is the backend runtime assumption.
+  All Python services build from `python:3.11-slim`.
+- **nginx** serves the production frontend image.
+- **Docker Compose** is the main way to run the full stack locally.
+
 ## Quick start (Docker Compose)
 
 ### Prerequisites
