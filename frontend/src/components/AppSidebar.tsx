@@ -2,7 +2,6 @@ import { FC } from 'react';
 import {
   Home,
   Database,
-  MessageSquare,
   Settings,
   LogOut,
   Moon,
@@ -36,7 +35,6 @@ interface AppSidebarProps {
 const navItems = [
   { key: 'home', label: 'Home', icon: Home },
   { key: 'kb', label: 'Knowledge Bases', icon: Database },
-  { key: 'chat', label: 'Chat', icon: MessageSquare },
   { key: 'users', label: 'User Management', icon: Users },
 ];
 

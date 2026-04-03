@@ -1,10 +1,9 @@
 import { useState, useEffect } from 'react';
-import { Database, MessageSquare, AlertCircle, Loader2 } from 'lucide-react';
+import { Database, AlertCircle, Loader2 } from 'lucide-react';
 import Layout from './components/Layout';
 import Login from './pages/Login';
 import KnowledgeBases from './pages/KnowledgeBases';
 import KBHealthDashboard from './pages/KBHealthDashboard';
-import Chat from './pages/Chat';
 import DocumentDetails from './pages/DocumentDetails';
 import UserManagement from './components/UserManagement';
 import { authService, UserResponse } from './services/auth';
@@ -24,7 +23,7 @@ import { Label } from '@/components/ui/label';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Effect, Effects } from '@/components/ui/animate';
 
-type Page = 'home' | 'kb' | 'kb-health' | 'doc' | 'chat' | 'users';
+type Page = 'home' | 'kb' | 'kb-health' | 'doc' | 'users';
 type Theme = 'dark' | 'light';
 
 const THEME_STORAGE_KEY = 'openwebui-theme';
@@ -199,8 +198,6 @@ function App() {
       ) : (
         <div className="text-muted-foreground">No document selected. Go back.</div>
       );
-  } else if (currentPage === 'chat') {
-    content = <Chat />;
   } else if (currentPage === 'users') {
     content = <UserManagement />;
   }
@@ -329,32 +326,6 @@ const HomePage = ({
                 <CardTitle className="text-lg">Knowledge Bases</CardTitle>
                 <CardDescription>
                   Manage your document collections and cloud sync integrations.
-                </CardDescription>
-              </div>
-            </div>
-          </CardHeader>
-        </Card>
-        </Effect>
-
-        <Effect
-          slide="up"
-          delay={0.12}
-          whileHover={{ y: -4, scale: 1.01 }}
-          whileTap={{ scale: 0.99 }}
-        >
-        <Card
-          className="cursor-pointer transition-colors hover:border-primary/50"
-          onClick={() => onNavigate?.('chat')}
-        >
-          <CardHeader>
-            <div className="flex items-center gap-3">
-              <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-muted text-muted-foreground">
-                <MessageSquare className="h-5 w-5" />
-              </div>
-              <div>
-                <CardTitle className="text-lg">Chat Interface</CardTitle>
-                <CardDescription>
-                  Query with OpenWebUI streaming and MCP-backed tools.
                 </CardDescription>
               </div>
             </div>
