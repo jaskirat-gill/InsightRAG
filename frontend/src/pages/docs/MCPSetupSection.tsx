@@ -201,11 +201,12 @@ const stdioSteps = [
           The repository already includes a wrapper script that starts the MCP server in STDIO mode:
         </span>
         <span className="mt-2 block rounded-lg border border-slate-200 bg-slate-100 px-4 py-2 font-mono text-sm text-sky-700 dark:border-white/[0.08] dark:bg-white/[0.04] dark:text-sky-300">
-          /Users/sherryxia/CPSC-319/OpenWebUI-Project/scripts/run_mcp_stdio.sh
+          &lt;your-project-root&gt;/scripts/run_mcp_stdio.sh
         </span>
         <span className="mt-2 block text-xs text-slate-400">
           Do not prefix it with <code className="font-mono">bash</code> in the MCP client config.
-          Point the client directly at the script path so it can execute the wrapper as-is.
+          Point the client directly at the script path so it can execute the wrapper as-is. For
+          example: <code className="font-mono">InsightRAG/scripts/run_mcp_stdio.sh</code>
         </span>
       </>
     ),
@@ -238,7 +239,7 @@ const stdioSteps = [
         </span>
         <div className="mt-2 rounded-lg border border-slate-200 bg-slate-100 px-4 py-3 font-mono text-xs leading-relaxed text-sky-700 dark:border-white/[0.08] dark:bg-white/[0.04] dark:text-sky-300">
           <div>{'{'}</div>
-          <div className="ml-4">"command": "/Users/sherryxia/CPSC-319/OpenWebUI-Project/scripts/run_mcp_stdio.sh"</div>
+          <div className="ml-4">"command": "&lt;your-project-root&gt;/scripts/run_mcp_stdio.sh"</div>
           <div>{'}'}</div>
         </div>
         <span className="mt-2 block text-xs text-slate-400">
