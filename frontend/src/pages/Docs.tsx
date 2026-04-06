@@ -5,6 +5,7 @@ import LiveDemoSection from './docs/LiveDemoSection'
 import PluginSetupSection from './docs/PluginSetupSection'
 import MCPSetupSection from './docs/MCPSetupSection'
 import DemoSection from './docs/DemoSection'
+import SkillSection from './docs/SkillSection'
 import TeamSection from './docs/TeamSection'
 
 type Theme = 'dark' | 'light'
@@ -16,6 +17,7 @@ const sidebarLinks = [
   { label: 'Live Demo', href: '#live-demo' },
   { label: 'Plugin Setup', href: '#plugin-setup' },
   { label: 'MCP Setup', href: '#mcp-setup' },
+  { label: 'Skill.md', href: '#skill-md' },
   { label: 'Screenshots', href: '#demo' },
   { label: 'Our Team', href: '#team' },
 ]
@@ -44,7 +46,7 @@ export default function Docs() {
 
   // Track active section on scroll
   useEffect(() => {
-    const ids = ['home', 'quick-start', 'live-demo', 'plugin-setup', 'mcp-setup', 'demo', 'team']
+    const ids = ['home', 'quick-start', 'live-demo', 'plugin-setup', 'mcp-setup', 'skill-md', 'demo', 'team']
     const observer = new IntersectionObserver(
       (entries) => {
         for (const entry of entries) {
@@ -246,6 +248,7 @@ export default function Docs() {
           <LiveDemoSection />
           <PluginSetupSection />
           <MCPSetupSection />
+          <SkillSection />
           <DemoSection />
           <TeamSection />
 
