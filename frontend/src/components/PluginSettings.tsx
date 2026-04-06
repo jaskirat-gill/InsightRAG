@@ -9,10 +9,11 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 interface ConfigField {
     name: string;
     label: string;
-    type: 'text' | 'password' | 'number' | 'select';
+    type: 'text' | 'password' | 'number' | 'select' | 'oauth';
     required: boolean;
     placeholder?: string;
     options?: string[];
+    oauth_provider?: string;
 }
 
 interface PluginData {
@@ -218,6 +219,7 @@ const PluginSettings: FC = () => {
                                     onToggle={handleToggle}
                                     onTest={handleTest}
                                     onDelete={handleDelete}
+                                    onRefresh={fetchPlugins}
                                 />
                             ))}
                         </div>

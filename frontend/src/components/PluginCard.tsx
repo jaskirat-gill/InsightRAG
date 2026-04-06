@@ -1,5 +1,5 @@
-import { FC, useState } from 'react';
-import { Eye, EyeOff, Plug, TestTube2, Save, Trash2, Loader2, CheckCircle, XCircle, ChevronDown, ChevronUp } from 'lucide-react';
+import { FC, useState, useEffect, useCallback } from 'react';
+import { Eye, EyeOff, Plug, TestTube2, Save, Trash2, Loader2, CheckCircle, XCircle, ChevronDown, ChevronUp, ExternalLink, ShieldCheck } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Switch } from '@/components/ui/switch';
@@ -7,14 +7,16 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
+import { API_URL } from '../config';
 
 interface ConfigField {
     name: string;
     label: string;
-    type: 'text' | 'password' | 'number' | 'select';
+    type: 'text' | 'password' | 'number' | 'select' | 'oauth';
     required: boolean;
     placeholder?: string;
     options?: string[];
+    oauth_provider?: string;
 }
 
 interface PluginData {
@@ -33,9 +35,10 @@ interface PluginCardProps {
     onToggle: (id: number, active: boolean) => Promise<void>;
     onTest: (id: number) => Promise<{ success: boolean; message: string }>;
     onDelete: (id: number) => Promise<void>;
+    onRefresh?: () => Promise<void>;
 }
 
-const PluginCard: FC<PluginCardProps> = ({ plugin, onSave, onToggle, onTest, onDelete }) => {
+const PluginCard: FC<PluginCardProps> = ({ plugin, onSave, onToggle, onTest, onDelete, onRefresh }) => {
     const [localConfig, setLocalConfig] = useState<Record<string, string>>({ ...plugin.config });
     const [isActive, setIsActive] = useState(plugin.is_active);
     const [saving, setSaving] = useState(false);
@@ -45,6 +48,61 @@ const PluginCard: FC<PluginCardProps> = ({ plugin, onSave, onToggle, onTest, onD
     const [expanded, setExpanded] = useState(true);
     const [saveSuccess, setSaveSuccess] = useState(false);
     const [confirmDelete, setConfirmDelete] = useState(false);
+    const [authorizing, setAuthorizing] = useState(false);
+
+    // Listen for OAuth popup success messages
+    const handleOAuthMessage = useCallback(
+        async (event: MessageEvent) => {
+            if (
+                event.data?.type === 'oauth-success' &&
+                event.data?.pluginId === plugin.id
+            ) {
+                setAuthorizing(false);
+                // Refresh plugin data to pick up stored tokens
+                if (onRefresh) await onRefresh();
+            }
+        },
+        [plugin.id, onRefresh]
+    );
+
+    useEffect(() => {
+        window.addEventListener('message', handleOAuthMessage);
+        return () => window.removeEventListener('message', handleOAuthMessage);
+    }, [handleOAuthMessage]);
+
+    // Update local config when plugin prop changes (e.g. after OAuth refresh)
+    useEffect(() => {
+        setLocalConfig({ ...plugin.config });
+    }, [plugin.config]);
+
+    const handleOAuthAuthorize = async () => {
+        setAuthorizing(true);
+
+        // Open the popup IMMEDIATELY in the click handler (synchronous)
+        // so the browser doesn't block it as a popup.
+        const popup = window.open('about:blank', '_blank', 'width=600,height=700,scrollbars=yes');
+
+        try {
+            const res = await fetch(`${API_URL}/plugins/${plugin.id}/oauth/authorize`);
+            if (!res.ok) {
+                const err = await res.json().catch(() => ({ detail: 'Failed to get authorization URL' }));
+                throw new Error(err.detail || 'Failed to get authorization URL');
+            }
+            const { authorize_url } = await res.json();
+
+            if (popup) {
+                // Navigate the already-open popup to Google's consent page
+                popup.location.href = authorize_url;
+            } else {
+                // Fallback: if popup was still blocked, redirect in current tab
+                window.location.href = authorize_url;
+            }
+        } catch (err: any) {
+            if (popup) popup.close();
+            setAuthorizing(false);
+            alert(err.message || 'Failed to start authorization. Make sure Client ID and Secret are saved first.');
+        }
+    };
 
     const handleToggle = async (newState: boolean) => {
         setIsActive(newState);
@@ -142,39 +200,86 @@ const PluginCard: FC<PluginCardProps> = ({ plugin, onSave, onToggle, onTest, onD
                                         {field.label}
                                         {field.required && <span className="text-destructive">*</span>}
                                     </Label>
-                                    <div className="relative">
-                                        <Input
-                                            type={
-                                                field.type === 'password' && !showPasswords[field.name]
-                                                    ? 'password'
-                                                    : 'text'
-                                            }
-                                            value={localConfig[field.name] || ''}
-                                            onChange={(e) =>
-                                                setLocalConfig(prev => ({
-                                                    ...prev,
-                                                    [field.name]: e.target.value
-                                                }))
-                                            }
-                                            placeholder={field.placeholder}
-                                            disabled={!isActive}
-                                            className="pr-9 font-mono"
-                                        />
-                                        {field.type === 'password' && (
-                                            <Button
-                                                type="button"
-                                                variant="ghost"
-                                                size="icon"
-                                                className="absolute right-1 top-1/2 -translate-y-1/2 h-7 w-7 text-muted-foreground hover:text-foreground"
-                                                onClick={() => togglePasswordVisibility(field.name)}
-                                            >
-                                                {showPasswords[field.name]
-                                                    ? <EyeOff size={14} />
-                                                    : <Eye size={14} />
+
+                                    {field.type === 'oauth' ? (
+                                        /* OAuth authorization widget */
+                                        <div className="flex items-center gap-3">
+                                            {localConfig[field.name] &&
+                                             typeof localConfig[field.name] === 'object' &&
+                                             (localConfig[field.name] as any)?.refresh_token ? (
+                                                <>
+                                                    <Badge variant="outline" className="gap-1.5 border-emerald-500/30 bg-emerald-500/10 text-emerald-600">
+                                                        <ShieldCheck size={13} />
+                                                        Authorized
+                                                    </Badge>
+                                                    <Button
+                                                        variant="outline"
+                                                        size="sm"
+                                                        onClick={handleOAuthAuthorize}
+                                                        disabled={authorizing}
+                                                        className="gap-1.5"
+                                                    >
+                                                        {authorizing ? (
+                                                            <Loader2 size={14} className="animate-spin" />
+                                                        ) : (
+                                                            <ExternalLink size={13} />
+                                                        )}
+                                                        Re-authorize
+                                                    </Button>
+                                                </>
+                                            ) : (
+                                                <Button
+                                                    variant="outline"
+                                                    size="sm"
+                                                    onClick={handleOAuthAuthorize}
+                                                    disabled={authorizing}
+                                                    className="gap-2"
+                                                >
+                                                    {authorizing ? (
+                                                        <Loader2 size={14} className="animate-spin" />
+                                                    ) : (
+                                                        <ExternalLink size={14} />
+                                                    )}
+                                                    {authorizing ? 'Waiting for authorization...' : 'Authorize with Google'}
+                                                </Button>
+                                            )}
+                                        </div>
+                                    ) : (
+                                        /* Standard input fields */
+                                        <div className="relative">
+                                            <Input
+                                                type={
+                                                    field.type === 'password' && !showPasswords[field.name]
+                                                        ? 'password'
+                                                        : 'text'
                                                 }
-                                            </Button>
-                                        )}
-                                    </div>
+                                                value={localConfig[field.name] || ''}
+                                                onChange={(e) =>
+                                                    setLocalConfig(prev => ({
+                                                        ...prev,
+                                                        [field.name]: e.target.value
+                                                    }))
+                                                }
+                                                placeholder={field.placeholder}
+                                                disabled={!isActive}
+                                                className="pr-9 font-mono"
+                                            />
+                                            {field.type === 'password' && (
+                                                <Button
+                                                    type="button"
+                                                    variant="ghost"
+                                                    size="icon"
+                                                    className="absolute right-1 top-1/2 -translate-y-1/2 h-7 w-7 text-muted-foreground hover:text-foreground"
+                                                    onClick={() => togglePasswordVisibility(field.name)}
+                                                >
+                                                    {showPasswords[field.name]
+                                                        ? <EyeOff size={14} />
+                                                        : <Eye size={14} />
+                                                    }
+                                                </Button>
+                                            )}
+                                        </div>
+                                    )}
                                 </div>
                             ))}
                         </div>

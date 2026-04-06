@@ -1,5 +1,5 @@
 from abc import ABC, abstractmethod
-from typing import Any, Dict, Generator, Optional
+from typing import Any, Dict, Generator, Optional, Union
 from pydantic import BaseModel, Field
 import time
 
@@ -82,9 +82,17 @@ class SourcePlugin(ABC):
     def download_file(self, file_path: str, local_destination: str) -> None:
         """
         Download a file from the source to a local destination.
-        
+
         Args:
             file_path: ID or path of the file in the source.
             local_destination: Local path to save the file to.
         """
         pass
+
+    def get_updated_config(self) -> Optional[Dict[str, Any]]:
+        """
+        Return config keys that changed during this session (e.g., refreshed
+        OAuth tokens), or None if nothing changed.  The returned dict is
+        merged into the stored config after each sync cycle.
+        """
+        return None

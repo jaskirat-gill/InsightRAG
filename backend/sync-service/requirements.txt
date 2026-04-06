@@ -23,3 +23,9 @@ qdrant-client==1.7.1
 # Celery (task producer)
 celery[redis]>=5.3
 redis>=5.0
+
+# Google Drive plugin
+google-api-python-client>=2.100.0
+google-auth>=2.23.0
+google-auth-oauthlib>=1.1.0
+google-auth-httplib2>=0.1.1

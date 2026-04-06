@@ -1,5 +1,6 @@
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi import FastAPI, BackgroundTasks, Depends, HTTPException
+from fastapi.responses import HTMLResponse
 from typing import List, Optional, Dict, Any
 from contextlib import asynccontextmanager
 from sqlmodel import Session, select
@@ -222,6 +223,15 @@ def _run_sync_all_plugins():
                 logger.info(
                     "Plugin '%s' sync result: %s", config.name, result
                 )
+
+                # Persist any config changes (e.g. refreshed OAuth tokens)
+                updated = plugin_instance.get_updated_config()
+                if updated:
+                    config.config = {**config.config, **updated}
+                    config.updated_at = datetime.utcnow()
+                    session.add(config)
+                    session.commit()
+                    logger.info("Persisted updated config for plugin '%s'", config.name)
             except Exception as e:
                 logger.exception("Sync failed for plugin '%s': %s", config.name, e)
 
@@ -396,3 +406,126 @@ async def test_plugin_connection(
         }
     except Exception as e:
         return {"success": False, "message": str(e)}
+
+
+# ──────────────────────────────
+# OAuth Flow for Google Drive
+# ──────────────────────────────
+
+GOOGLE_DRIVE_SCOPES = ["https://www.googleapis.com/auth/drive.readonly"]
+
+
+@app.get("/plugins/{plugin_id}/oauth/authorize")
+async def oauth_authorize(plugin_id: int, session: Session = Depends(get_session)):
+    """Generate a Google OAuth consent URL for the given plugin instance."""
+    plugin = session.get(SourcePluginConfig, plugin_id)
+    if not plugin:
+        raise HTTPException(status_code=404, detail="Plugin not found")
+
+    # Read credentials from the plugin's saved config first, fall back to env
+    client_id = (plugin.config or {}).get("client_id") or os.environ.get("GOOGLE_CLIENT_ID")
+    client_secret = (plugin.config or {}).get("client_secret") or os.environ.get("GOOGLE_CLIENT_SECRET")
+    redirect_uri = os.environ.get("OAUTH_REDIRECT_URI", "http://localhost:8000/oauth/callback")
+
+    if not client_id or not client_secret:
+        raise HTTPException(
+            status_code=400,
+            detail="Please enter your Google Client ID and Client Secret first, then save before authorizing.",
+        )
+
+    from google_auth_oauthlib.flow import Flow
+
+    flow = Flow.from_client_config(
+        {
+            "web": {
+                "client_id": client_id,
+                "client_secret": client_secret,
+                "auth_uri": "https://accounts.google.com/o/oauth2/auth",
+                "token_uri": "https://oauth2.googleapis.com/token",
+            }
+        },
+        scopes=GOOGLE_DRIVE_SCOPES,
+        redirect_uri=redirect_uri,
+    )
+
+    authorize_url, _ = flow.authorization_url(
+        access_type="offline",
+        prompt="consent",
+        state=str(plugin_id),
+    )
+
+    return {"authorize_url": authorize_url}
+
+
+@app.get("/oauth/callback")
+async def oauth_callback(
+    code: str,
+    state: str,
+    session: Session = Depends(get_session),
+):
+    """Handle Google OAuth callback: exchange code for tokens and store them."""
+    plugin_id = int(state)
+    plugin = session.get(SourcePluginConfig, plugin_id)
+    if not plugin:
+        raise HTTPException(status_code=404, detail="Plugin not found")
+
+    # Read credentials from the plugin's saved config first, fall back to env
+    client_id = (plugin.config or {}).get("client_id") or os.environ.get("GOOGLE_CLIENT_ID")
+    client_secret = (plugin.config or {}).get("client_secret") or os.environ.get("GOOGLE_CLIENT_SECRET")
+    redirect_uri = os.environ.get("OAUTH_REDIRECT_URI", "http://localhost:8000/oauth/callback")
+
+    if not client_id or not client_secret:
+        raise HTTPException(status_code=400, detail="Google OAuth credentials not found in plugin config")
+
+    from google_auth_oauthlib.flow import Flow
+
+    flow = Flow.from_client_config(
+        {
+            "web": {
+                "client_id": client_id,
+                "client_secret": client_secret,
+                "auth_uri": "https://accounts.google.com/o/oauth2/auth",
+                "token_uri": "https://oauth2.googleapis.com/token",
+            }
+        },
+        scopes=GOOGLE_DRIVE_SCOPES,
+        redirect_uri=redirect_uri,
+    )
+
+    flow.fetch_token(code=code)
+    creds = flow.credentials
+
+    oauth_tokens = {
+        "access_token": creds.token,
+        "refresh_token": creds.refresh_token,
+        "token_uri": creds.token_uri,
+        "expiry": creds.expiry.isoformat() if creds.expiry else None,
+    }
+
+    updated_config = {**plugin.config, "oauth_tokens": oauth_tokens}
+    plugin.config = updated_config
+    plugin.updated_at = datetime.utcnow()
+    session.add(plugin)
+    session.commit()
+
+    logger.info("OAuth tokens stored for plugin %s (id=%s)", plugin.name, plugin_id)
+
+    return HTMLResponse(
+        content=f"""
+        <html>
+        <body>
+            <p>Authorization successful! This window will close automatically.</p>
+            <script>
+                if (window.opener) {{
+                    window.opener.postMessage(
+                        {{ type: 'oauth-success', pluginId: {plugin_id} }},
+                        '*'
+                    );
+                }}
+                window.close();
+            </script>
+        </body>
+        </html>
+        """,
+        status_code=200,
+    )

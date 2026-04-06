@@ -41,6 +41,9 @@ services:
       - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}
       - SQS_QUEUE_URL=${SQS_QUEUE_URL}
       - SYNC_INTERVAL_SECONDS=${SYNC_INTERVAL_SECONDS}
+      - GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID}
+      - GOOGLE_CLIENT_SECRET=${GOOGLE_CLIENT_SECRET}
+      - OAUTH_REDIRECT_URI=${OAUTH_REDIRECT_URI:-http://localhost:8000/oauth/callback}
     depends_on:
       postgres:
         condition: service_healthy
