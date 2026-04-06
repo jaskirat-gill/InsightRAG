@@ -181,10 +181,6 @@ export default function HeroSection() {
   const y = useTransform(scrollYProgress, [0, 1], [0, -120])
   const opacity = useTransform(scrollYProgress, [0, 0.6], [1, 0])
 
-  const scrollToFeatures = () => {
-    document.getElementById('features')?.scrollIntoView({ behavior: 'smooth' })
-  }
-
   return (
     <section
       ref={containerRef}
@@ -276,19 +272,6 @@ export default function HeroSection() {
         className="relative z-10 mx-auto max-w-5xl px-6 text-center"
       >
         <div className="space-y-7">
-          {/* Badge — fade in */}
-          <m.div
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.6, delay: 0.2, ease: [0.22, 1, 0.36, 1] }}
-          >
-            <div className="mx-auto inline-flex items-center gap-3 rounded-full border border-white/10 bg-white/5 py-1.5 pl-1.5 pr-5 backdrop-blur-md">
-              <img src="/logo-icon.png" alt="InsightRAG" className="h-8 w-8 rounded-full object-cover" />
-              <span className="text-sm font-medium text-white/80">InsightRAG Workspace</span>
-              <ArrowRight className="h-3.5 w-3.5 text-white/40" />
-            </div>
-          </m.div>
-
           {/* Heading — POP UP from center (scale + opacity) */}
           <m.h1
             className="mx-auto max-w-4xl text-5xl font-semibold tracking-[-0.04em] text-white sm:text-6xl lg:text-7xl"
@@ -335,10 +318,13 @@ export default function HeroSection() {
               </a>
             </Button>
             <Button
-              onClick={scrollToFeatures}
+              asChild
               className="h-12 rounded-2xl border border-white/15 bg-white/5 px-8 text-base font-medium text-white/90 backdrop-blur-sm transition-all hover:border-white/25 hover:bg-white/10"
             >
-              Discover More
+              <a href="/docs">
+                Docs
+                <ArrowRight className="ml-2 h-4 w-4" />
+              </a>
             </Button>
           </m.div>
         </div>
