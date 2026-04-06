@@ -1,5 +1,7 @@
 import { useState, useEffect } from 'react'
 import { Menu, X, Sun, Moon, Github } from 'lucide-react'
+import QuickStartSection from './docs/QuickStartSection'
+import LiveDemoSection from './docs/LiveDemoSection'
 import PluginSetupSection from './docs/PluginSetupSection'
 import MCPSetupSection from './docs/MCPSetupSection'
 import DemoSection from './docs/DemoSection'
@@ -10,9 +12,11 @@ const THEME_STORAGE_KEY = 'openwebui-theme'
 
 const sidebarLinks = [
   { label: 'Home', href: '#home' },
-  { label: 'Getting Started', href: '#plugin-setup' },
+  { label: 'Quick Start', href: '#quick-start' },
+  { label: 'Live Demo', href: '#live-demo' },
+  { label: 'Plugin Setup', href: '#plugin-setup' },
   { label: 'MCP Setup', href: '#mcp-setup' },
-  { label: 'Demo', href: '#demo' },
+  { label: 'Screenshots', href: '#demo' },
   { label: 'Our Team', href: '#team' },
 ]
 
@@ -40,7 +44,7 @@ export default function Docs() {
 
   // Track active section on scroll
   useEffect(() => {
-    const ids = ['home', 'plugin-setup', 'mcp-setup', 'demo', 'team']
+    const ids = ['home', 'quick-start', 'live-demo', 'plugin-setup', 'mcp-setup', 'demo', 'team']
     const observer = new IntersectionObserver(
       (entries) => {
         for (const entry of entries) {
@@ -238,6 +242,8 @@ export default function Docs() {
             </div>
           </section>
 
+          <QuickStartSection />
+          <LiveDemoSection />
           <PluginSetupSection />
           <MCPSetupSection />
           <DemoSection />

@@ -1,14 +1,19 @@
 # InsightRAG MCP Skill Reference
 
-This document helps LLMs use the InsightRAG MCP tools effectively.
+This document is a practical reference for both:
+
+- LLMs deciding how to use the InsightRAG MCP tools effectively
+- Human developers integrating with the InsightRAG service over MCP or raw HTTP
 
 ## Overview
 
 InsightRAG exposes a knowledge base search server via the **Model Context Protocol (MCP)**. The server runs on port `8002` using HTTP transport (FastMCP framework). It provides hybrid vector + keyword search over document collections stored in Qdrant.
 
+For LLM tool use, prefer the tool-calling guidance in this document. For direct service integrations, the authentication and transport details below also apply.
+
 ## Authentication
 
-HTTP requests require a bearer token issued by the sync-service auth system:
+Direct HTTP requests require a bearer token issued by the sync-service auth system:
 
 ```
 Authorization: Bearer <jwt_access_token>
@@ -19,9 +24,13 @@ Authorization: Bearer <jwt_access_token>
 - Admin users can access all knowledge bases. Regular users see only owned or shared KBs.
 - STDIO transport (local dev only) skips authentication.
 
+If you are using these capabilities through an MCP host that already manages authentication, you may not need to handle bearer tokens directly.
+
 ## Query Strategy
 
-**Start with short keyword queries first.** If results are returned, refine with a longer or more specific query. Do not begin with long natural language questions.
+**Default query strategy: start with short keyword queries first.** If results are returned, refine with a longer or more specific query. Avoid beginning with a long natural language question unless you have a specific reason to preserve the original phrasing.
+
+The goal is to improve retrieval recall and make it easier to iterate when results are sparse or overly broad. In practice, convert a user's natural-language request into a compact first-pass query, then refine from there.
 
 Good progression:
 1. `"deployment config"` — short keywords first
@@ -49,9 +58,9 @@ Search the knowledge base for relevant document chunks using hybrid retrieval (v
 | Key | Type | Description |
 |-----|------|-------------|
 | `text` | string | The matched chunk text |
-| `source` | string | Short document identifier (first 8 chars of document UUID) |
+| `source` | string | Short document identifier (first 8 chars of document UUID). Useful as a compact reference in search results, but not a user-friendly document name. |
 | `section` | string | Section title from the document, or `"N/A"` |
-| `page` | string | Page number, or `"N/A"` |
+| `page` | string | Page number as a string when available, otherwise `"N/A"` |
 | `relevance_score` | float | Relevance score (higher is better) |
 | `retrieval_source` | string | `"vector"`, `"keyword"`, or `"hybrid"` |
 
@@ -64,7 +73,9 @@ Search the knowledge base for relevant document chunks using hybrid retrieval (v
 
 ### `get_available_collections`
 
-List the caller's accessible knowledge bases with aggregate counts. **Call this first** to discover KB IDs before searching.
+List the caller's accessible knowledge bases with aggregate counts. This is the **default first step** because it helps discover KB IDs and confirm what the caller can access before searching.
+
+Direct `search_knowledge_base` calls still work when broad search is acceptable or when KB selection is unnecessary.
 
 | Parameter | Type | Description |
 |-----------|------|-------------|
@@ -115,13 +126,13 @@ List accessible knowledge bases with full document inventory (heavier than `get_
 
 ### 1. Discover then search
 ```
-1. get_available_collections()          → find KB IDs and names
-2. search_knowledge_base("auth config", kb_id="<uuid>")  → search specific KB
+1. get_available_collections()          → default first step; find KB IDs and names
+2. search_knowledge_base("auth config", kb_id="<uuid>")  → search a specific KB
 ```
 
 ### 2. Broad keyword search
 ```
-1. search_knowledge_base("error handling")   → search all accessible KBs with short keywords
+1. search_knowledge_base("error handling")   → direct broad search across accessible KBs
 2. search_knowledge_base("error handling retry policy", kb_id="<uuid>")  → refine if results found
 ```
 
@@ -139,7 +150,7 @@ List accessible knowledge bases with full document inventory (heavier than `get_
 
 ## Error Handling
 
-Errors are returned inline (not as exceptions):
+At the tool payload level, errors are returned inline rather than as normal result objects:
 
 - **List-returning tools** (`search_knowledge_base`, `list_kb_resources`): `[{"error": "message"}]`
 - **Dict-returning tools** (`get_available_collections`): `{"error": "message"}`
@@ -152,3 +163,5 @@ Common errors:
 | `"Permission denied: query.execute required"` | User lacks search permission |
 | `"Access denied for requested knowledge base"` | User cannot access the specified `kb_id` |
 | `"Query cannot be empty"` | Empty or whitespace-only query string |
+
+Transport-level failures, MCP host failures, or network issues may still surface outside these inline error payloads.
