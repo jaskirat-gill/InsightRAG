@@ -217,7 +217,7 @@ To get the token in the UI:
 Once the KB has been synced and you have the Bearer token, connect your MCP client to:
 
 - HTTP MCP endpoint (compose): `http://localhost:8002/mcp`
-- Stdio helper script: `scripts/run_mcp_stdio.sh`
+- Stdio helper script: run `<your-project-root>/scripts/run_mcp_stdio.sh`
 
 When configuring MCP, use Bearer authentication with the token you copied in step 5.
 
@@ -246,4 +246,4 @@ The README only covers the operational flow.
 - **No plugins found**: confirm your plugin file is in `backend/sync-service/app/plugins/` and the class inherits `SourcePlugin`.
 - **Plugin exists but won’t initialize**: check `POST /plugins/{id}/test` output and ensure `is_active=true`.
 - **Sync runs but no docs appear**: ensure your KB’s `storage_config.plugin_id` matches the plugin instance `id` and `sync_paths` prefixes match the file paths emitted by `sync()`.
-- **MCP stdio transport is noisy/broken**: use `scripts/run_mcp_stdio.sh` (it avoids Docker lifecycle chatter on stdout).
+- **MCP stdio transport is noisy/broken**: run `<your-project-root>/scripts/run_mcp_stdio.sh` directly. The wrapper keeps stdout protocol-clean and avoids Docker lifecycle chatter.

@@ -188,8 +188,41 @@ BEGIN
         ON CONFLICT DO NOTHING;
     END IF;
 
+    -- =====================================
+    -- PART 4: Create or Get Demo User
+    -- =====================================
+    DECLARE demo_user_id UUID;
+    BEGIN
+        SELECT user_id INTO demo_user_id FROM users WHERE email = 'demo@test.com';
+
+        IF demo_user_id IS NULL THEN
+            INSERT INTO users (user_id, email, hashed_password, full_name, is_active, is_verified)
+            VALUES (
+                gen_random_uuid(),
+                'demo@test.com',
+                '$2b$12$8ysNm8FPQoSOABQVfsVaEewvucvyu7YHmJ./CGJmVLuh0Hv55gi1O', -- Demo1234!
+                'Demo User',
+                true,
+                true
+            )
+            RETURNING user_id INTO demo_user_id;
+
+            INSERT INTO user_roles (user_id, role_id)
+            VALUES (demo_user_id, dev_role_id)
+            ON CONFLICT DO NOTHING;
+
+            RAISE NOTICE '✅ Created demo user: demo@test.com (password: Demo1234!)';
+        ELSE
+            RAISE NOTICE '⏭️  Demo user already exists: demo@test.com';
+
+            INSERT INTO user_roles (user_id, role_id)
+            VALUES (demo_user_id, dev_role_id)
+            ON CONFLICT DO NOTHING;
+        END IF;
+    END;
+
     RAISE NOTICE '⏭️  Skipping demo KB and document seed data.';
-    
+
 END $$;
 
 -- Summary at the end

@@ -14,6 +14,7 @@ export default function Landing() {
   const navLinks = [
     { label: 'Features', href: '#features' },
     { label: 'Demo', href: '#demo' },
+    { label: 'Docs', href: '/docs' },
   ]
 
   return (
