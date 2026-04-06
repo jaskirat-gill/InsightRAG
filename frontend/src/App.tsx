@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Database, AlertCircle, Loader2 } from 'lucide-react';
+import { Database, AlertCircle, Loader2, FileText, Compass } from 'lucide-react';
 import Layout from './components/Layout';
 import Login from './pages/Login';
 import KnowledgeBases from './pages/KnowledgeBases';
@@ -286,6 +286,10 @@ const HomePage = ({
   user: UserResponse | null;
   onNavigate?: (page: string) => void;
 }) => {
+  const openExternalPage = (path: string) => {
+    window.location.href = path;
+  };
+
   return (
     <Effects className="space-y-8">
       <Effect slide="up" blur>
@@ -331,6 +335,58 @@ const HomePage = ({
             </div>
           </CardHeader>
         </Card>
+        </Effect>
+
+        <Effect
+          slide="up"
+          delay={0.1}
+          whileHover={{ y: -4, scale: 1.01 }}
+          whileTap={{ scale: 0.99 }}
+        >
+          <Card
+            className="cursor-pointer transition-colors hover:border-primary/50"
+            onClick={() => openExternalPage('/landing')}
+          >
+            <CardHeader>
+              <div className="flex items-center gap-3">
+                <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-muted text-muted-foreground">
+                  <Compass className="h-5 w-5" />
+                </div>
+                <div>
+                  <CardTitle className="text-lg">Landing Page</CardTitle>
+                  <CardDescription>
+                    Open the public product overview and feature showcase.
+                  </CardDescription>
+                </div>
+              </div>
+            </CardHeader>
+          </Card>
+        </Effect>
+
+        <Effect
+          slide="up"
+          delay={0.15}
+          whileHover={{ y: -4, scale: 1.01 }}
+          whileTap={{ scale: 0.99 }}
+        >
+          <Card
+            className="cursor-pointer transition-colors hover:border-primary/50"
+            onClick={() => openExternalPage('/docs')}
+          >
+            <CardHeader>
+              <div className="flex items-center gap-3">
+                <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-muted text-muted-foreground">
+                  <FileText className="h-5 w-5" />
+                </div>
+                <div>
+                  <CardTitle className="text-lg">Docs</CardTitle>
+                  <CardDescription>
+                    Jump to the setup guide, MCP instructions, and screenshots.
+                  </CardDescription>
+                </div>
+              </div>
+            </CardHeader>
+          </Card>
         </Effect>
       </div>
     </Effects>
