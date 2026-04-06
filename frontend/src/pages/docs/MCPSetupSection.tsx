@@ -181,54 +181,48 @@ const stdioSteps = [
       <>
         <span className="block">
           STDIO mode is for <strong>local development only</strong> — it runs the MCP server as a
-          subprocess and communicates over stdin/stdout. No network, no bearer token needed.
+          local command and communicates over stdin/stdout. Use the provided shell wrapper instead
+          of launching the Python server manually.
         </span>
         <span className="mt-2 block">Make sure you have:</span>
         <ul className="mt-1 list-inside list-disc space-y-1 text-slate-700 dark:text-slate-300">
-          <li>Python 3.11+ installed</li>
-          <li>
-            MCP server dependencies installed:{' '}
-            <code className="rounded bg-slate-100 px-1.5 py-0.5 text-xs font-mono text-sky-700 dark:bg-white/[0.06] dark:text-sky-300">
-              pip install -r backend/mcp-server/requirements.txt
-            </code>
-          </li>
-          <li>PostgreSQL and Qdrant accessible (e.g. via Docker)</li>
+          <li>Docker running on your machine</li>
+          <li>PostgreSQL and Qdrant accessible from Docker</li>
         </ul>
       </>
     ),
   },
   {
     step: '2',
-    title: 'Set the environment variable',
+    title: 'Use the helper script as the command',
     description: (
       <>
         <span className="block">
-          Tell the MCP server to use STDIO transport instead of HTTP:
+          The repository already includes a wrapper script that starts the MCP server in STDIO mode:
         </span>
         <span className="mt-2 block rounded-lg border border-slate-200 bg-slate-100 px-4 py-2 font-mono text-sm text-sky-700 dark:border-white/[0.08] dark:bg-white/[0.04] dark:text-sky-300">
-          export MCP_TRANSPORT=stdio
+          /Users/sherryxia/CPSC-319/OpenWebUI-Project/scripts/run_mcp_stdio.sh
         </span>
         <span className="mt-2 block text-xs text-slate-400">
-          Also set <code className="font-mono">QDRANT_URL</code>,{' '}
-          <code className="font-mono">DATABASE_URL</code>, and{' '}
-          <code className="font-mono">SECRET_KEY</code> in your environment or{' '}
-          <code className="font-mono">.env</code> file.
+          Do not prefix it with <code className="font-mono">bash</code> in the MCP client config.
+          Point the client directly at the script path so it can execute the wrapper as-is.
         </span>
       </>
     ),
   },
   {
     step: '3',
-    title: 'Run the server',
+    title: 'What the script does',
     description: (
       <>
-        <span className="block">Use the helper script or run directly:</span>
-        <span className="mt-2 block rounded-lg border border-slate-200 bg-slate-100 px-4 py-2 font-mono text-sm text-sky-700 dark:border-white/[0.08] dark:bg-white/[0.04] dark:text-sky-300">
-          python backend/mcp-server/server.py
+        <span className="block">
+          The wrapper launches the MCP container with STDIO transport already enabled and keeps
+          stdout protocol-clean for MCP clients.
         </span>
-        <span className="mt-1 block text-xs text-slate-400">
-          Or use the provided helper script:{' '}
-          <code className="font-mono">bash scripts/run_mcp_stdio.sh</code>
+        <span className="mt-2 block text-xs text-slate-400">
+          It also passes through <code className="font-mono">QDRANT_URL</code> and{' '}
+          <code className="font-mono">DATABASE_URL</code> defaults, so the client only needs to run
+          the script.
         </span>
       </>
     ),
@@ -244,18 +238,12 @@ const stdioSteps = [
         </span>
         <div className="mt-2 rounded-lg border border-slate-200 bg-slate-100 px-4 py-3 font-mono text-xs leading-relaxed text-sky-700 dark:border-white/[0.08] dark:bg-white/[0.04] dark:text-sky-300">
           <div>{'{'}</div>
-          <div className="ml-4">"command": "python",</div>
-          <div className="ml-4">"args": ["backend/mcp-server/server.py"],</div>
-          <div className="ml-4">"env": {'{'}</div>
-          <div className="ml-8">"MCP_TRANSPORT": "stdio",</div>
-          <div className="ml-8">"QDRANT_URL": "http://localhost:6333",</div>
-          <div className="ml-8">"DATABASE_URL": "postgresql://..."</div>
-          <div className="ml-4">{'}'}</div>
+          <div className="ml-4">"command": "/Users/sherryxia/CPSC-319/OpenWebUI-Project/scripts/run_mcp_stdio.sh"</div>
           <div>{'}'}</div>
         </div>
         <span className="mt-2 block text-xs text-slate-400">
-          In STDIO mode, authentication is skipped — the server trusts the local caller and grants
-          admin-level access to all knowledge bases.
+          If your MCP client supports arguments, leave them empty. The wrapper script already
+          contains the startup command.
         </span>
       </>
     ),

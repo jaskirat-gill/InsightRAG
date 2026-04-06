@@ -1,6 +1,9 @@
 import { useRef } from 'react'
 import { m, useScroll, useTransform } from 'motion/react'
 import { Effect } from '@/components/ui/animate'
+import docsViewImage from '../../../screenshot/docs-view.png'
+import openWebUIMcpImage from '../../../screenshot/openWebUI-mcp.png'
+import pluginConfigImage from '../../../screenshot/plugin-config.png'
 
 function BrowserMockup({
   title,
@@ -60,96 +63,36 @@ export default function DemoSection() {
             See it in action
           </h2>
           <p className="mt-4 text-lg text-slate-600 dark:text-slate-400">
-            Screenshots of the key workflows. (Placeholders &mdash; replace with actual screenshots.)
+            Screenshots of the key setup screens in InsightRAG and OpenWebUI.
           </p>
         </Effect>
 
         <m.div style={{ scale, opacity }} className="space-y-8">
-          {/* Screenshot 1: Plugin Config */}
-          <BrowserMockup title="Plugin Configuration" url="insightrag.app/settings/plugins">
-            <div className="flex min-h-[280px] gap-6">
-              <div className="hidden w-48 space-y-3 border-r border-slate-100 pr-6 dark:border-white/[0.06] sm:block">
-                <div className="h-5 w-24 rounded bg-slate-100 dark:bg-white/[0.06]" />
-                <div className="space-y-2">
-                  {['General', 'Plugins', 'Users', 'API Keys'].map((item, i) => (
-                    <div
-                      key={item}
-                      className={`rounded-lg px-3 py-2 text-sm ${
-                        i === 1
-                          ? 'bg-sky-50 font-medium text-sky-600 dark:bg-sky-400/10 dark:text-sky-400'
-                          : 'text-slate-400 dark:text-white/40'
-                      }`}
-                    >
-                      {item}
-                    </div>
-                  ))}
-                </div>
-              </div>
-              <div className="flex-1 space-y-4">
-                <div className="h-6 w-32 rounded bg-slate-100 dark:bg-white/[0.08]" />
-                <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 dark:border-white/[0.06] dark:bg-white/[0.02]">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <div className="h-5 w-20 rounded bg-slate-200 dark:bg-white/[0.08]" />
-                      <div className="mt-1 h-3 w-48 rounded bg-slate-100 dark:bg-white/[0.04]" />
-                    </div>
-                    <div className="h-8 w-20 rounded-lg bg-green-100 dark:bg-green-400/20" />
-                  </div>
-                </div>
-                <div className="rounded-xl border border-dashed border-slate-300 p-4 text-center text-sm text-slate-400 dark:border-white/[0.1] dark:text-white/30">
-                  + Add Plugin
-                </div>
-              </div>
-            </div>
+          {/* Screenshot 1: Docs view */}
+          <BrowserMockup title="OpenWebUI docs and setup view" url="localhost/docs">
+            <img
+              src={docsViewImage}
+              alt="OpenWebUI docs page used during setup"
+              className="w-full rounded-xl border border-slate-200 shadow-sm dark:border-white/[0.08]"
+            />
           </BrowserMockup>
 
           {/* Screenshot 2: MCP Tool Connection */}
           <BrowserMockup title="MCP Tool Connection in OpenWebUI" url="openwebui.local/admin/tools">
-            <div className="min-h-[240px] space-y-4">
-              <div className="flex items-center justify-between">
-                <div className="h-6 w-36 rounded bg-slate-100 dark:bg-white/[0.08]" />
-                <div className="h-8 w-24 rounded-lg bg-sky-100 dark:bg-sky-500/20" />
-              </div>
-              <div className="rounded-xl border border-slate-200 bg-slate-50 p-5 dark:border-white/[0.06] dark:bg-white/[0.02]">
-                <div className="space-y-3">
-                  <div className="flex items-center gap-3">
-                    <span className="rounded bg-sky-100 px-2 py-0.5 text-xs font-medium text-sky-700 dark:bg-sky-400/10 dark:text-sky-300">
-                      MCP
-                    </span>
-                    <span className="text-sm font-medium text-slate-700 dark:text-white/80">
-                      InsightRAG KB Search
-                    </span>
-                    <span className="ml-auto rounded-full bg-green-100 px-2 py-0.5 text-xs text-green-700 dark:bg-green-400/10 dark:text-green-400">
-                      Connected
-                    </span>
-                  </div>
-                  <div className="rounded-lg border border-slate-200 bg-white px-4 py-2 font-mono text-xs text-slate-500 dark:border-white/[0.08] dark:bg-white/[0.04] dark:text-white/40">
-                    http://host.docker.internal:8002/mcp
-                  </div>
-                </div>
-              </div>
-            </div>
+            <img
+              src={openWebUIMcpImage}
+              alt="OpenWebUI MCP tool configuration screen"
+              className="w-full rounded-xl border border-slate-200 shadow-sm dark:border-white/[0.08]"
+            />
           </BrowserMockup>
 
-          {/* Screenshot 3: Chat with RAG */}
-          <BrowserMockup title="RAG-Powered Chat" url="insightrag.app/chat">
-            <div className="min-h-[260px] space-y-4">
-              <div className="ml-auto max-w-xs rounded-2xl rounded-br-md bg-sky-100 px-4 py-3 text-sm text-sky-900 dark:bg-sky-400/10 dark:text-sky-200">
-                What are our deployment guidelines?
-              </div>
-              <div className="mr-auto max-w-md space-y-2 rounded-2xl rounded-bl-md bg-slate-100 px-4 py-3 dark:bg-white/[0.04]">
-                <div className="h-3 w-full rounded bg-slate-200 dark:bg-white/[0.08]" />
-                <div className="h-3 w-5/6 rounded bg-slate-200 dark:bg-white/[0.08]" />
-                <div className="h-3 w-4/6 rounded bg-slate-200 dark:bg-white/[0.08]" />
-                <div className="mt-3 inline-block rounded bg-slate-200 px-2 py-0.5 text-xs text-slate-500 dark:bg-white/[0.06] dark:text-white/30">
-                  Source: Engineering Docs &middot; 3 chunks retrieved
-                </div>
-              </div>
-              <div className="flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-3 dark:border-white/[0.08] dark:bg-white/[0.04]">
-                <div className="h-4 flex-1 rounded bg-slate-100 dark:bg-white/[0.04]" />
-                <div className="h-8 w-8 rounded-lg bg-sky-100 dark:bg-sky-400/20" />
-              </div>
-            </div>
+          {/* Screenshot 3: Plugin Config */}
+          <BrowserMockup title="Plugin Configuration" url="insightrag.app/settings/plugins">
+            <img
+              src={pluginConfigImage}
+              alt="InsightRAG plugin configuration screen"
+              className="w-full rounded-xl border border-slate-200 shadow-sm dark:border-white/[0.08]"
+            />
           </BrowserMockup>
         </m.div>
       </div>
