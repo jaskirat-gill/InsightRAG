@@ -1,55 +1,71 @@
 import { Effect } from '@/components/ui/animate'
-import { FileText, Layers } from 'lucide-react'
+import { FileText, Layers, FileSpreadsheet, Presentation, Code, Image } from 'lucide-react'
 
-const formatGroups = [
+const formatCategories = [
   {
+    icon: FileText,
     label: 'Documents',
-    formats: [
-      { ext: '.pdf', name: 'PDF' },
-      { ext: '.docx', name: 'Word 2007+' },
-      { ext: '.doc', name: 'Word 97–2003' },
-      { ext: '.odt', name: 'OpenDocument Text' },
-      { ext: '.rtf', name: 'Rich Text' },
-      { ext: '.epub', name: 'EPUB eBook' },
+    color: 'sky',
+    items: [
+      { name: 'PDF', exts: '.pdf' },
+      { name: 'Word', exts: '.docx .doc' },
+      { name: 'OpenDocument', exts: '.odt' },
+      { name: 'Rich Text', exts: '.rtf' },
+      { name: 'EPUB', exts: '.epub' },
     ],
   },
   {
-    label: 'Spreadsheets & Presentations',
-    formats: [
-      { ext: '.xlsx', name: 'Excel 2007+' },
-      { ext: '.xls', name: 'Excel 97–2003' },
-      { ext: '.csv', name: 'Comma-Separated Values' },
-      { ext: '.tsv', name: 'Tab-Separated Values' },
-      { ext: '.pptx', name: 'PowerPoint 2007+' },
-      { ext: '.ppt', name: 'PowerPoint 97–2003' },
+    icon: FileSpreadsheet,
+    label: 'Spreadsheets',
+    color: 'emerald',
+    items: [
+      { name: 'Excel', exts: '.xlsx .xls' },
+      { name: 'CSV', exts: '.csv' },
+      { name: 'TSV', exts: '.tsv' },
     ],
   },
   {
+    icon: Presentation,
+    label: 'Presentations',
+    color: 'amber',
+    items: [
+      { name: 'PowerPoint', exts: '.pptx .ppt' },
+    ],
+  },
+  {
+    icon: Code,
     label: 'Text & Markup',
-    formats: [
-      { ext: '.txt', name: 'Plain Text' },
-      { ext: '.md', name: 'Markdown' },
-      { ext: '.html', name: 'HTML' },
-      { ext: '.htm', name: 'HTML (alt)' },
-      { ext: '.json', name: 'JSON' },
-      { ext: '.xml', name: 'XML' },
-      { ext: '.yaml', name: 'YAML' },
-      { ext: '.yml', name: 'YAML (alt)' },
+    color: 'violet',
+    items: [
+      { name: 'Plain Text', exts: '.txt' },
+      { name: 'Markdown', exts: '.md' },
+      { name: 'HTML', exts: '.html .htm' },
+      { name: 'JSON', exts: '.json' },
+      { name: 'XML', exts: '.xml' },
+      { name: 'YAML', exts: '.yaml .yml' },
     ],
   },
   {
+    icon: Image,
     label: 'Images (OCR)',
-    formats: [
-      { ext: '.png', name: 'PNG' },
-      { ext: '.jpeg', name: 'JPEG' },
-      { ext: '.jpg', name: 'JPEG (alt)' },
-      { ext: '.bmp', name: 'Bitmap' },
-      { ext: '.tiff', name: 'TIFF' },
-      { ext: '.tif', name: 'TIFF (alt)' },
-      { ext: '.heic', name: 'HEIC' },
+    color: 'rose',
+    items: [
+      { name: 'PNG', exts: '.png' },
+      { name: 'JPEG', exts: '.jpeg .jpg' },
+      { name: 'Bitmap', exts: '.bmp' },
+      { name: 'TIFF', exts: '.tiff .tif' },
+      { name: 'HEIC', exts: '.heic' },
     ],
   },
 ]
+
+const colorMap: Record<string, { icon: string; bg: string; border: string }> = {
+  sky:     { icon: 'text-sky-600 dark:text-sky-400',     bg: 'bg-sky-50 dark:bg-sky-400/10',         border: 'border-sky-200 dark:border-sky-400/20' },
+  emerald: { icon: 'text-emerald-600 dark:text-emerald-400', bg: 'bg-emerald-50 dark:bg-emerald-400/10', border: 'border-emerald-200 dark:border-emerald-400/20' },
+  amber:   { icon: 'text-amber-600 dark:text-amber-400',   bg: 'bg-amber-50 dark:bg-amber-400/10',     border: 'border-amber-200 dark:border-amber-400/20' },
+  violet:  { icon: 'text-violet-600 dark:text-violet-400', bg: 'bg-violet-50 dark:bg-violet-400/10',   border: 'border-violet-200 dark:border-violet-400/20' },
+  rose:    { icon: 'text-rose-600 dark:text-rose-400',     bg: 'bg-rose-50 dark:bg-rose-400/10',       border: 'border-rose-200 dark:border-rose-400/20' },
+}
 
 const strategies = [
   { name: 'Semantic', description: 'Splits by sentence boundaries for narrative text' },
@@ -85,7 +101,7 @@ export default function DocsFeaturesSection() {
           {/* Document Formats Card */}
           <Effect slide="up" blur>
             <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm dark:border-white/[0.08] dark:bg-white/[0.03] dark:shadow-none">
-              <div className="flex items-center gap-3">
+              <div className="mb-6 flex items-center gap-3">
                 <div className="flex h-10 w-10 items-center justify-center rounded-xl border border-sky-200 bg-sky-50 text-sky-600 dark:border-sky-400/20 dark:bg-sky-400/10 dark:text-sky-400">
                   <FileText className="h-5 w-5" />
                 </div>
@@ -97,43 +113,49 @@ export default function DocsFeaturesSection() {
                 </div>
               </div>
 
-              <div className="mt-6 grid gap-6 sm:grid-cols-2">
-                {formatGroups.map((group) => (
-                  <div key={group.label}>
-                    <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-slate-400 dark:text-white/30">
-                      {group.label}
-                    </p>
-                    <table className="w-full text-sm">
-                      <thead>
-                        <tr className="border-b border-slate-200 dark:border-white/[0.08]">
-                          <th className="pb-1.5 text-left text-xs font-semibold uppercase tracking-wider text-slate-400 dark:text-white/30">
-                            Format
-                          </th>
-                          <th className="pb-1.5 text-left text-xs font-semibold uppercase tracking-wider text-slate-400 dark:text-white/30">
-                            Extension
-                          </th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {group.formats.map((f) => (
-                          <tr
-                            key={f.ext}
-                            className="border-b border-slate-100 last:border-0 dark:border-white/[0.04]"
+              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                {formatCategories.map((cat) => {
+                  const colors = colorMap[cat.color]
+                  return (
+                    <div
+                      key={cat.label}
+                      className="rounded-xl border border-slate-200 bg-slate-50/50 p-4 dark:border-white/[0.06] dark:bg-white/[0.02]"
+                    >
+                      <div className="mb-3 flex items-center gap-2">
+                        <div
+                          className={`flex h-7 w-7 items-center justify-center rounded-lg border ${colors.border} ${colors.bg} ${colors.icon}`}
+                        >
+                          <cat.icon className="h-3.5 w-3.5" />
+                        </div>
+                        <span className="text-sm font-semibold text-slate-800 dark:text-white/80">
+                          {cat.label}
+                        </span>
+                      </div>
+                      <div className="space-y-2">
+                        {cat.items.map((item) => (
+                          <div
+                            key={item.name}
+                            className="flex items-center justify-between gap-2"
                           >
-                            <td className="py-1.5 text-slate-700 dark:text-slate-300">
-                              {f.name}
-                            </td>
-                            <td className="py-1.5">
-                              <span className="rounded-md border border-slate-200 bg-slate-50 px-2 py-0.5 font-mono text-xs text-slate-600 dark:border-white/[0.08] dark:bg-white/[0.04] dark:text-slate-300">
-                                {f.ext}
-                              </span>
-                            </td>
-                          </tr>
+                            <span className="text-sm text-slate-600 dark:text-slate-300">
+                              {item.name}
+                            </span>
+                            <div className="flex gap-1">
+                              {item.exts.split(' ').map((ext) => (
+                                <span
+                                  key={ext}
+                                  className="rounded border border-slate-200 bg-white px-1.5 py-0.5 font-mono text-[11px] text-slate-500 dark:border-white/[0.08] dark:bg-white/[0.04] dark:text-slate-400"
+                                >
+                                  {ext}
+                                </span>
+                              ))}
+                            </div>
+                          </div>
                         ))}
-                      </tbody>
-                    </table>
-                  </div>
-                ))}
+                      </div>
+                    </div>
+                  )
+                })}
               </div>
             </div>
           </Effect>
