@@ -197,12 +197,14 @@ If you want to use the document sync feature, you need an AWS S3 bucket and IAM 
 4. Leave **Block Public Access** enabled
 5. Click **Create bucket**
 
-<!-- Screenshot: AWS S3 Console - Create bucket dialog -->
+![alt text](image.png)
+![alt text](image-1.png)
 
 #### 3b. Create an IAM Policy
 
 1. Go to [IAM Console → Policies](https://us-east-1.console.aws.amazon.com/iamv2/home#/policies)
 2. Click **Create policy** → choose **JSON**
+   - or use IAM console ui, choose S3 -> List Bucket, GetObject, GetBucketLocations
 3. Paste the following (replace `YOUR_BUCKET_NAME`):
 
 ```json
@@ -227,12 +229,17 @@ If you want to use the document sync feature, you need an AWS S3 bucket and IAM 
 
 4. Name the policy (e.g., `InsightRAG-S3-Read`) and click **Create policy**
 
+![alt text](image-2.png)
 #### 3c. Create an IAM User
 
 1. Go to [IAM Console → Users](https://us-east-1.console.aws.amazon.com/iamv2/home#/users)
 2. Click **Create user** → enter a name (e.g., `insightrag-sync`)
-3. Select **Attach policies directly** → find and select `InsightRAG-S3-Read`
+3. Select **Attach policies directly** → find and select `InsightRAG-S3-Read` & `AmazonSQSFullAccess` 
 4. Click **Create user**
+
+![alt text](image-3.png)
+![alt text](image-5.png)
+![alt text](image-4.png)
 
 #### 3d. Generate Access Keys
 
@@ -241,7 +248,8 @@ If you want to use the document sync feature, you need an AWS S3 bucket and IAM 
 3. Select **Application running outside AWS**
 4. Copy the **Access Key ID** and **Secret Access Key** into your `.env` file
 
-<!-- Screenshot: AWS IAM Console showing Access Key creation screen -->
+![alt text](image-6.png)
+![alt text](image-7.png)
 
 > **Note:** If you do not have AWS credentials, you can still run the application. The sync and document processing features will be unavailable, but the UI, authentication, and MCP server will work.
 
@@ -366,7 +374,7 @@ Before syncing documents, you must configure a source plugin that tells the syst
 1. In the left sidebar, click **Settings**
 2. Select the **Plugins** tab
 
-<!-- Screenshot: Settings page with Plugins tab highlighted -->
+![alt text](image-9.png)
 
 3. Click **Add Plugin** (or the `+` button)
 4. Fill in the plugin configuration:
@@ -376,16 +384,15 @@ Before syncing documents, you must configure a source plugin that tells the syst
    - **Active:** Toggle on
    - **Config → bucket_name:** Your S3 bucket name
    - **Config → region_name:** Your AWS region (e.g., `us-east-1`)
-   - **Config → sqs_queue_url:** *(optional)* Your SQS queue URL for real-time sync
+   - **Config → sqs_queue_url:** *(optional) but can not be empty* Your SQS queue URL for real-time sync
 
-<!-- Screenshot: Plugin configuration form filled in -->
+![alt text](image-8.png)
 
 5. Click **Save**
 6. Click **Test Connection** to verify the plugin can reach your S3 bucket
 
 <!-- Screenshot: Plugin list showing the S3 plugin with a green "Connected" status -->
 
-> If you do not have AWS credentials, skip this step. The system will still run but no documents can be synced.
 
 ---
 
