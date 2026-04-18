@@ -7,6 +7,32 @@
 
 ---
 
+## Quick Status Overview
+
+| Status | Features |
+|--------|---------|
+| **Fully working** | Authentication & RBAC, Knowledge Base management, Document sync from S3, Document processing pipeline (parse → chunk → embed → index), Hybrid search (vector + keyword), MCP server with 3 tools, Retrieval analytics & heatmaps, Health dashboard, User management, CI/CD pipeline |
+| **Partially working** | Document strategy override (saves setting but does not re-trigger processing), Real-time S3 sync via SQS (works if SQS is configured; falls back to polling otherwise) |
+| **Not implemented** | Chat interface (UI component exists but not accessible), Additional sync plugins (only S3 is supported), Rate limiting, Observability / metrics (Prometheus, Jaeger) |
+
+---
+
+## Demo Access
+
+Use these credentials to log in to any running instance — no setup required.
+
+| Field | Value |
+|-------|-------|
+| **Email** | `admin@example.com` |
+| **Password** | `Admin123!` |
+
+- **Live instance:** https://cpsc319.jaskiratgill.ca
+- **Local (after setup):** http://localhost:5173
+
+The database is automatically seeded with this admin account on first start. You do not need to create a user manually.
+
+---
+
 ## Table of Contents
 
 1. [Project Overview](#1-project-overview)
@@ -25,14 +51,16 @@
    - [Step 10: Sync Documents](#step-10-sync-documents)
    - [Step 11: Get Your Access Token (for MCP)](#step-11-get-your-access-token-for-mcp)
    - [Step 12: Connect an MCP Client](#step-12-connect-an-mcp-client)
-5. [Feature Summary](#5-feature-summary)
-   - [Implemented Features](#51-implemented-features)
-   - [Features Not Implemented](#52-features-not-implemented)
-   - [Partially Implemented Features](#53-partially-implemented-features)
-6. [Known Bugs and Limitations](#6-known-bugs-and-limitations)
-7. [Codebase Structure](#7-codebase-structure)
-8. [Production Deployment](#8-production-deployment)
-9. [Troubleshooting](#9-troubleshooting)
+5. [How to Use the System](#5-how-to-use-the-system)
+6. [Feature Summary](#6-feature-summary)
+   - [Implemented Features](#61-implemented-features)
+   - [Features Not Implemented](#62-features-not-implemented)
+   - [Partially Implemented Features](#63-partially-implemented-features)
+7. [Known Bugs and Limitations](#7-known-bugs-and-limitations)
+8. [Codebase Structure](#8-codebase-structure)
+9. [Production Deployment](#9-production-deployment)
+10. [Future Work & How to Continue](#10-future-work--how-to-continue)
+11. [Troubleshooting](#11-troubleshooting)
 
 ---
 
@@ -51,7 +79,7 @@
 
 **Built-in documentation:** Visit `/docs` on any running instance (e.g., `http://localhost:5173/docs` locally or `https://cpsc319.jaskiratgill.ca/docs`) for the interactive docs site covering Quick Start, Features, Plugin Setup, MCP Setup, and team information.
 
-**GitHub repository:** `https://github.com/Sherry-Rui-Xia/OpenWebUI-Project`
+**GitHub repository:** https://github.com/jaskirat-gill/InsightRAG
 
 ---
 
@@ -109,8 +137,8 @@ git --version
 Open your terminal and run:
 
 ```bash
-git clone https://github.com/Sherry-Rui-Xia/OpenWebUI-Project.git
-cd OpenWebUI-Project
+git clone https://github.com/jaskirat-gill/InsightRAG.git
+cd InsightRAG
 ```
 
 <!-- Screenshot: terminal showing successful git clone output -->
@@ -496,9 +524,71 @@ If you are using OpenWebUI:
 
 ---
 
-## 5. Feature Summary
+## 5. How to Use the System
 
-### 5.1 Implemented Features
+Once the system is running and you are logged in, the typical user workflow is:
+
+### Step-by-step workflow
+
+```
+Login → Configure Plugin → Create Knowledge Base → Sync Documents → Search / Query via MCP
+```
+
+#### 1. Login
+
+Go to `http://localhost:5173` (or the live URL) and sign in with the admin credentials from the [Demo Access](#demo-access) section above.
+
+#### 2. Configure a Source Plugin
+
+Before syncing any documents, the system needs to know where to pull files from.
+
+1. **Settings → Plugins → Add Plugin**
+2. Choose **S3Plugin**, enter your AWS S3 bucket name and region
+3. Click **Test Connection** to verify it works
+4. Save
+
+#### 3. Create a Knowledge Base
+
+A Knowledge Base (KB) is a named collection of documents with its own search index.
+
+1. **Knowledge Bases → New**
+2. Give it a name and select the plugin you configured
+3. Optionally add **Sync Folders** (S3 path prefixes) to scope which files go into this KB
+4. Click **Create Knowledge Base**
+
+#### 4. Sync Documents
+
+Pull documents from S3 and process them into the search index.
+
+1. On the **Knowledge Bases** page, click **Sync**
+2. Wait for documents to process — click a document to check its status (`processing` → `completed`)
+3. Once completed, the documents are chunked, embedded, and indexed in Qdrant
+
+#### 5. Browse & Monitor
+
+- Click any Knowledge Base to see its documents
+- Click a document to open the inline viewer, chunk browser, and retrieval analytics
+- Visit the **Health Dashboard** (left sidebar) for KB-level metrics
+
+#### 6. Query via MCP (AI Assistant Integration)
+
+1. **Settings → General → Session Tokens → Copy Access Token**
+2. In your MCP client (e.g., Claude Desktop), configure:
+   - **URL:** `http://localhost:8002/mcp` (or `https://cpsc319.jaskiratgill.ca/api/mcp/mcp` on the live instance)
+   - **Authorization:** `Bearer <your_token>`
+3. Use the `search_knowledge_base` tool to ask questions about your indexed documents
+
+#### 7. Manage Users (Admin only)
+
+1. **User Management** (left sidebar) → list all users
+2. Assign roles: `admin`, `developer`, or `end_user`
+3. Each role has different levels of access to KBs and admin features
+
+---
+
+## 6. Feature Summary
+
+### 6.1 Implemented Features
 
 #### Frontend (React + Vite)
 
@@ -562,7 +652,7 @@ If you are using OpenWebUI:
 
 ---
 
-### 5.2 Features Not Implemented
+### 6.2 Features Not Implemented
 
 | Feature | Notes |
 |---------|-------|
@@ -575,7 +665,7 @@ If you are using OpenWebUI:
 
 ---
 
-### 5.3 Partially Implemented Features
+### 6.3 Partially Implemented Features
 
 | Feature | Status | Notes |
 |---------|--------|-------|
@@ -585,20 +675,7 @@ If you are using OpenWebUI:
 
 ---
 
-## 6. Known Bugs and Limitations
-
-| # | Description | Severity |
-|---|-------------|----------|
-| 1 | Document strategy override (e.g., changing chunking strategy) saves the setting to the database but does not re-trigger the document processing pipeline | **Medium** |
-| 2 | The Chat page (`Chat.tsx`) is unreachable — no route is defined for it in `App.tsx` | **Medium** |
-| 3 | Session expiry dialog: if the user dismisses the re-login dialog without logging in again, the app enters a partially broken state (API requests fail silently) | **Medium** |
-| 4 | No rate limiting on the `/sync` or search endpoints — rapid requests could queue duplicate processing jobs | **Medium** |
-| 5 | Clicking **Reset** (sync cache clear) is a global operation and could disrupt a concurrent sync cycle | **Low** |
-| 6 | S3 presigned URL generation failures surface a generic "Failed to generate S3 URL" message with no actionable detail for the user | **Low** |
-| 7 | No frontend unit or integration tests — all frontend correctness relies on manual testing | **Low** |
-| 8 | Backend test coverage is minimal — only the sync-service has tests (3 test cases covering plugin manager, password hashing, and JWT) | **Low** |
-| 9 | KB health score may appear inaccurate while documents are still being processed (the score reflects only completed documents) | **Low** |
-| 10 | No file size limits are enforced on document ingestion — very large files may cause processing timeouts | **Low** |
+## 7. Known Bugs and Limitations
 
 **Severity scale:**
 - **High:** Blocks core functionality or causes major failure
@@ -607,7 +684,97 @@ If you are using OpenWebUI:
 
 ---
 
-## 7. Codebase Structure
+#### Bug 1 — Document strategy override does not re-trigger processing `Medium`
+
+**What happens:** When a user changes a document's chunking strategy in the UI (e.g., switching from "Auto" to "Table Heavy"), the new strategy is saved to the database but the document is not re-processed. The chunks in the search index still reflect the original strategy.
+
+**Impact on demo:** The override control appears to work (no error shown), but search results will not reflect the new strategy until a future manual re-sync. This can confuse users who expect immediate re-indexing.
+
+**Workaround:** Click **Reset** on the Knowledge Bases page and then **Sync** again to force full re-processing.
+
+---
+
+#### Bug 2 — Chat page is unreachable `Medium`
+
+**What happens:** The `Chat.tsx` component exists in the codebase with OpenWebUI integration, model selection, and markdown rendering — but no route is defined for it in `App.tsx`. There is no way to navigate to the chat interface from the UI.
+
+**Impact on demo:** The chat feature does not exist from the user's perspective. It is invisible in the running application.
+
+**Workaround:** None. This feature was not completed in time for handover.
+
+---
+
+#### Bug 3 — Session expiry dialog broken state `Medium`
+
+**What happens:** When a login session expires, the app shows a re-login dialog. If the user closes this dialog without logging in again, the app continues running but all API calls silently fail (401 errors). The UI shows no feedback.
+
+**Impact on demo:** If a demo session expires mid-presentation, the app will appear broken. Refreshing the page and logging in again resolves it.
+
+**Workaround:** Refresh the page if the app stops responding after an idle period.
+
+---
+
+#### Bug 4 — No rate limiting on sync/search endpoints `Medium`
+
+**What happens:** Clicking **Sync** repeatedly in quick succession sends multiple sync requests to the backend. Each request creates a separate set of processing jobs in Redis, potentially causing duplicate document processing.
+
+**Impact on demo:** Does not affect normal use. Only an issue if the sync button is clicked many times rapidly.
+
+**Workaround:** Wait for the "Syncing..." state to clear before clicking Sync again.
+
+---
+
+#### Bug 5 — Sync Reset is a global operation `Low`
+
+**What happens:** Clicking **Reset** clears the sync delta cache for all knowledge bases and all plugins at once. If a sync is running concurrently, it may lead to files being re-queued unexpectedly.
+
+**Impact on demo:** Low risk in single-user demo scenarios. Only relevant in a multi-user concurrent environment.
+
+---
+
+#### Bug 6 — Generic S3 error messages `Low`
+
+**What happens:** When a document's S3 presigned URL cannot be generated (e.g., due to expired credentials or missing permissions), the UI shows "Failed to generate S3 URL" with no detail about the root cause.
+
+**Impact on demo:** The inline document viewer may fail to load PDFs or images. The document list still shows correctly.
+
+**Workaround:** Verify AWS credentials in `.env` and confirm the IAM user has `s3:GetObject` permission.
+
+---
+
+#### Bug 7 — No frontend tests `Low`
+
+**What happens:** There are no unit or integration tests for any React component. Correctness relies entirely on manual testing.
+
+**Impact on demo:** Does not affect the running application. A risk for future development — regressions may not be caught.
+
+---
+
+#### Bug 8 — Minimal backend test coverage `Low`
+
+**What happens:** Only the sync-service has tests (3 test cases: plugin manager, password hashing, JWT). The query engine, MCP server, and document processing engine have no tests.
+
+**Impact on demo:** Does not affect the running application. A risk for future development.
+
+---
+
+#### Bug 9 — KB health score misleading during processing `Low`
+
+**What happens:** The health score for a Knowledge Base is calculated only from documents with `completed` status. While documents are still processing, the score may appear lower than the final expected value.
+
+**Impact on demo:** After a sync, wait a few minutes for processing to finish before presenting health metrics.
+
+---
+
+#### Bug 10 — No file size limits on ingestion `Low`
+
+**What happens:** There is no file size check before a document is queued for processing. Very large files (e.g., a 500 MB PDF) may cause the document-processing-engine to time out silently.
+
+**Impact on demo:** Not an issue with normal-sized documents (under ~50 MB). Avoid uploading unusually large files during demos.
+
+---
+
+## 8. Codebase Structure
 
 ```
 OpenWebUI-Project/
@@ -678,7 +845,7 @@ OpenWebUI-Project/
 
 ---
 
-## 8. Production Deployment
+## 9. Production Deployment
 
 The production instance is deployed on a **DigitalOcean droplet** using Docker Compose with a host nginx reverse proxy for SSL termination.
 
@@ -744,7 +911,65 @@ The following secrets must be configured in GitHub repository settings for CI/CD
 
 ---
 
-## 9. Troubleshooting
+## 10. Future Work & How to Continue
+
+This section is intended for any developer or team who picks up this project after handover.
+
+### Where to start
+
+1. **Read the codebase overview** in Section 8 above — the `backend/sync-service/` and `frontend/src/` directories are the core of the system
+2. **Run locally** following the setup guide (Section 4) — the full stack starts with `docker compose up --build`
+3. **Read `docs/plugin-development.md`** before adding new sync sources
+4. **Check the `TODO` in `backend/sync-service/routes/documents.py:435`** — this is the highest-priority incomplete item
+
+### Suggested next steps
+
+#### High priority
+
+| Task | Description |
+|------|-------------|
+| Fix strategy override | After a user changes a document's chunking strategy, trigger a re-processing job (the DB save already works; only the Celery task dispatch is missing) |
+| Wire up Chat page | Add a route for `Chat.tsx` in `App.tsx` and test the OpenWebUI MCP integration end-to-end |
+| Add rate limiting | Add `slowapi` or similar middleware to the sync-service FastAPI app to throttle `/sync` and search endpoints |
+
+#### Medium priority
+
+| Task | Description |
+|------|-------------|
+| Add more sync plugins | Implement `GCSPlugin` (Google Cloud Storage) or `AzureBlobPlugin` by following the `SourcePlugin` interface in `backend/sync-service/app/plugins/interface.py` |
+| Add observability | Integrate Prometheus metrics + Grafana dashboard for request rates, processing queue depth, and search latency |
+| Expand test coverage | Add pytest tests for the query engine and MCP server; add Playwright tests for critical frontend flows |
+| File size validation | Add a file size check before queuing documents for processing to prevent worker timeouts |
+
+#### Low priority / nice to have
+
+| Task | Description |
+|------|-------------|
+| Streaming search results | Return MCP search results as a stream rather than a single response |
+| Multi-tenant KB sharing | Allow a KB to be shared across multiple users with different permission levels |
+| Structured logging | Replace `print()`/basic logging with structured JSON logs for easier log aggregation |
+| Session handling hardening | Fix the session-expiry broken-state bug (Bug 3 above) |
+
+### How to add a new sync plugin
+
+1. Create a new file in `backend/sync-service/app/plugins/` (e.g., `gcs.py`)
+2. Implement a class that inherits `SourcePlugin` from `interface.py`
+3. Implement the `sync()` method to yield `FileEvent` objects
+4. Restart the sync-service — the plugin is auto-discovered
+5. Configure an instance via **Settings → Plugins** in the UI
+
+See `docs/plugin-development.md` for a full walkthrough.
+
+### Key contacts
+
+| Person | Role |
+|--------|------|
+| Jaskirat Gill | Backend architecture, infrastructure, CI/CD |
+| Sherry Rui Xia | Frontend, documentation pages |
+
+---
+
+## 11. Troubleshooting
 
 ### Docker containers fail to start
 
@@ -804,4 +1029,8 @@ The following secrets must be configured in GitHub repository settings for CI/CD
 
 ---
 
-*InsightRAG — CPSC 319 Final Project Handover | April 2025*
+---
+
+*InsightRAG — CPSC 319 Final Project Handover | April 2025*  
+*GitHub: https://github.com/jaskirat-gill/InsightRAG*  
+*Live: https://cpsc319.jaskiratgill.ca*
