@@ -162,8 +162,8 @@ AWS_SECRET_ACCESS_KEY=wJalr...     # Your AWS Secret Access Key
 AWS_REGION=us-east-1               # Your S3 bucket region
 S3_BUCKET_NAME=your-bucket-name    # Your S3 bucket name
 
-# ── SQS (optional — enables real-time file change detection) ──
-SQS_QUEUE_URL=https://sqs.us-east-1.amazonaws.com/123456789012/openwebui-s3-events
+# ── SQS (required — must be a valid queue URL, see Step 3e) ──
+SQS_QUEUE_URL=https://sqs.us-east-1.amazonaws.com/123456789012/insightrag-s3-events
 
 # ── Sync Scheduler ───────────────────────────────────────
 # How often background sync runs (seconds). Set to 0 to disable.
@@ -251,7 +251,57 @@ If you want to use the document sync feature, you need an AWS S3 bucket and IAM 
 ![alt text](image-6.png)
 ![alt text](image-7.png)
 
-> **Note:** If you do not have AWS credentials, you can still run the application. The sync and document processing features will be unavailable, but the UI, authentication, and MCP server will work.
+#### 3e. Create an SQS Queue and Wire It to S3 (Required)
+
+`SQS_QUEUE_URL` **must** be a valid SQS queue URL. Leaving it empty or using a placeholder causes the sync to crash with an `InvalidAddress` error.
+
+1. Go to the [Amazon SQS Console](https://console.aws.amazon.com/sqs/)
+2. Click **Create queue** → choose **Standard** (not FIFO)
+3. Name it (e.g., `insightrag-s3-events`)
+4. Set **Receive message wait time** to **5 seconds** (enables long polling)
+5. Click **Create queue**
+6. Copy the **Queue URL** — it looks like `https://sqs.us-east-1.amazonaws.com/123456789012/insightrag-s3-events`
+
+**Allow S3 to send messages to this queue** — on the SQS queue page, go to **Access policy** and add this statement (replace the three placeholders):
+
+```json
+{
+    "Effect": "Allow",
+    "Principal": { "Service": "s3.amazonaws.com" },
+    "Action": "SQS:SendMessage",
+    "Resource": "arn:aws:sqs:*:YOUR_AWS_ACCOUNT_ID:YOUR_QUEUE_NAME",
+    "Condition": {
+        "ArnLike": { "aws:SourceArn": "arn:aws:s3:::YOUR_BUCKET_NAME" }
+    }
+}
+```
+
+**Configure S3 event notifications** — in your S3 bucket:
+
+1. Go to **Properties → Event notifications → Create event notification**
+2. Under **Event types** select `s3:ObjectCreated:*` and `s3:ObjectRemoved:*`
+3. Under **Destination** choose **SQS queue** and select the queue you just created
+4. Click **Save changes**
+
+**Add SQS permissions to the IAM policy** you created in step 3b:
+
+```json
+{
+    "Effect": "Allow",
+    "Action": [
+        "sqs:ReceiveMessage",
+        "sqs:DeleteMessage",
+        "sqs:GetQueueAttributes"
+    ],
+    "Resource": "arn:aws:sqs:*:YOUR_AWS_ACCOUNT_ID:YOUR_QUEUE_NAME"
+}
+```
+
+**Add the Queue URL to `.env`:**
+
+```env
+SQS_QUEUE_URL=https://sqs.us-east-1.amazonaws.com/123456789012/insightrag-s3-events
+```
 
 ---
 
