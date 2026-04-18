@@ -182,7 +182,7 @@ VITE_OPENWEBUI_TIMEOUT_MS=120000
 > **Important:** Never commit your `.env` file to version control. It is already listed in `.gitignore`.
 
 <!-- Screenshot: .env file open in a text editor with placeholder values -->
-
+<img src="screenshots/env-file-configuration.png" alt="Environment variables configuration in .env file" width="700">
 ---
 
 ### Step 3: Set Up AWS S3 Credentials
@@ -197,8 +197,8 @@ If you want to use the document sync feature, you need an AWS S3 bucket and IAM 
 4. Leave **Block Public Access** enabled
 5. Click **Create bucket**
 
-![alt text](image.png)
-![alt text](image-1.png)
+<img src="screenshots/aws-s3-create-bucket-1.png" alt="AWS S3 Console - Create bucket" width="700">
+<img src="screenshots/aws-s3-create-bucket-2.png" alt="AWS S3 Console - Bucket settings" width="700">
 
 #### 3b. Create an IAM Policy
 
@@ -229,7 +229,7 @@ If you want to use the document sync feature, you need an AWS S3 bucket and IAM 
 
 4. Name the policy (e.g., `InsightRAG-S3-Read`) and click **Create policy**
 
-![alt text](image-2.png)
+<img src="screenshots/aws-iam-create-policy.png" alt="AWS IAM Console - Create S3 read policy" width="700">
 #### 3c. Create an IAM User
 
 1. Go to [IAM Console → Users](https://us-east-1.console.aws.amazon.com/iamv2/home#/users)
@@ -237,9 +237,9 @@ If you want to use the document sync feature, you need an AWS S3 bucket and IAM 
 3. Select **Attach policies directly** → find and select `InsightRAG-S3-Read` & `AmazonSQSFullAccess` 
 4. Click **Create user**
 
-![alt text](image-3.png)
-![alt text](image-5.png)
-![alt text](image-4.png)
+<img src="screenshots/aws-iam-create-user-1.png" alt="AWS IAM Console - Create user step 1" width="700">
+<img src="screenshots/aws-iam-create-user-2.png" alt="AWS IAM Console - Attach policy to user" width="700">
+<img src="screenshots/aws-iam-create-user-3.png" alt="AWS IAM Console - User created confirmation" width="700">
 
 #### 3d. Generate Access Keys
 
@@ -248,8 +248,8 @@ If you want to use the document sync feature, you need an AWS S3 bucket and IAM 
 3. Select **Application running outside AWS**
 4. Copy the **Access Key ID** and **Secret Access Key** into your `.env` file
 
-![alt text](image-6.png)
-![alt text](image-7.png)
+<img src="screenshots/aws-iam-access-key-1.png" alt="AWS IAM Console - Create access key" width="700">
+<img src="screenshots/aws-iam-access-key-2.png" alt="AWS IAM Console - Access key credentials" width="700">
 
 #### 3e. Create an SQS Queue and Wire It to S3 (Required)
 
@@ -424,7 +424,7 @@ Before syncing documents, you must configure a source plugin that tells the syst
 1. In the left sidebar, click **Settings**
 2. Select the **Plugins** tab
 
-![alt text](image-9.png)
+<img src="screenshots/ui-settings-plugins-tab.png" alt="InsightRAG Settings page - Plugins tab" width="700">
 
 3. Click **Add Plugin** (or the `+` button)
 4. Fill in the plugin configuration:
@@ -436,7 +436,7 @@ Before syncing documents, you must configure a source plugin that tells the syst
    - **Config → region_name:** Your AWS region (e.g., `us-east-1`)
    - **Config → sqs_queue_url:** *(optional) but can not be empty* Your SQS queue URL for real-time sync
 
-![alt text](image-8.png)
+<img src="screenshots/ui-plugin-configuration-form.png" alt="InsightRAG S3 plugin configuration form" width="700">
 
 5. Click **Save**
 6. Click **Test Connection** to verify the plugin can reach your S3 bucket
@@ -454,7 +454,7 @@ A Knowledge Base (KB) defines a logical collection of documents with its own pro
 2. Click **New** (top right)
 
 <!-- Screenshot: Knowledge Bases page with the New button highlighted -->
-
+<img src="screenshots/ui-knowledge-base-new-button.png" alt="Knowledge Bases page with New button highlighted" width="700">
 3. Fill in the form:
    - **Name:** A descriptive name (e.g., `Company Policies`)
    - **Description:** *(optional)*
@@ -464,10 +464,11 @@ A Knowledge Base (KB) defines a logical collection of documents with its own pro
    - **Chunk Overlap:** `50` (default — overlap between adjacent chunks)
 
 <!-- Screenshot: New Knowledge Base form filled in -->
-
+<img src="screenshots/ui-knowledge-base-create-form.png" alt="Create Knowledge Base form" width="700">
 4. Click **Create Knowledge Base**
 
 <!-- Screenshot: Knowledge Bases list showing the newly created KB -->
+<img src="screenshots/ui-knowledge-base-list-created.png" alt="Knowledge Bases list after KB created" width="700">
 
 **Routing logic:** When the sync runs, files are routed to a KB based on path prefix matching. The longest matching prefix wins. A KB with no sync folders acts as a catch-all for its plugin.
 
@@ -478,12 +479,12 @@ A Knowledge Base (KB) defines a logical collection of documents with its own pro
 Once a plugin and KB are configured, trigger a sync to pull documents from S3.
 
 1. On the **Knowledge Bases** page, click **Sync** in the top action bar
-![alt text](image-11.png)
+<img src="screenshots/ui-sync-button.png" alt="Knowledge Bases page - Sync button" width="700">
 
 2. The button changes to **Syncing...** while the request is in flight
 3. After the sync API call completes, a status badge appears
 
-![alt text](image-12.png)
+<img src="screenshots/ui-sync-status-badge.png" alt="Sync status badge after sync triggered" width="700">
 
 The sync process works as follows:
 
@@ -499,7 +500,7 @@ The sync process works as follows:
 
 To check document processing status, click on a KB, then click on any document to view its status badge (`processing`, `completed`, or `failed`).
 
-![alt text](image-10.png)
+<img src="screenshots/ui-document-processing-status.png" alt="Document processing status view" width="700">
 
 ---
 
