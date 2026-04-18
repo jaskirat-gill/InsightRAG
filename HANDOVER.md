@@ -478,13 +478,12 @@ A Knowledge Base (KB) defines a logical collection of documents with its own pro
 Once a plugin and KB are configured, trigger a sync to pull documents from S3.
 
 1. On the **Knowledge Bases** page, click **Sync** in the top action bar
-
-<!-- Screenshot: Knowledge Bases page with the Sync button highlighted -->
+![alt text](image-11.png)
 
 2. The button changes to **Syncing...** while the request is in flight
 3. After the sync API call completes, a status badge appears
 
-<!-- Screenshot: Sync status badge showing "Sync triggered" -->
+![alt text](image-12.png)
 
 The sync process works as follows:
 
@@ -500,7 +499,7 @@ The sync process works as follows:
 
 To check document processing status, click on a KB, then click on any document to view its status badge (`processing`, `completed`, or `failed`).
 
-<!-- Screenshot: Document details page showing status badges -->
+![alt text](image-10.png)
 
 ---
 
