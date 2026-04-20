@@ -555,7 +555,7 @@ Configure your MCP client with:
 }
 ```
 
-<!-- Screenshot: Claude Desktop MCP configuration dialog -->
+<img src="screenshots/mcp-claude-desktop-config.png" alt="Claude Desktop claude_desktop_config.json with InsightRAG MCP server configured" width="700">
 
 #### Option B: stdio Transport (local development)
 
@@ -564,6 +564,7 @@ Configure your MCP client with:
 ```
 
 The stdio wrapper keeps stdout clean for the MCP protocol.
+![alt text](image.png)
 
 #### Option C: OpenWebUI Integration
 
@@ -877,8 +878,6 @@ OpenWebUI-Project/
 │   │   └── reset_all.sql              # Full database reset
 │   └── shared/                        # Shared Python utilities
 │
-├── deploy/
-│   └── nginx/cpsc319.conf             # Production nginx config (SSL, reverse proxy)
 │
 ├── docs/                              # Additional documentation
 │   ├── plugin-setup.md                # Plugin configuration guide
@@ -892,7 +891,6 @@ OpenWebUI-Project/
 │
 ├── diagrams/                          # Architecture diagrams
 ├── docker-compose.yml                 # Local dev stack (all 8 services)
-├── docker-compose.droplet.yml         # DigitalOcean production overrides
 ├── .env.example                       # Environment variable template
 ├── .github/workflows/ci-cd.yml        # CI/CD: lint → test → build → deploy
 ├── README.md                          # Quick start reference
