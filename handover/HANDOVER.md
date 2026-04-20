@@ -58,9 +58,8 @@ The database is automatically seeded with this admin account on first start. You
    - [Partially Implemented Features](#63-partially-implemented-features)
 7. [Known Bugs and Limitations](#7-known-bugs-and-limitations)
 8. [Codebase Structure](#8-codebase-structure)
-9. [Production Deployment](#9-production-deployment)
-10. [Future Work & How to Continue](#10-future-work--how-to-continue)
-11. [Troubleshooting](#11-troubleshooting)
+9. [Future Work & How to Continue](#9-future-work--how-to-continue)
+10. [Troubleshooting](#10-troubleshooting)
 
 ---
 
@@ -900,73 +899,7 @@ OpenWebUI-Project/
 
 ---
 
-## 9. Production Deployment
-
-The production instance is deployed on a **DigitalOcean droplet** using Docker Compose with a host nginx reverse proxy for SSL termination.
-
-### Architecture
-
-```
-Client (HTTPS 443)
-       ↓
-Host nginx (SSL, Let's Encrypt)
-       ↓
-   /           → frontend (port 8080, Docker)
-   /api/sync/  → sync-service (port 8000)
-   /api/query/ → query-engine (port 8001)
-   /api/mcp/   → mcp-server (port 8002)
-```
-
-### Deployment Steps
-
-```bash
-# SSH into the droplet
-ssh user@cpsc319.jaskiratgill.ca
-
-# Pull latest code
-git pull origin main
-
-# Start production stack
-docker compose -f docker-compose.yml -f docker-compose.droplet.yml up -d
-
-# Check logs
-docker compose logs -f
-```
-
-### CI/CD Pipeline
-
-Every push to `main` triggers the GitHub Actions pipeline (`.github/workflows/ci-cd.yml`):
-
-1. **Frontend:** ESLint check + Vite build
-2. **Backend:** Python 3.11 syntax validation for all 4 services
-3. **Tests:** pytest for sync-service and document-processing-engine
-4. **Docker:** Build all images, push to GitHub Container Registry (`ghcr.io`)
-5. **Smoke test:** Start postgres, redis, qdrant, sync-service, query-engine; verify `/health` endpoints
-6. **Deploy:** SSH to DigitalOcean droplet → `docker compose pull` → `up -d --no-build`
-
-### SSL Certificates
-
-Certificates are managed by Let's Encrypt / Certbot:
-
-```bash
-sudo certbot certonly --webroot -w /var/www/html -d cpsc319.jaskiratgill.ca
-```
-
-### Required Secrets
-
-The following secrets must be configured in GitHub repository settings for CI/CD to work:
-
-| Secret | Purpose |
-|--------|---------|
-| `DO_SSH_KEY` | DigitalOcean droplet SSH private key |
-| `GHCR_TOKEN` | GitHub Container Registry push token |
-| `SECRET_KEY` | JWT signing key (same as in `.env`) |
-| `AWS_ACCESS_KEY_ID` | AWS credentials |
-| `AWS_SECRET_ACCESS_KEY` | AWS credentials |
-
----
-
-## 10. Future Work & How to Continue
+## 9. Future Work & How to Continue
 
 This section is intended for any developer or team who picks up this project after handover.
 
@@ -1024,7 +957,7 @@ See `docs/plugin-development.md` for a full walkthrough.
 
 ---
 
-## 11. Troubleshooting
+## 10. Troubleshooting
 
 ### Docker containers fail to start
 
