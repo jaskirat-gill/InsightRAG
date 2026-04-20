@@ -26,7 +26,6 @@ Use these credentials to log in to any running instance — no setup required.
 | **Email** | `admin@example.com` |
 | **Password** | `Admin123!` |
 
-- **Live instance:** https://cpsc319.jaskiratgill.ca
 - **Local (after setup):** http://localhost:5173
 
 The database is automatically seeded with this admin account on first start. You do not need to create a user manually.
@@ -74,9 +73,7 @@ The database is automatically seeded with this admin account on first start. You
 - **Monitor** knowledge base and document health, retrieval analytics, and chunk-level statistics through a web UI
 - **Manage** users, roles, and API keys with a role-based access control (RBAC) system
 
-**Live deployment:** `https://cpsc319.jaskiratgill.ca` (DigitalOcean droplet, requires access)
-
-**Built-in documentation:** Visit `/docs` on any running instance (e.g., `http://localhost:5173/docs` locally or `https://cpsc319.jaskiratgill.ca/docs`) for the interactive docs site covering Quick Start, Features, Plugin Setup, MCP Setup, and team information.
+**Built-in documentation:** Visit `http://localhost:5173/docs` on a running local instance for the interactive docs site covering Quick Start, Features, Plugin Setup, MCP Setup, and team information.
 
 **GitHub repository:** https://github.com/jaskirat-gill/InsightRAG
 
@@ -554,8 +551,6 @@ Configure your MCP client with:
 }
 ```
 
-<img src="screenshots/mcp-claude-desktop-config.png" alt="Claude Desktop claude_desktop_config.json with InsightRAG MCP server configured" width="700">
-
 #### Option B: stdio Transport (local development)
 
 ```bash
@@ -563,7 +558,8 @@ Configure your MCP client with:
 ```
 
 The stdio wrapper keeps stdout clean for the MCP protocol.
-![alt text](image.png)
+
+<img src="screenshots/mcp-claude-desktop-config.png" alt="Claude Desktop claude_desktop_config.json with InsightRAG MCP server configured" width="700">
 
 #### Option C: OpenWebUI Integration
 
@@ -631,7 +627,7 @@ Pull documents from S3 and process them into the search index.
 
 1. **Settings → General → Session Tokens → Copy Access Token**
 2. In your MCP client (e.g., Claude Desktop), configure:
-   - **URL:** `http://localhost:8002/mcp` (or `https://cpsc319.jaskiratgill.ca/api/mcp/mcp` on the live instance)
+   - **URL:** `http://localhost:8002/mcp`
    - **Authorization:** `Bearer <your_token>`
 3. Use the `search_knowledge_base` tool to ask questions about your indexed documents
 
@@ -1020,5 +1016,4 @@ See `docs/plugin-development.md` for a full walkthrough.
 ---
 
 *InsightRAG — CPSC 319 Final Project Handover | April 2025*  
-*GitHub: https://github.com/jaskirat-gill/InsightRAG*  
-*Live: https://cpsc319.jaskiratgill.ca*
+*GitHub: https://github.com/jaskirat-gill/InsightRAG*
