@@ -19,6 +19,8 @@
 
 ## Demo Access
 
+**Demo video:** https://youtu.be/-OyOqQNddfs
+
 Use these credentials to log in to any running instance — no setup required.
 
 | Field | Value |

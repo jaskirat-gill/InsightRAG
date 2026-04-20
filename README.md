@@ -14,6 +14,8 @@ A full-stack platform for syncing, processing, and searching documents via a hyb
 
 ## Demo credentials
 
+**Demo video:** https://youtu.be/-OyOqQNddfs
+
 | Field | Value |
 |-------|-------|
 | Email | `admin@example.com` |
