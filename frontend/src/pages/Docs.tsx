@@ -2,7 +2,6 @@ import { useState, useEffect } from 'react'
 import { Menu, X, Sun, Moon, Github } from 'lucide-react'
 import QuickStartSection from './docs/QuickStartSection'
 import DocsFeaturesSection from './docs/DocsFeaturesSection'
-import LiveDemoSection from './docs/LiveDemoSection'
 import PluginSetupSection from './docs/PluginSetupSection'
 import MCPSetupSection from './docs/MCPSetupSection'
 import DemoSection from './docs/DemoSection'
@@ -16,7 +15,6 @@ const sidebarLinks = [
   { label: 'Home', href: '#home' },
   { label: 'Quick Start', href: '#quick-start' },
   { label: 'Features', href: '#features' },
-  { label: 'Live Demo', href: '#live-demo' },
   { label: 'Plugin Setup', href: '#plugin-setup' },
   { label: 'MCP Setup', href: '#mcp-setup' },
   { label: 'Skill.md', href: '#skill-md' },
@@ -48,7 +46,7 @@ export default function Docs() {
 
   // Track active section on scroll
   useEffect(() => {
-    const ids = ['home', 'quick-start', 'features', 'live-demo', 'plugin-setup', 'mcp-setup', 'skill-md', 'demo', 'team']
+    const ids = ['home', 'quick-start', 'features', 'plugin-setup', 'mcp-setup', 'skill-md', 'demo', 'team']
     const observer = new IntersectionObserver(
       (entries) => {
         for (const entry of entries) {
@@ -248,7 +246,6 @@ export default function Docs() {
 
           <QuickStartSection />
           <DocsFeaturesSection />
-          <LiveDemoSection />
           <PluginSetupSection />
           <MCPSetupSection />
           <SkillSection />
