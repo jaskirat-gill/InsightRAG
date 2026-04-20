@@ -509,7 +509,7 @@ The MCP server requires a valid bearer token from the sync service auth system.
 3. Find the **Session Tokens** section
 4. Click **Copy** next to **Access Token**
 
-<!-- Screenshot: Settings General tab showing the Access Token field with Copy button -->
+<img src="screenshots/mcp_access_token.png" alt="" width="700">
 
 Keep this token safe. It grants access to all knowledge bases associated with your account.
 
@@ -566,10 +566,13 @@ The stdio wrapper keeps stdout clean for the MCP protocol.
 If you are using OpenWebUI:
 
 1. Go to **Settings → Admin Settings → External Tools**
+<img src="screenshots/mcp_set_token_1.png" alt="Document processing status view" width="700">
+<img src="screenshots/mcp_set_token_2.png" alt="Document processing status view" width="700">
 2. Click **+** → change type to **MCP** (not OpenAPI)
 3. Set URL to `http://host.docker.internal:8002/mcp`
 4. Set bearer auth with the token from Step 11
 5. Enter an ID and name → click **Check Connection** → **Save**
+<img src="screenshots/mcp_set_token_3.png" alt="Document processing status view" width="700">
 
 <!-- Screenshot: OpenWebUI External Tools settings page with MCP configuration -->
 
